@@ -5,6 +5,8 @@ Prod-safe crypto monitor with:
 - Parallel orchestrator
 - YAML-driven job configuration
 
+Note: This repository is published as "fluffy-carnival" on GitHub.
+
 ## Quick start (Windows / PowerShell)
 
 Prerequisites:
@@ -14,9 +16,9 @@ Prerequisites:
 ### 1) Scheduler mode
 
 ```powershell
-Set-Location "C:\Users\To the moon\Downloads\new_crypto_prodsafe"
+Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
 $env:CRYPTO_MONITOR_MODE = "scheduler"
-.\.venv\Scripts\python.exe .\main.py
+.\\.venv\\Scripts\\python.exe .\\main.py
 ```
 
 There is no API server in this build; everything runs headless from the scheduler.
@@ -47,8 +49,8 @@ Supported time units: ms, s, m, h, d.
 ## Dev and Tests
 
 ```powershell
-Set-Location "C:\Users\To the moon\Downloads\new_crypto_prodsafe"
-.\.venv\Scripts\python.exe -m pytest -q
+Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
+.\\.venv\\Scripts\\python.exe -m pytest -q
 ```
 
 
@@ -92,4 +94,3 @@ Helper script (PowerShell):
 - See the action plan with sprint breakdown: `improvements/action_plan.md`
 - Follow the PR template: `.github/pull_request_template.md`
 - Prototype of a tiny PR (test-first): `improvements/prototype/README.md` and `improvements/prototype/test_stub.py`
-
