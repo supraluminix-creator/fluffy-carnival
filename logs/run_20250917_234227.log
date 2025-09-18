@@ -1,0 +1,78 @@
+{"run_log": "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe\\logs\\run_20250917_234227.log", "rotating_log": "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe\\logs\\app.log", "event": "Logging initialized", "timestamp": "2025-09-17T21:42:27.464859Z", "level": "info"}
+{"mode": "scheduler", "enable_sched": true, "sched_cfg": "scheduler/jobs.yaml", "event": "Starting Crypto Monitor", "timestamp": "2025-09-17T21:42:27.470859Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "macro", "every": 300.0, "func": "pipeline.collectors.market:fetch_macro", "args": ["bitcoin"], "kwargs": ["cmc_api_key"], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.494858Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "defillama", "every": 900.0, "func": "pipeline.collectors.defillama:fetch_defillama_tvl", "args": ["ethereum"], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.496858Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "onchain_tx", "every": 1800.0, "func": "pipeline.collectors.onchain:fetch_txcount", "args": ["BTC"], "kwargs": ["etherscan_api_key"], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.497862Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "onchain_hashrate", "every": 1800.0, "func": "pipeline.collectors.onchain:fetch_hashrate", "args": ["BTC"], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.498860Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "onchain_sopr", "every": 1800.0, "func": "pipeline.collectors.onchain:fetch_sopr", "args": ["BTC"], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.499863Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "derivatives_oi", "every": 300.0, "func": "pipeline.collectors.derivatives:fetch_bybit_oi", "args": ["BTCUSDT"], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.500863Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "derivatives_lsr", "every": 300.0, "func": "pipeline.collectors.derivatives:fetch_bybit_long_short_ratio", "args": ["BTCUSDT"], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.501861Z", "level": "info"}
+Adding job tentatively -- it will be properly scheduled when the scheduler starts
+{"id": "sentiment_fg", "every": 3600.0, "func": "pipeline.collectors.sentiment:fetch_fear_greed", "args": [], "kwargs": [], "event": "job_registered", "timestamp": "2025-09-17T21:42:27.502859Z", "level": "info"}
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Added job "task_wrapper" to job store "default"
+Scheduler started
+{"jobs": ["macro", "defillama", "onchain_tx", "onchain_hashrate", "onchain_sopr", "derivatives_oi", "derivatives_lsr", "sentiment_fg"], "event": "Scheduler started", "timestamp": "2025-09-17T21:42:27.510861Z", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:13.009960], next run at: 2025-09-17 23:47:40 CEST)" (scheduled at 2025-09-17 21:42:27.493863+00:00)
+{"task": "macro", "ts": "2025-09-17T21:42:27.513860Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.513860Z", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-17T21:42:27.514860Z", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.514860Z", "level": "info"}
+{"task": "macro", "duration": 0.001996, "event": "task_end", "timestamp": "2025-09-17T21:42:27.515856Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:13.009960], next run at: 2025-09-17 23:47:40 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:15:35.456603], next run at: 2025-09-17 23:58:02 CEST)" (scheduled at 2025-09-17 21:42:27.496858+00:00)
+{"task": "defillama", "ts": "2025-09-17T21:42:27.516863Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.516863Z", "level": "info"}
+{"chain": "ethereum", "event": "defillama_cache_hit", "timestamp": "2025-09-17T21:42:27.518856Z", "level": "info"}
+{"task": "defillama", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.519865Z", "level": "info"}
+{"task": "defillama", "duration": 0.003999, "event": "task_end", "timestamp": "2025-09-17T21:42:27.520862Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:15:35.456603], next run at: 2025-09-17 23:58:02 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:29:15.132332], next run at: 2025-09-18 00:11:42 CEST)" (scheduled at 2025-09-17 21:42:27.497862+00:00)
+{"task": "onchain_tx", "ts": "2025-09-17T21:42:27.522859Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.522859Z", "level": "info"}
+{"symbol": "BTC", "event": "onchain_cache_hit", "timestamp": "2025-09-17T21:42:27.523867Z", "level": "info"}
+{"task": "onchain_tx", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.524862Z", "level": "info"}
+{"task": "onchain_tx", "duration": 0.002998, "event": "task_end", "timestamp": "2025-09-17T21:42:27.525857Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:15.132332], next run at: 2025-09-18 00:11:42 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:29:59.239984], next run at: 2025-09-18 00:12:26 CEST)" (scheduled at 2025-09-17 21:42:27.498860+00:00)
+{"task": "onchain_hashrate", "ts": "2025-09-17T21:42:27.528858Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.528858Z", "level": "info"}
+{"symbol": "BTC", "event": "onchain_cache_hit", "timestamp": "2025-09-17T21:42:27.529859Z", "level": "info"}
+{"task": "onchain_hashrate", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.530859Z", "level": "info"}
+{"task": "onchain_hashrate", "duration": 0.002998, "event": "task_end", "timestamp": "2025-09-17T21:42:27.531856Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:59.239984], next run at: 2025-09-18 00:12:26 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:29:49.659312], next run at: 2025-09-18 00:12:17 CEST)" (scheduled at 2025-09-17 21:42:27.499863+00:00)
+{"task": "onchain_sopr", "ts": "2025-09-17T21:42:27.532856Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.532856Z", "level": "info"}
+{"symbol": "BTC", "event": "onchain_cache_hit", "timestamp": "2025-09-17T21:42:27.533856Z", "level": "info"}
+{"task": "onchain_sopr", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.533856Z", "level": "info"}
+{"task": "onchain_sopr", "duration": 0.002, "event": "task_end", "timestamp": "2025-09-17T21:42:27.534856Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:49.659312], next run at: 2025-09-18 00:12:17 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:05:03.984474], next run at: 2025-09-17 23:47:31 CEST)" (scheduled at 2025-09-17 21:42:27.500863+00:00)
+{"task": "derivatives_oi", "ts": "2025-09-17T21:42:27.535860Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.535860Z", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-17T21:42:27.536858Z", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.537863Z", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.002003, "event": "task_end", "timestamp": "2025-09-17T21:42:27.537863Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:03.984474], next run at: 2025-09-17 23:47:31 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:53.238123], next run at: 2025-09-17 23:47:20 CEST)" (scheduled at 2025-09-17 21:42:27.501861+00:00)
+{"task": "derivatives_lsr", "ts": "2025-09-17T21:42:27.539867Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.539867Z", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-17T21:42:27.539867Z", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.540868Z", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.001992, "event": "task_end", "timestamp": "2025-09-17T21:42:27.541859Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:53.238123], next run at: 2025-09-17 23:47:20 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:57:45.239652], next run at: 2025-09-18 00:40:12 CEST)" (scheduled at 2025-09-17 21:42:27.501861+00:00)
+{"task": "sentiment_fg", "ts": "2025-09-17T21:42:27.544867Z", "event": "task_start", "timestamp": "2025-09-17T21:42:27.544867Z", "level": "info"}
+{"metric": "fear_greed", "event": "sentiment_cache_hit", "timestamp": "2025-09-17T21:42:27.545876Z", "level": "info"}
+{"task": "sentiment_fg", "event": "task_ok", "timestamp": "2025-09-17T21:42:27.546875Z", "level": "info"}
+{"task": "sentiment_fg", "duration": 0.002008, "event": "task_end", "timestamp": "2025-09-17T21:42:27.546875Z", "level": "info"}
+Job "task_wrapper (trigger: interval[0:57:45.239652], next run at: 2025-09-18 00:40:12 CEST)" executed successfully
+Scheduler has been shut down
+{"event": "Application stopped by user", "timestamp": "2025-09-17T21:46:07.709023Z", "level": "info"}

@@ -1,0 +1,6 @@
+timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
+2025-09-15T22:25:51.549Z,bitcoin,,,macro,"{'price': 115416, 'volume_24h': 47991056203, 'marketcap': 2300384878298, 'dominance': 1}",coingecko,1.0
+,BTC,,,txcount,914870,blockchain.info,1.0
+,BTC,,,hashrate,994099077671.0,blockchain.info,1.0
+1757975100000,,BTCUSDT,,open_interest,88547.554,binance,0.8
+1757894400,,,,fear_greed,"{'value': '53', 'classification': 'Neutral', 'time_until_update': '6153'}",alternative.me,1.0
