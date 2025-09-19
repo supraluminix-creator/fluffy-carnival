@@ -14,7 +14,7 @@ from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
-cache = Cache(".cache")
+cache: Cache = Cache(".cache")
 
 DEFI_LLAMA_LATENCY = Summary('defillama_latency_seconds', 'Latency of DefiLlama API calls')
 DEFI_LLAMA_ERRORS = Counter('defillama_errors_total', 'Total DefiLlama API errors')

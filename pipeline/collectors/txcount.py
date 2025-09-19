@@ -2,7 +2,7 @@
 Collector transaction count (on-chain)
 Prod-safe, modulaire, testable
 """
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import diskcache
 import httpx
@@ -16,23 +16,28 @@ TXCOUNT_LATENCY = Summary('txcount_latency_seconds', 'Latency of TxCount API cal
 TXCOUNT_ERRORS = Counter('txcount_errors_total', 'Total TxCount API errors')
 TXCOUNT_SUCCESS = Counter('txcount_success_total', 'Total TxCount API successes')
 
+class TxCountData(TypedDict, total=False):
+    symbol: str
+    txcount: int
+
+
 class TxCountCollector:
     """Collecteur nombre de transactions on-chain."""
     BASE_URL = "https://api.blockchain.info/charts/n-transactions"
     _cache_ttl = 300  # 5 min
-    _disk_cache = diskcache.Cache(".cache_txcount")
+    _disk_cache: diskcache.Cache = diskcache.Cache(".cache_txcount")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=30))
     async def fetch_txcount_async(self, symbol: str = "BTC") -> dict[str, Any] | None:
         cache_key = f"txcount:{symbol}"
         cached = self._disk_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        if isinstance(cached, dict):
+            return cast(dict[str, Any], cached)
         params = {"timespan": "1days", "format": "json"}
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(self.BASE_URL, params=params)
             resp.raise_for_status()
-            data = resp.json()
+            data = cast(dict[str, Any], resp.json())
         self._disk_cache.set(cache_key, data, expire=self._cache_ttl)
         return data
 
@@ -48,7 +53,8 @@ class TxCountCollector:
             blockcount = int(resp.text)
             TXCOUNT_SUCCESS.inc()
             log.info("txcount_success", symbol=symbol, blockcount=blockcount)
-            return {"symbol": symbol, "txcount": blockcount}
+            result: dict[str, Any] = {"symbol": symbol, "txcount": blockcount}
+            return result
         except Exception as e:
             log.error("txcount_main_error", symbol=symbol, error=str(e))
             # Fallback Etherscan (mock, à compléter avec clé API)
