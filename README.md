@@ -1,5 +1,7 @@
 # new_crypto_prodsafe
 
+[![CI](https://github.com/supraluminix-creator/fluffy-carnival/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/supraluminix-creator/fluffy-carnival/actions/workflows/ci.yml)
+
 Prod-safe crypto monitor with:
 - Central scheduler (APScheduler) with jitter
 - Parallel orchestrator
