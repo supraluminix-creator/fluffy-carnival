@@ -15,7 +15,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 try:
     import yaml  # type: ignore
-except Exception:
+except Exception:  # noqa: BLE001
     yaml = None  # type: ignore
 
 log = structlog.get_logger(__name__)
@@ -27,8 +27,9 @@ try:
     try:
         # Info is available in newer prometheus_client versions
         from prometheus_client import Info  # type: ignore
+
         _HAS_INFO = True
-    except Exception:
+    except Exception:  # noqa: BLE001
         Info = None  # type: ignore
         _HAS_INFO = False
 
@@ -51,7 +52,23 @@ try:
         "crypto_task_duration_seconds",
         "Task duration in seconds",
         labelnames=("task",),
-        buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
+        buckets=(
+            0.001,
+            0.005,
+            0.01,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2.5,
+            5,
+            10,
+            30,
+            60,
+            120,
+            300,
+        ),
     )
     CRYPTO_TASK_ERROR_RATE = Gauge(
         "crypto_task_error_rate",
@@ -79,7 +96,7 @@ try:
             labelnames=("version", "git_sha", "run_id"),
         )
     _PROM_AVAILABLE = True
-except Exception:
+except Exception:  # noqa: BLE001
     # Metrics library not installed; metrics will be disabled gracefully
     CRYPTO_TASK_START = None  # type: ignore
     CRYPTO_TASK_OK = None  # type: ignore
@@ -112,6 +129,7 @@ _STATE_DIR = Path(os.getenv("STATE_DIR", "data"))
 _STATE_DIR.mkdir(parents=True, exist_ok=True)
 _STATE_FILE = _STATE_DIR / "scheduler_counters.json"
 
+
 def _load_state() -> None:
     try:
         if _STATE_FILE.exists():
@@ -123,9 +141,14 @@ def _load_state() -> None:
                 _ok_counts[k] = int(v)
             for k, v in err.items():
                 _err_counts[k] = int(v)
-            log.info("counters_state_loaded", path=str(_STATE_FILE), tasks=len(_ok_counts))
-    except Exception as e:
+            log.info(
+                "counters_state_loaded",
+                path=str(_STATE_FILE),
+                tasks=len(_ok_counts),
+            )
+    except Exception as e:  # noqa: BLE001
         log.warning("counters_state_load_failed", error=str(e))
+
 
 def _save_state() -> None:
     try:
@@ -135,8 +158,9 @@ def _save_state() -> None:
         }
         with _STATE_FILE.open("w", encoding="utf-8") as f:
             json.dump(tmp, f)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log.warning("counters_state_save_failed", error=str(e))
+
 
 # Load state at module import
 _load_state()
@@ -151,14 +175,14 @@ async def task_wrapper(
     fn: Callable[..., Any],
     args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
-):
+) -> None:
     start = datetime.now(UTC)
     log.info("task_start", task=name, ts=start.isoformat())
     # Prometheus: increment start
     if _PROM_AVAILABLE and CRYPTO_TASK_START is not None:
         try:
             CRYPTO_TASK_START.labels(task=name).inc()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     try:
         kwargs = kwargs or {}
@@ -169,33 +193,31 @@ async def task_wrapper(
         if _PROM_AVAILABLE and CRYPTO_TASK_OK is not None:
             try:
                 CRYPTO_TASK_OK.labels(task=name).inc()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
         _ok_counts[name] += 1
         # Mark readiness after first success
         if (CRYPTO_READY is not None) or (CRYPTO_READY_TS is not None):
             try:
-                # mark readiness
                 if CRYPTO_READY is not None:
                     CRYPTO_READY.set(1)
-                global _READY_TS
+                global _READY_TS  # noqa: PLW0603
                 if _READY_TS is None:
                     _READY_TS = datetime.now(UTC).timestamp()
-                    # Emit a one-time readiness log line for log-based health checks
                     try:
                         log.info("ready", ready_ts=_READY_TS)
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                     if CRYPTO_READY_TS is not None:
                         CRYPTO_READY_TS.set(_READY_TS)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
     except Exception as e:  # pragma: no cover - sanity log
         log.error("task_err", task=name, error=str(e))
         if _PROM_AVAILABLE and CRYPTO_TASK_ERR is not None:
             try:
                 CRYPTO_TASK_ERR.labels(task=name).inc()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
         _err_counts[name] += 1
     finally:
@@ -205,16 +227,15 @@ async def task_wrapper(
         if _PROM_AVAILABLE and CRYPTO_TASK_DURATION is not None:
             try:
                 CRYPTO_TASK_DURATION.labels(task=name).observe(duration)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
-        # Compute and expose error rate
         total = _ok_counts[name] + _err_counts[name]
         if total > 0:
             err_rate = _err_counts[name] / total
             if _PROM_AVAILABLE and CRYPTO_TASK_ERROR_RATE is not None:
                 try:
                     CRYPTO_TASK_ERROR_RATE.labels(task=name).set(err_rate)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             if total >= _ERR_RATE_MIN_COUNT and err_rate >= _ERR_RATE_WARN:
                 log.warning(
@@ -226,7 +247,6 @@ async def task_wrapper(
                     err=_err_counts[name],
                     threshold=_ERR_RATE_WARN,
                 )
-        # Persist counts
         _save_state()
 
 
@@ -246,22 +266,19 @@ def set_build_info(
             _BUILD_INFO["version"] = version
         if git_sha:
             _BUILD_INFO["git_sha"] = git_sha
-        # Set metric
         if _PROM_AVAILABLE and CRYPTO_BUILD_INFO is not None:
             try:
-                # If Info metric type available
                 if hasattr(CRYPTO_BUILD_INFO, "info"):
                     CRYPTO_BUILD_INFO.info(dict(_BUILD_INFO))  # type: ignore[attr-defined]
                 else:
-                    # Gauge with labels
                     CRYPTO_BUILD_INFO.labels(
                         version=_BUILD_INFO["version"],
                         git_sha=_BUILD_INFO["git_sha"],
                         run_id=_BUILD_INFO["run_id"],
                     ).set(1)  # type: ignore[call-arg]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
 
@@ -269,7 +286,10 @@ def get_status_snapshot() -> dict[str, Any]:
     """Return current runtime status suitable for a /health endpoint."""
     try:
         started_iso = _STARTED_AT.isoformat() + "Z"
-        total_tasks = {k: {"ok": _ok_counts.get(k, 0), "err": _err_counts.get(k, 0)} for k in set(list(_ok_counts.keys()) + list(_err_counts.keys()))}
+        total_tasks = {
+            k: {"ok": _ok_counts.get(k, 0), "err": _err_counts.get(k, 0)}
+            for k in set(list(_ok_counts.keys()) + list(_err_counts.keys()))
+        }
         ready = _READY_TS is not None
         return {
             "started_at": started_iso,
@@ -278,7 +298,7 @@ def get_status_snapshot() -> dict[str, Any]:
             "tasks": total_tasks,
             "build": dict(_BUILD_INFO),
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
 
@@ -288,7 +308,7 @@ def _import_callable(dotted: str) -> Callable[[], Any]:
     mod_name, func_name = dotted.split(":", 1)
     mod = importlib.import_module(mod_name)
     fn = getattr(mod, func_name)
-    if not callable(fn):
+    if not callable(fn):  # noqa: PLR1704
         raise TypeError(f"Imported object is not callable: {dotted}")
     return fn
 
@@ -306,7 +326,7 @@ def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
     if not isinstance(jobs, list):
         log.warning("scheduler_config_invalid", reason="jobs is not a list")
         return None
-    # Expand any ${ENV_VAR} strings inside kwargs
+
     def _expand_env(val: Any) -> Any:
         if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
             env_name = val[2:-1]
@@ -316,6 +336,7 @@ def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
         if isinstance(val, list):
             return [_expand_env(v) for v in val]
         return val
+
     expanded: list[dict[str, Any]] = []
     for j in jobs:
         if isinstance(j, dict):
@@ -382,12 +403,24 @@ def build_scheduler() -> AsyncIOScheduler:
                     misfire_grace_time=60,
                     max_instances=1,
                 )
-                log.info("job_registered", id=job_id, every=seconds, func=func_path, args=args, kwargs=list(kwargs.keys()))
-            except Exception as e:
-                log.error("job_register_error", id=job_id, error=str(e), job=job)
+                log.info(
+                    "job_registered",
+                    id=job_id,
+                    every=seconds,
+                    func=func_path,
+                    args=args,
+                    kwargs=list(kwargs.keys()),
+                )
+            except Exception as e:  # noqa: BLE001
+                log.error(
+                    "job_register_error", id=job_id, error=str(e), job=job
+                )
     else:
-        async def _noop():
+
+        async def _noop():  # noqa: D401
+            """No-op default coroutine when no scheduler file provided."""
             await asyncio.sleep(0.05)
+
         defaults = [
             ("macro", _noop, 300),
             ("onchain", _noop, 300),
@@ -413,3 +446,8 @@ def build_scheduler() -> AsyncIOScheduler:
             log.info("job_registered_default", id=jid, every=sec)
 
     return sched
+
+
+async def noop():
+    """Fallback coroutine when an expected async function is missing."""
+    log
