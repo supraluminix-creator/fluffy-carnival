@@ -58,17 +58,25 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = ["api.*"]
 disallow_untyped_defs = true
+ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.defillama"]
 disallow_untyped_defs = true
+ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.txcount"]
 disallow_untyped_defs = true
+ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.hashrate"]
+disallow_untyped_defs = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.altme"]
 disallow_untyped_defs = true
 ignore_missing_imports = false
 

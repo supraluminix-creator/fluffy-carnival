@@ -18,26 +18,29 @@ This document tracks the staged rollout of unified linting (Ruff) and progressiv
 - ⏳ Optional: Evaluate enabling `RUF100` and selective `ANN` (annotation) rules once legacy modules shrink.
 
 ### Phase 3 – Typing Tightening
-Progress:
-- ✅ Added mypy override: `disallow_untyped_defs = true` for `api.*` (in addition to existing `scheduler.*`).
-- ✅ Added stub packages: `types-requests`, `types-PyYAML`, `pandas-stubs` already present.
-- ✅ Removed an unused `# type: ignore` in `scheduler/runner.py` (keeps codebase tidy for future enabling of `warn_unused_ignores`).
-- ✅ Pre-commit hook updated to include new stubs (ensuring local consistency).
-- ❌ (Deferred) Enabling `RUF100` produced 146 issues (mostly tests / legacy scripts); postponed to a dedicated cleanup slice to avoid noisy diff.
-- ⏳ To do: Introduce `warn_unused_configs = true` and then gradually dial down `ignore_missing_imports` after stubs coverage audit.
-- ⏳ To do: Begin migrating selected collectors to stricter typing (pick 1–2 high-signal modules first).
+Updated Progress:
+- ✅ `scheduler.*` and `api.*` under `disallow_untyped_defs`.
+- ✅ Collectors strict & import-tightened: `defillama`, `txcount`, `hashrate`, `altme` (each with explicit TypedDict models & cache typing).
+- ✅ Local stub for `diskcache` (minimal surface: Cache ctor/get/set) + documented in `typings/README.md`.
+- ✅ Stub packages installed & verified via venv: `types-requests`, `types-PyYAML`, `pandas-stubs`.
+- ✅ `warn_unused_configs = true` enabled (no spurious warnings).
+- ✅ Per-module pilot of `ignore_missing_imports = false` for: collectors above + `api.*`.
+- ✅ Removed stray unused type ignore in scheduler.
+- ❌ (Deferred) `RUF100` adoption (postpone until legacy formatting churn reduced).
+- ⏳ Next: Extend strict/import-tight set to remaining high-value collectors (e.g., WebSocket feeds) before considering global flip of `ignore_missing_imports`.
 
-Next Slice Candidates:
-1. Add `warn_unused_configs = true` (low risk) — verify zero noise.
-2. Audit imports causing implicit Any (sample collectors) and list required stubs or explicit Protocols.
-3. Pilot `disallow_untyped_defs` on one collector module (e.g., `pipeline/collectors/defillama.py`).
-4. Re-run experiment enabling `RUF100` limited to `pipeline/` (exclude tests) using per-file exclude to scope effort.
+Refined Next Slice Candidates:
+1. Add another network-facing collector (e.g., websocket module) to strict list; introduce typed message schema.
+2. Evaluate remaining collectors for external libs lacking stubs; preemptively stub if low-risk.
+3. Prototype enabling `disallow_incomplete_defs` in a single module to assess noise level.
+4. Target small controlled subset for `RUF100` trial (exclude legacy exporters/reporters) to measure autofix ratio.
 
-Exit Criteria for Phase 3:
-- Scheduler + API strict (done)
-- At least 1 collector strict with no unresolved mypy errors
-- Stubs in place for common external libs (requests/httpx/yaml/pandas) — (done)
-- Roadmap updated (this section)
+Revised Exit Criteria for Phase 3 (on track):
+- ✅ Scheduler + API strict & import-clean.
+- ✅ ≥4 collectors strict (current: 4).
+- ✅ Core external stub coverage (requests/httpx/yaml/pandas/diskcache) achieved.
+- ✅ Documented stub policy (`typings/README.md`).
+- ⏳ Decision point: readiness to widen `ignore_missing_imports = false` beyond pilot set.
 
 ### Phase 4 – Full Project Coverage
 - Expand Ruff enforced scope to entire repository (drop non-blocking full scan step).
