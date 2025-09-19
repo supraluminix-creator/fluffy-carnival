@@ -12,5 +12,5 @@ repos:
     hooks:
       - id: mypy
         name: mypy (scheduler, api, collectors)
-        additional_dependencies: ["types-PyYAML"]
+        additional_dependencies: ["types-PyYAML", "types-requests"]
         args: ["--config-file=pyproject.toml", "scheduler", "api"]

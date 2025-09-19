@@ -52,6 +52,10 @@ exclude = ["^\\.venv/", "^build/", "^dist/"]
 module = ["scheduler.*"]
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["api.*"]
+disallow_untyped_defs = true
+
 # Future tightening roadmap (not yet enabled):
 # disallow_untyped_defs = true
 # disallow_incomplete_defs = true

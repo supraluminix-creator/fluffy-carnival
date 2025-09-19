@@ -15,7 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 try:
-    import yaml  # type: ignore[import-untyped]
+    import yaml
 except Exception:  # pragma: no cover - optional dependency
     yaml = None
 

@@ -18,9 +18,26 @@ This document tracks the staged rollout of unified linting (Ruff) and progressiv
 - ⏳ Optional: Evaluate enabling `RUF100` and selective `ANN` (annotation) rules once legacy modules shrink.
 
 ### Phase 3 – Typing Tightening
-- Enable: `disallow_untyped_defs = true` for `scheduler/` and `api/` first.
-- Add `warn_unused_configs = true` (sanity) and remove broad `ignore_missing_imports` by adding stub packages (`types-PyYAML`, etc.).
-- Gradually require explicit return types for new/modified functions (code review gate).
+Progress:
+- ✅ Added mypy override: `disallow_untyped_defs = true` for `api.*` (in addition to existing `scheduler.*`).
+- ✅ Added stub packages: `types-requests`, `types-PyYAML`, `pandas-stubs` already present.
+- ✅ Removed an unused `# type: ignore` in `scheduler/runner.py` (keeps codebase tidy for future enabling of `warn_unused_ignores`).
+- ✅ Pre-commit hook updated to include new stubs (ensuring local consistency).
+- ❌ (Deferred) Enabling `RUF100` produced 146 issues (mostly tests / legacy scripts); postponed to a dedicated cleanup slice to avoid noisy diff.
+- ⏳ To do: Introduce `warn_unused_configs = true` and then gradually dial down `ignore_missing_imports` after stubs coverage audit.
+- ⏳ To do: Begin migrating selected collectors to stricter typing (pick 1–2 high-signal modules first).
+
+Next Slice Candidates:
+1. Add `warn_unused_configs = true` (low risk) — verify zero noise.
+2. Audit imports causing implicit Any (sample collectors) and list required stubs or explicit Protocols.
+3. Pilot `disallow_untyped_defs` on one collector module (e.g., `pipeline/collectors/defillama.py`).
+4. Re-run experiment enabling `RUF100` limited to `pipeline/` (exclude tests) using per-file exclude to scope effort.
+
+Exit Criteria for Phase 3:
+- Scheduler + API strict (done)
+- At least 1 collector strict with no unresolved mypy errors
+- Stubs in place for common external libs (requests/httpx/yaml/pandas) — (done)
+- Roadmap updated (this section)
 
 ### Phase 4 – Full Project Coverage
 - Expand Ruff enforced scope to entire repository (drop non-blocking full scan step).
