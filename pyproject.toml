@@ -43,6 +43,7 @@ python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_return_any = true
+warn_unused_configs = true
 strict_optional = false
 check_untyped_defs = true
 no_implicit_optional = true
@@ -54,6 +55,10 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = ["api.*"]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.defillama"]
 disallow_untyped_defs = true
 
 # Future tightening roadmap (not yet enabled):

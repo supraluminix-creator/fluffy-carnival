@@ -5,7 +5,7 @@ Prod-safe, async, retry/backoff, cache TTL, historique TVL
 import asyncio
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import httpx
 import structlog
@@ -20,8 +20,13 @@ DEFI_LLAMA_LATENCY = Summary('defillama_latency_seconds', 'Latency of DefiLlama 
 DEFI_LLAMA_ERRORS = Counter('defillama_errors_total', 'Total DefiLlama API errors')
 DEFI_LLAMA_SUCCESS = Counter('defillama_success_total', 'Total DefiLlama API successes')
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-async def get_chain_data(chain: str) -> dict[str, Any] | None:
+class ChainData(TypedDict, total=False):
+    name: str
+    tvl: float | int | None
+    # Other dynamic keys are tolerated.
+
+
+async def get_chain_data(chain: str) -> ChainData | None:
     """
     Get chain data from DefiLlama API with proper error handling.
     """
@@ -30,21 +35,24 @@ async def get_chain_data(chain: str) -> dict[str, Any] | None:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=15)
             resp.raise_for_status()
-            chains_data = resp.json()
+            chains_data = cast(list[dict[str, Any]], resp.json())
             for chain_data in chains_data:
                 if chain_data.get("name", "").lower() == chain.lower():
-                    return chain_data
+                    return cast(ChainData, chain_data)
             log.error("defillama_chain_not_found", chain=chain)
             return None
     except httpx.HTTPError as e:
-        log.error("defillama_http_error", chain=chain, status_code=getattr(e.response, 'status_code', 'unknown'))
+        status_code = getattr(getattr(e, "response", None), "status_code", "unknown")
+        log.error("defillama_http_error", chain=chain, status_code=status_code)
         raise
     except Exception as e:
         log.error("defillama_data_error", chain=chain, error_type=type(e).__name__, error_msg=str(e))
         raise
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-async def get_historical_chain_data(chain: str) -> list[list | dict] | None:
+HistoricalPoint = list[Any] | dict[str, Any]
+
+
+async def get_historical_chain_data(chain: str) -> list[HistoricalPoint] | None:
     """
     Get historical TVL data for a specific chain using the historical endpoint.
     This endpoint provides daily TVL data with timestamps.
@@ -66,9 +74,9 @@ async def get_historical_chain_data(chain: str) -> list[list | dict] | None:
             if not historical_data or not isinstance(historical_data, list):
                 log.error("defillama_invalid_historical_data", chain=chain, data_type=type(historical_data).__name__)
                 return None
-            return historical_data
+            return cast(list[HistoricalPoint], historical_data)
     except httpx.HTTPError as e:
-        status_code = getattr(e.response, 'status_code', 'unknown')
+        status_code = getattr(getattr(e, 'response', None), 'status_code', 'unknown')
         log.error(
             "defillama_historical_http_error",
             chain=chain,
@@ -79,7 +87,10 @@ async def get_historical_chain_data(chain: str) -> list[list | dict] | None:
         log.error("defillama_historical_error", chain=chain, error_type=type(e).__name__, error_msg=str(e))
         return None
 
-def parse_historical_point(point: list | dict) -> tuple | None:
+ParsedPoint = tuple[int, float]
+
+
+def parse_historical_point(point: HistoricalPoint) -> ParsedPoint | None:
     """
     Parse a historical data point to (timestamp, tvl).
     Supports both [timestamp, tvl] and {'date': ..., 'tvl': ...} formats.
@@ -100,7 +111,10 @@ def parse_historical_point(point: list | dict) -> tuple | None:
         log.warning("defillama_parse_point_error", error=str(e), point=point)
     return None
 
-def calculate_historical_values(historical_data: list[list | dict], current_tvl: float) -> dict[str, float]:
+def calculate_historical_values(
+    historical_data: list[HistoricalPoint] | None,
+    current_tvl: float | int,
+) -> dict[str, float]:
     """
     Calculate historical TVL values from historical data.
     Accepts both list-of-lists and list-of-dicts.
@@ -119,22 +133,23 @@ def calculate_historical_values(historical_data: list[list | dict], current_tvl:
         "tvlPrevMonth": now - 2592000
     }
     # Parse all points to (timestamp, tvl)
-    parsed_points = []
-    for point in historical_data:
-        parsed = parse_historical_point(point)
-        if parsed:
-            parsed_points.append(parsed)
+    parsed_points: list[ParsedPoint] = []
+    if historical_data is not None:
+        for point in historical_data:
+            parsed = parse_historical_point(point)
+            if parsed:
+                parsed_points.append(parsed)
     # For each target, find closest
-    def find_closest(target):
-        closest_value = current_tvl
+    def find_closest(target: int) -> float:
+        closest_value: float = float(current_tvl) if isinstance(current_tvl, (int, float)) else 0.0
         min_diff = float('inf')
         for ts, val in parsed_points:
             diff = abs(ts - target)
             if diff < min_diff:
                 min_diff = diff
-                closest_value = val
+                closest_value = float(val)
         return closest_value
-    results = {k: find_closest(ts) for k, ts in targets.items()}
+    results: dict[str, float] = {k: find_closest(ts) for k, ts in targets.items()}
     log.info("defillama_historical_calculated", **results)
     return results
 
@@ -150,14 +165,22 @@ async def fetch_defillama_tvl(
     key = f"defillama_{chain}"
     if key in cache:
         log.info("defillama_cache_hit", chain=chain)
-        return cache[key]
+        cached = cache.get(key)
+        if isinstance(cached, dict):
+            return cast(dict[str, Any], cached)
+        return None
     try:
         # Get current TVL data
         chain_data = await get_chain_data(chain)
         if not chain_data or chain_data.get("tvl") is None:
             log.error("defillama_no_tvl_data", chain=chain)
             return None
-        current_tvl = chain_data.get("tvl")
+        current_tvl_raw = chain_data.get("tvl")
+        try:
+            current_tvl: float = float(current_tvl_raw)
+        except Exception:
+            log.error("defillama_invalid_tvl_type", chain=chain, tvl_type=type(current_tvl_raw).__name__)
+            return None
 
         # Get historical data
         historical_data = await get_historical_chain_data(chain)
@@ -170,7 +193,7 @@ async def fetch_defillama_tvl(
             any(historical_values[k] != current_tvl for k in historical_values)
         )
 
-        result = {
+        result: dict[str, Any] = {
             "timestamp": int(time.time()),
             "chain": chain,
             "metric_name": "defi_tvl",
@@ -206,7 +229,7 @@ class DefillamaCollector:
     """
 
     def __init__(self, cache_ttl: int = 900):
-        self.cache_ttl = cache_ttl
+        self.cache_ttl: int = cache_ttl
 
     async def fetch_tvl_async(self, chain: str) -> dict[str, Any] | None:
         return await fetch_defillama_tvl(chain, cache_ttl=self.cache_ttl)
