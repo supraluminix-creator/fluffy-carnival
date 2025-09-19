@@ -67,6 +67,11 @@ disallow_untyped_defs = true
 module = ["pipeline.collectors.txcount"]
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.hashrate"]
+disallow_untyped_defs = true
+ignore_missing_imports = false
+
 # Future tightening roadmap (not yet enabled):
 # disallow_untyped_defs = true
 # disallow_incomplete_defs = true
