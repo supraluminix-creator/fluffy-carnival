@@ -1,0 +1,37 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+]
+ignore = [
+  "E501",  # line length handled by formatter/editor
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline", "scheduler", "api"]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+exclude = [
+  ".git",
+  "__pycache__",
+  ".venv",
+]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+strict_optional = false
+check_untyped_defs = true
+no_implicit_optional = true
+exclude = [
+  "^\\.venv/",
+  "^build/",
+  "^dist/",
+]
