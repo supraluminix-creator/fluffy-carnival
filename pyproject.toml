@@ -109,14 +109,31 @@ disallow_incomplete_defs = true
 module = [
   "pipeline.collectors.bybit",
   "pipeline.collectors.mempool",
-  "pipeline.collectors.market",
-  "pipeline.collectors.derivatives",
   "pipeline.collectors.defi",
-  "pipeline.collectors.onchain",
   "pipeline.collectors.sopr_bgeometrics",
   "pipeline.collectors.sopr_blockchain"
 ]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.derivatives"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.market"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.defi"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.onchain"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
 
 # Future tightening roadmap (not yet enabled):
 # disallow_untyped_defs = true

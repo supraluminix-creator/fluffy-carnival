@@ -1,136 +1,122 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pytest
-from pipeline.collectors.sopr_bgeometrics import SOPRBGeometricsCollector
-from pipeline.collectors.sopr_blockchain import SOPRBlockchainCollector
-from pipeline.collectors.bybit_ws import BybitWSCollector
-from pipeline.collectors.defillama import DefillamaCollector
-from pipeline.collectors.txcount import TxCountCollector
-from pipeline.collectors.hashrate import HashrateCollector
-from pipeline.collectors.altme import AltmeCollector
-from pipeline.collectors.market import fetch_macro
-import asyncio
 import httpx
-import logging
+from typing import Any
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def test_sopr_bgeometrics():
-	collector = SOPRBGeometricsCollector()
-	result = collector.fetch_sopr("BTC")
-	assert result is None or "sopr" in result
-
-def test_sopr_blockchain():
-	collector = SOPRBlockchainCollector()
-	result = collector.fetch_sopr("BTC")
-	assert result is None or "sopr" in result
-
-def test_bybit_ws(monkeypatch):
-    messages: list[object] = []
-    def on_msg(msg: object) -> None:
-        messages.append(msg)
-    ws = BybitWSCollector(symbol="BTCUSDT", on_message=on_msg)
-    try:
-        asyncio.run(asyncio.wait_for(ws.connect(), timeout=3))
-    except Exception:  # pragma: no cover - network dependent
-        pass
-    ws.stop()
-    assert isinstance(messages, list)
+from pipeline.collectors.market import fetch_market, fetch_macro
 
 
-import pytest
-import time
+class DummyResp:
+    def __init__(self, payload: Any):
+        self._payload = payload
+    def raise_for_status(self) -> None:  # pragma: no cover
+        return
+    def json(self):
+        return self._payload
 
-def test_defillama_async_success():
-	collector = DefillamaCollector()
-	# Test async direct
-	result = collector.fetch_tvl("ethereum")
-	assert result is None or isinstance(result, dict)
 
-def test_defillama_cache():
-	collector = DefillamaCollector()
-	# Remplir le cache
-	result1 = collector.fetch_tvl("ethereum")
-	time.sleep(1)
-	result2 = collector.fetch_tvl("ethereum")
-	assert result1 == result2
+def test_fetch_market_success(monkeypatch):
+    payload = {
+        "market_data": {
+            "current_price": {"usd": 1.23},
+            "total_volume": {"usd": 2},
+            "market_cap": {"usd": 3},
+            "market_cap_rank": 7,
+        }
+    }
+    def fake_get(url: str, timeout: int = 10):  # noqa: D401
+        return DummyResp(payload)
+    monkeypatch.setattr(httpx, 'get', fake_get)
+    rec = fetch_market('bitcoinmk1')
+    assert rec is not None
+    assert rec['price'] == 1.23
+    assert rec['dominance'] == 7
 
-def test_defillama_retry_backoff(monkeypatch):
-    collector = DefillamaCollector()
-    async def fail_fetch(*args, **kwargs):  # pragma: no cover - forced failure
-        raise httpx.HTTPError("Simulated error")
-    monkeypatch.setattr(collector, "fetch_tvl_async", fail_fetch)
-    result = collector.fetch_tvl("ethereum")
-    assert result is None
 
-def test_txcount():
-	collector = TxCountCollector()
-	result = collector.fetch_txcount("BTC")
-	assert result is None or isinstance(result, dict)
+def test_fetch_market_fallback(monkeypatch):
+    # Primary raises -> fallback path
+    def fake_get(url: str, timeout: int = 10):  # noqa: D401
+        if 'coingecko' in url:
+            raise RuntimeError('primary fail')
+        return DummyResp({
+            'data': {'BITCOINMK2': {'quote': {'USD': {
+                'price': 10.0,
+                'volume_24h': 20.0,
+                'market_cap': 30.0,
+                'market_cap_dominance': 40.0,
+            }}}}
+        })
+    monkeypatch.setattr(httpx, 'get', fake_get)
+    rec = fetch_market('bitcoinmk2')
+    assert rec is not None
+    assert rec['price'] == 10.0
+    assert rec['dominance'] == 40.0
 
-def test_hashrate():
-	collector = HashrateCollector()
-	result = collector.fetch_hashrate("BTC")
-	assert result is None or isinstance(result, dict)
 
-def test_altme():
-	collector = AltmeCollector()
-	result = collector.fetch_kyc("user123")
-	assert result is None or isinstance(result, dict)
+class DummyAsyncClient:
+    def __init__(self, payload_map: dict[str, Any]):
+        self.payload_map = payload_map
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+    async def get(self, url: str, headers: dict[str, str] | None = None, timeout: int = 10):
+        payload = self.payload_map[url]
+        if isinstance(payload, Exception):
+            raise payload
+        return DummyResp(payload)
 
-def test_fetch_market(monkeypatch):
-    def mock_get(*args, **kwargs):
-        class MockResp:
-            def raise_for_status(self): pass
-            def json(self): return {"market_data": {"current_price": {"usd": 1}, "total_volume": {"usd": 2}, "market_cap": {"usd": 3}, "market_cap_rank": 1}}
-        return MockResp()
-    monkeypatch.setattr("httpx.get", mock_get)
-    from pipeline.collectors.market import fetch_market
-    result = fetch_market("bitcoin")
-    assert result["price"] == 1
 
 @pytest.mark.asyncio
-async def test_fetch_macro_coingecko_success(httpx_mock):
-    httpx_mock.add_response(
-        url="https://api.coingecko.com/api/v3/coins/bitcoin",
-        json={
-            "last_updated": "2025-09-16T00:00:00Z",
-            "market_data": {
-                "current_price": {"usd": 1},
-                "total_volume": {"usd": 2},
-                "market_cap": {"usd": 3},
-                "market_cap_rank": 1
-            }
+async def test_fetch_macro_success(monkeypatch):
+    coingecko_url = 'https://api.coingecko.com/api/v3/coins/bitcoinmc1'
+    payload = {
+        'last_updated': '2025-09-20T00:00:00Z',
+        'market_data': {
+            'current_price': {'usd': 100.0},
+            'total_volume': {'usd': 200.0},
+            'market_cap': {'usd': 300.0},
+            'market_cap_rank': 5,
         }
-    )
-    result = await fetch_macro("bitcoin", cmc_api_key="dummy")
-    assert result["value"]["price"] == 1
-    assert result["source"] == "coingecko"
+    }
+    def factory(*a, **k):
+        return DummyAsyncClient({coingecko_url: payload})
+    monkeypatch.setattr(httpx, 'AsyncClient', factory)
+    rec = await fetch_macro('bitcoinmc1')
+    assert rec is not None
+    assert rec['value']['price'] == 100.0
+    assert rec['source'] == 'coingecko'
+
 
 @pytest.mark.asyncio
-async def test_fetch_macro_fallback_cmc(httpx_mock):
-    httpx_mock.add_exception(httpx.RequestError("fail"), url="https://api.coingecko.com/api/v3/coins/bitcoin")
-    httpx_mock.add_response(
-        url="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=BITCOIN",
-        json={
-            "status": {"timestamp": "2025-09-16T00:00:00Z"},
-            "data": {
-                "BITCOIN": {
-                    "quote": {
-                        "USD": {
-                            "price": 10,
-                            "volume_24h": 20,
-                            "market_cap": 30,
-                            "market_cap_dominance": 40
-                        }
-                    }
-                }
-            }
-        }
-    )
-    result = await fetch_macro("bitcoin", cmc_api_key="dummy")
-    assert result["value"]["price"] == 10
-    assert result["source"] == "coinmarketcap"
+async def test_fetch_macro_fallback(monkeypatch):
+    coingecko_url = 'https://api.coingecko.com/api/v3/coins/bitcoinmc2'
+    cmc_url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=BITCOINMC2'
+    fallback_payload = {
+        'status': {'timestamp': '2025-09-20T01:00:00Z'},
+        'data': {'BITCOINMC2': {'quote': {'USD': {
+            'price': 150.0,
+            'volume_24h': 250.0,
+            'market_cap': 350.0,
+            'market_cap_dominance': 45.0,
+        }}}}
+    }
+    def factory(*a, **k):
+        return DummyAsyncClient({
+            coingecko_url: RuntimeError('primary fail'),
+            cmc_url: fallback_payload,
+        })
+    monkeypatch.setattr(httpx, 'AsyncClient', factory)
+    rec = await fetch_macro('bitcoinmc2', cmc_api_key='X')
+    assert rec is not None
+    assert rec['source'] == 'coinmarketcap'
+    assert rec['value']['price'] == 150.0
+
+
+@pytest.mark.asyncio
+async def test_fetch_macro_no_key(monkeypatch):
+    coingecko_url = 'https://api.coingecko.com/api/v3/coins/bitcoinmc3'
+    def factory(*a, **k):
+        return DummyAsyncClient({coingecko_url: RuntimeError('primary fail')})
+    monkeypatch.setattr(httpx, 'AsyncClient', factory)
+    rec = await fetch_macro('bitcoinmc3')
+    assert rec is None

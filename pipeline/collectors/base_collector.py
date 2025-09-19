@@ -1,7 +1,7 @@
 """
 BaseCollector for prod-safe collectors with fallback, retry/backoff, logging, Prometheus, and cache TTL.
 """
-from typing import Any
+from typing import Any, Protocol, runtime_checkable, TypedDict
 
 import structlog
 from diskcache import Cache
@@ -10,6 +10,19 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
 cache: Cache[Any, Any] = Cache(".cache")
+
+class CollectorResult(TypedDict, total=False):
+    timestamp: int | None
+    metric_name: str
+    value: Any
+    source: str
+    confidence_score: float | None
+
+
+@runtime_checkable
+class BaseCollectorProtocol(Protocol):  # pragma: no cover - structural only
+    async def fetch(self, *args: Any, **kwargs: Any) -> Any | None: ...  # noqa: D401
+
 
 class BaseCollector:
     """
@@ -65,3 +78,9 @@ class BaseCollector:
 
     async def fetch_backup(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("fetch_backup must be implemented by subclass")
+
+__all__ = [
+    "BaseCollector",
+    "BaseCollectorProtocol",
+    "CollectorResult",
+]

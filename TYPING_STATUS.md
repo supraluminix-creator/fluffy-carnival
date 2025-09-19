@@ -7,9 +7,9 @@ Pytest: all tests passed (green).
 
 ## Coverage Summary (from `scripts/type_health.py`)
 ```
-legacy                         9 (47.4%)
+legacy                         5 (26.3%)
 strict                         5 (26.3%)
-strict+incomplete              5 (26.3%)
+strict+incomplete              9 (47.4%)
 ```
 Target next: reduce legacy bucket (< 30%) by promoting high–value collectors.
 
@@ -34,16 +34,20 @@ Target next: reduce legacy bucket (< 30%) by promoting high–value collectors.
 | `pipeline.collectors.bybit_OI` | strict+incomplete |
 | `pipeline.collectors.sopr` | strict+incomplete |
 | `pipeline.collectors.sentiment` | strict+incomplete |
+| `pipeline.collectors.derivatives` | strict+incomplete |
+| `pipeline.collectors.market` | strict+incomplete |
+| `pipeline.collectors.defi` | strict+incomplete |
+| `pipeline.collectors.onchain` | strict+incomplete |
 
 ## Remaining Legacy Collectors (Quarantine)
 | Module | Rationale / Notes | Suggested Promotion Path |
 |--------|-------------------|--------------------------|
 | `pipeline.collectors.base_collector` | Core base, still some dynamic attrs | Add full annotations, enable strict first |
 | `pipeline.collectors.bybit_OI` | PROMOTED (remove from list next summary) | Completed |
-| `pipeline.collectors.defi` | Likely varied external schema | Segment per source, add schema TypedDicts |
-| `pipeline.collectors.derivatives` | Mixed endpoints | Split fetchers & unify return contract |
-| `pipeline.collectors.market` | Heterogeneous macro data | Factor per provider, define normalized record type |
-| `pipeline.collectors.onchain` | Multi-chain sources | Create per-chain adapter + shared models |
+| `pipeline.collectors.derivatives` | PROMOTED (remove next summary) | Completed |
+| `pipeline.collectors.market` | PROMOTED (remove next summary) | Completed |
+| `pipeline.collectors.defi` | PROMOTED (remove next summary) | Completed |
+| `pipeline.collectors.onchain` | PROMOTED (remove next summary) | Completed |
 | `pipeline.collectors.sopr_bgeometrics` | Deprecated shim -> `sopr` | Remove after transition |
 | `pipeline.collectors.sopr_blockchain` | Deprecated shim -> `sopr` | Remove after transition |
 

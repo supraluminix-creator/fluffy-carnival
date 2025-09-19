@@ -19,15 +19,44 @@ from logging.handlers import TimedRotatingFileHandler
 import structlog
 import structlog.contextvars as structlog_ctx
 from dotenv import load_dotenv
-from tabulate import tabulate  # type: ignore[import-untyped]
+from typing import TYPE_CHECKING
 
-from pipeline.collectors.defillama import fetch_defillama_tvl
+if TYPE_CHECKING:  # Only imported for type checking; avoids runtime stub dependency
+    from tabulate import tabulate  # type: ignore
+else:  # pragma: no cover
+    from tabulate import tabulate  # type: ignore
+
+from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
 from pipeline.collectors.derivatives import fetch_bybit_long_short_ratio, fetch_bybit_oi
 
 # Import collectors (existants)
-from pipeline.collectors.market import fetch_macro
-from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcount
-from pipeline.collectors.sentiment import fetch_fear_greed
+from pipeline.collectors.market import fetch_macro, MacroRecord
+from pipeline.collectors.onchain import (
+    fetch_hashrate,
+    fetch_sopr,
+    fetch_txcount,
+    TxCountRecord,
+    HashrateRecord,
+    SoprRecord,
+)
+from pipeline.collectors.sentiment import fetch_fear_greed, SentimentRecord
+from pipeline.collectors.derivatives import (
+    OpenInterestRecord,
+    LongShortRatioRecord,
+)
+from typing import Union, List, Dict, Any
+
+CollectorRecord = Union[
+    MacroRecord,
+    DefiTVLRecord,
+    TxCountRecord,
+    HashrateRecord,
+    SoprRecord,
+    OpenInterestRecord,
+    LongShortRatioRecord,
+    SentimentRecord,
+    Dict[str, Any],  # legacy/unknown
+]
 
 # Import components Sprint 1
 from pipeline.orchestrator import ParallelOrchestrator
@@ -123,7 +152,7 @@ async def run_legacy_collection():
     cmc_api_key = os.getenv("CMC_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
     
-    results = []
+    results: List[CollectorRecord] = []
 
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)
@@ -132,7 +161,7 @@ async def run_legacy_collection():
         results.append(macro)
 
     # DeFi
-    defi = await fetch_defillama_tvl("ethereum")
+    defi = fetch_defillama_tvl("ethereum")
     safe_print_table("DeFi - Defillama", [defi] if defi else [], "keys")
     if defi:
         results.append(defi)
@@ -268,7 +297,7 @@ async def run_scheduler_mode():
         while True:
             payload: dict[str, bool | float | int] = {"alive": True}
             try:
-                import psutil  # type: ignore[import-untyped]  # optional
+                import psutil  # type: ignore[import-untyped]  # pragma: no cover
                 p = psutil.Process()
                 payload.update({
                     "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
@@ -341,7 +370,7 @@ async def main():
             while True:
                 payload: dict[str, float | int | bool] = {"alive": True}
                 try:
-                    import psutil  # optional
+                    import psutil  # pragma: no cover
                     p = psutil.Process()
                     payload.update({
                         "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),

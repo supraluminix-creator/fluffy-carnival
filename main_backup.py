@@ -1,15 +1,40 @@
 import asyncio
+from typing import Union, List, Dict, Any
 import os
 from datetime import datetime
 from tabulate import tabulate  # type: ignore[import-untyped]
 from prometheus_client import start_http_server
 import structlog
 
-from pipeline.collectors.market import fetch_macro
-from pipeline.collectors.defillama import fetch_defillama_tvl
-from pipeline.collectors.onchain import fetch_txcount, fetch_hashrate, fetch_sopr
-from pipeline.collectors.derivatives import fetch_bybit_oi, fetch_bybit_long_short_ratio
-from pipeline.collectors.sentiment import fetch_fear_greed
+from pipeline.collectors.market import fetch_macro, MacroRecord
+from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
+from pipeline.collectors.onchain import (
+    fetch_txcount,
+    fetch_hashrate,
+    fetch_sopr,
+    TxCountRecord,
+    HashrateRecord,
+    SoprRecord,
+)
+from pipeline.collectors.derivatives import (
+    fetch_bybit_oi,
+    fetch_bybit_long_short_ratio,
+    OpenInterestRecord,
+    LongShortRatioRecord,
+)
+from pipeline.collectors.sentiment import fetch_fear_greed, SentimentRecord
+
+CollectorRecord = Union[
+    MacroRecord,
+    DefiTVLRecord,
+    TxCountRecord,
+    HashrateRecord,
+    SoprRecord,
+    OpenInterestRecord,
+    LongShortRatioRecord,
+    SentimentRecord,
+    Dict[str, Any],
+]
 
 EXPORT_DIR = "exports"
 os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -50,7 +75,7 @@ async def collect_all():
     cmc_api_key = os.getenv("CMC_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
 
-    results = []
+    results: List[CollectorRecord] = []
 
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)
@@ -58,7 +83,7 @@ async def collect_all():
     if macro: results.append(macro)
 
     # DeFi
-    defi = await fetch_defillama_tvl("ethereum")
+    defi = fetch_defillama_tvl("ethereum")
     safe_print_table("DeFi - Defillama", [defi] if defi else [], "keys")
     if defi: results.append(defi)
 
