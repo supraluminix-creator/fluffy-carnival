@@ -1,0 +1,433 @@
+openapi: 3.0.3
+info:
+  title: Fluffy Carnival API
+  description: |
+    REST API for the fluffy-carnival cryptocurrency data collection and analysis platform.
+    
+    This API provides endpoints for:
+    - Health monitoring and system status
+    - Data collector management and execution
+    - Parallel orchestration of collection tasks
+    - Prometheus metrics and performance monitoring
+    - Real-time data streaming (WebSocket)
+    
+    ## Authentication
+    
+    Currently, the API operates without authentication for development purposes.
+    Production deployments should implement appropriate authentication mechanisms.
+    
+  version: 0.1.0
+  contact:
+    name: Fluffy Carnival Team
+    url: https://github.com/supraluminix-creator/fluffy-carnival
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.fluffycarnival.example.com
+    description: Production server (placeholder)
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the current health status of the API service
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2024-01-01T12:00:00Z"
+                version: "0.1.0"
+                uptime_seconds: 3600
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orchestrator/run:
+    post:
+      summary: Execute orchestrator with all collectors
+      description: |
+        Triggers parallel execution of all configured collectors using the orchestrator.
+        Returns execution results including success/failure status and performance metrics.
+      operationId: runOrchestrator
+      tags:
+        - Orchestrator
+      requestBody:
+        description: Orchestrator execution configuration
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrchestratorRunRequest'
+            example:
+              timeout_seconds: 300
+              collectors: ["bybit_liquidations", "defillama_tvl", "market_data"]
+      responses:
+        '200':
+          description: Orchestrator execution completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestratorRunResponse'
+              example:
+                status: "completed"
+                execution_id: "exec_1704110400"
+                execution_time_seconds: 45.2
+                total_count: 3
+                successful_count: 3
+                failed_count: 0
+                success_rate: 100.0
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: Orchestrator execution timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestratorTimeoutResponse'
+
+  /orchestrator/status:
+    get:
+      summary: Get orchestrator status and statistics
+      description: Returns current orchestrator statistics and configuration
+      operationId: getOrchestratorStatus
+      tags:
+        - Orchestrator
+      responses:
+        '200':
+          description: Orchestrator status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestratorStatusResponse'
+
+  /collectors:
+    get:
+      summary: List available collectors
+      description: Returns a list of all configured data collectors
+      operationId: listCollectors
+      tags:
+        - Collectors
+      responses:
+        '200':
+          description: List of collectors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectorsListResponse'
+
+  /collectors/{collectorName}/run:
+    post:
+      summary: Execute specific collector
+      description: Runs a single named collector and returns its results
+      operationId: runCollector
+      tags:
+        - Collectors
+      parameters:
+        - name: collectorName
+          in: path
+          required: true
+          description: Name of the collector to execute
+          schema:
+            type: string
+            example: "bybit_liquidations"
+      responses:
+        '200':
+          description: Collector execution results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectorRunResponse'
+        '404':
+          description: Collector not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics endpoint
+      description: Returns Prometheus-formatted metrics for monitoring
+      operationId: getMetrics
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP orchestrator_executions_total Total orchestrator executions
+                  # TYPE orchestrator_executions_total counter
+                  orchestrator_executions_total{success="true"} 42
+                  # HELP orchestrator_duration_seconds Orchestrator execution duration
+                  # TYPE orchestrator_duration_seconds histogram
+                  orchestrator_duration_seconds_bucket{le="1.0"} 10
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Current server timestamp
+        version:
+          type: string
+          description: API version
+        uptime_seconds:
+          type: number
+          description: Service uptime in seconds
+        dependencies:
+          type: object
+          description: Status of external dependencies
+          additionalProperties:
+            type: string
+
+    OrchestratorRunRequest:
+      type: object
+      properties:
+        timeout_seconds:
+          type: number
+          minimum: 1
+          maximum: 3600
+          description: Maximum execution time in seconds
+          default: 300
+        collectors:
+          type: array
+          items:
+            type: string
+          description: Specific collectors to run (if empty, runs all)
+          example: ["bybit_liquidations", "market_data"]
+
+    OrchestratorRunResponse:
+      type: object
+      required:
+        - status
+        - execution_id
+      properties:
+        status:
+          type: string
+          enum: [completed, timeout, error, skipped]
+          description: Execution status
+        execution_id:
+          type: string
+          description: Unique execution identifier
+        execution_time_seconds:
+          type: number
+          description: Total execution time
+        total_count:
+          type: integer
+          description: Total number of collectors
+        successful_count:
+          type: integer
+          description: Number of successful collectors
+        failed_count:
+          type: integer
+          description: Number of failed collectors
+        success_rate:
+          type: number
+          description: Success rate percentage
+        successful_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorResult'
+        failed_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorErrorResult'
+
+    OrchestratorTimeoutResponse:
+      type: object
+      required:
+        - status
+        - execution_id
+        - timeout_seconds
+      properties:
+        status:
+          type: string
+          enum: [timeout]
+        execution_id:
+          type: string
+        timeout_seconds:
+          type: number
+        partial_execution_time:
+          type: number
+
+    OrchestratorStatusResponse:
+      type: object
+      properties:
+        collectors_count:
+          type: integer
+          description: Number of configured collectors
+        execution_stats:
+          $ref: '#/components/schemas/ExecutionStats'
+        collectors:
+          type: array
+          items:
+            type: string
+          description: List of collector names
+
+    ExecutionStats:
+      type: object
+      properties:
+        total_executions:
+          type: integer
+        successful_executions:
+          type: integer
+        failed_executions:
+          type: integer
+        last_execution_time:
+          type: number
+          nullable: true
+        last_execution_duration:
+          type: number
+          nullable: true
+
+    CollectorsListResponse:
+      type: object
+      properties:
+        collectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorInfo'
+
+    CollectorInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, error]
+        last_run:
+          type: string
+          format: date-time
+          nullable: true
+
+    CollectorRunResponse:
+      type: object
+      properties:
+        collector:
+          type: string
+        status:
+          type: string
+          enum: [success, error]
+        execution_time:
+          type: number
+        result:
+          oneOf:
+            - type: object
+            - type: array
+            - type: string
+            - type: null
+        error:
+          type: string
+          nullable: true
+
+    CollectorResult:
+      type: object
+      properties:
+        collector:
+          type: string
+        status:
+          type: string
+          enum: [success]
+        execution_time:
+          type: number
+        result:
+          oneOf:
+            - type: object
+            - type: array
+            - type: string
+            - type: null
+        result_summary:
+          $ref: '#/components/schemas/ResultSummary'
+
+    CollectorErrorResult:
+      type: object
+      properties:
+        collector:
+          type: string
+        status:
+          type: string
+          enum: [error]
+        execution_time:
+          type: number
+        error:
+          type: string
+        error_type:
+          type: string
+
+    ResultSummary:
+      type: object
+      properties:
+        type:
+          type: string
+        length:
+          type: integer
+          nullable: true
+        keys_count:
+          type: integer
+          nullable: true
+        preview:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+        error_code:
+          type: string
+          description: Machine-readable error code
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          description: Unique request identifier for tracing
+
+tags:
+  - name: Health
+    description: Service health and status endpoints
+  - name: Orchestrator
+    description: Parallel execution orchestration
+  - name: Collectors
+    description: Data collector management
+  - name: Metrics
+    description: Monitoring and metrics endpoints
