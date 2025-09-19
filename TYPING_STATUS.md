@@ -33,6 +33,7 @@ Target next: reduce legacy bucket (< 30%) by promoting high–value collectors.
 | `pipeline.collectors.ws` | strict+incomplete |
 | `pipeline.collectors.bybit_OI` | strict+incomplete |
 | `pipeline.collectors.sopr` | strict+incomplete |
+| `pipeline.collectors.sentiment` | strict+incomplete |
 
 ## Remaining Legacy Collectors (Quarantine)
 | Module | Rationale / Notes | Suggested Promotion Path |
@@ -43,7 +44,6 @@ Target next: reduce legacy bucket (< 30%) by promoting high–value collectors.
 | `pipeline.collectors.derivatives` | Mixed endpoints | Split fetchers & unify return contract |
 | `pipeline.collectors.market` | Heterogeneous macro data | Factor per provider, define normalized record type |
 | `pipeline.collectors.onchain` | Multi-chain sources | Create per-chain adapter + shared models |
-| `pipeline.collectors.sentiment` | External sentiment APIs | Add lightweight TypedDicts |
 | `pipeline.collectors.sopr_bgeometrics` | Deprecated shim -> `sopr` | Remove after transition |
 | `pipeline.collectors.sopr_blockchain` | Deprecated shim -> `sopr` | Remove after transition |
 
@@ -84,6 +84,7 @@ pytest -q
 - Promoted `bybit_OI` collector (TypedDict + strict override, added return annotations for async methods).
 - Unified SOPR collectors into `pipeline.collectors.sopr` with TypedDict + enums; added shims.
 - Added comprehensive typing documentation (this file).
+- Promoted `sentiment` collector (TypedDict model + strict overrides + tests).
 
 ## Next Promotion Candidate Checklist (Template)
 ```text

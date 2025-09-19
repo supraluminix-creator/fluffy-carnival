@@ -3,7 +3,7 @@ Collector Sentiment (Alternative.me, TokenMetrics, etc.)
 Prod-safe, async, retry/backoff, cache TTL, fallback
 """
 
-from typing import Any
+from typing import Any, TypedDict, Final
 
 import httpx
 import structlog
@@ -12,7 +12,21 @@ from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
-cache = Cache(".cache")
+cache: Cache = Cache(".cache")
+
+
+class SentimentValue(TypedDict, total=False):
+    value: str | int | float | None
+    classification: str | None
+    time_until_update: str | int | float | None
+
+
+class SentimentRecord(TypedDict):
+    timestamp: int | None
+    metric_name: str
+    value: SentimentValue
+    source: str
+    confidence_score: float
 
 SENTIMENT_LATENCY = Summary('sentiment_latency_seconds', 'Latency of Sentiment API calls')
 SENTIMENT_ERRORS = Counter('sentiment_errors_total', 'Total Sentiment API errors')
@@ -22,7 +36,7 @@ SENTIMENT_SUCCESS = Counter('sentiment_success_total', 'Total Sentiment API succ
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_fear_greed(
     cache_ttl: int = 3600
-) -> dict[str, Any] | None:
+) -> SentimentRecord | None:
     """
     Fetch Fear & Greed Index from Alternative.me (Main) with fallback to TokenMetrics (Backup, mock).
 
@@ -43,7 +57,9 @@ async def fetch_fear_greed(
     key = "sentiment_feargreed"
     if key in cache:
         log.info("sentiment_cache_hit", metric="fear_greed")
-        return cache[key]
+        cached = cache.get(key)  # returns Any
+        if isinstance(cached, dict):  # lightweight runtime guard
+            return cached  # type: ignore[return-value]
     try:
         url = "https://api.alternative.me/fng/"
         async with httpx.AsyncClient() as client:
@@ -53,16 +69,16 @@ async def fetch_fear_greed(
             fg = data["data"][0] if "data" in data and data["data"] else None
             if not fg:
                 raise ValueError("No data in Alternative.me response")
-            result = {
-                "timestamp": fg.get("timestamp"),
+            result: SentimentRecord = {
+                "timestamp": int(fg.get("timestamp")) if fg.get("timestamp") else None,
                 "metric_name": "fear_greed",
                 "value": {
                     "value": fg.get("value"),
                     "classification": fg.get("value_classification"),
-                    "time_until_update": fg.get("time_until_update")
+                    "time_until_update": fg.get("time_until_update"),
                 },
                 "source": "alternative.me",
-                "confidence_score": 1.0
+                "confidence_score": 1.0,
             }
             cache.set(key, result, expire=cache_ttl)
             SENTIMENT_SUCCESS.inc()
@@ -72,21 +88,21 @@ async def fetch_fear_greed(
         log.error("sentiment_main_error", metric="fear_greed", error=str(e))
         # Fallback TokenMetrics (mock, pas d'API publique)
         try:
-            result = {
+            fallback_result: SentimentRecord = {
                 "timestamp": None,
                 "metric_name": "fear_greed",
                 "value": {
                     "value": "50",
                     "classification": "Neutral",
-                    "time_until_update": None
+                    "time_until_update": None,
                 },
                 "source": "tokenmetrics (mock)",
-                "confidence_score": 0.5
+                "confidence_score": 0.5,
             }
-            cache.set(key, result, expire=cache_ttl)
+            cache.set(key, fallback_result, expire=cache_ttl)
             SENTIMENT_SUCCESS.inc()
             log.info("sentiment_fallback_success", metric="fear_greed", source="tokenmetrics (mock)")
-            return result
+            return fallback_result
         except Exception as e2:
             SENTIMENT_ERRORS.inc()
             log.error("sentiment_fallback_error", metric="fear_greed", error=str(e2))

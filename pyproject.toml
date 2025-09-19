@@ -99,6 +99,11 @@ disallow_incomplete_defs = true
 module = ["pipeline.collectors.coingecko"]
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.sentiment"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
 # Quarantine legacy collectors (suppress type noise until promoted)
 [[tool.mypy.overrides]]
 module = [
@@ -108,7 +113,6 @@ module = [
   "pipeline.collectors.derivatives",
   "pipeline.collectors.defi",
   "pipeline.collectors.onchain",
-  "pipeline.collectors.sentiment",
   "pipeline.collectors.sopr_bgeometrics",
   "pipeline.collectors.sopr_blockchain"
 ]
