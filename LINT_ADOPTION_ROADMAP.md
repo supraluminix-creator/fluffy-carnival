@@ -69,3 +69,38 @@ Pilot Extensions:
 
 ---
 Maintained automatically; update when phases complete.
+
+## Planned Global Flip (ignore_missing_imports -> false)
+
+Prerequisites (target):
+- ≥70% of active collectors strict+imports.
+- All high-frequency runtime collectors (WS + liquidations + market data) strict.
+- Zero unresolved external missing stubs in pilot set.
+
+Execution Steps:
+1. Promote next 3 collectors (bybit_liquidations, bybit_ws, coingecko) to strict+imports (+ optional TypedDict schemas).
+2. Add `disallow_incomplete_defs` to `defillama` and `ws` (already clean) to validate broader rollout.
+3. Run `scripts/type_health.py` and snapshot metrics (commit message includes before/after table).
+4. Flip global `ignore_missing_imports = false` in `[tool.mypy]` and add temporary overrides setting `ignore_missing_imports = true` only for still-legacy modules (quarantine list).
+5. Run full mypy; for each remaining missing stub:
+	- Install official `types-` package if exists.
+	- Else add minimal stub under `typings/`.
+6. Remove temporary per-module `ignore_missing_imports = true` overrides once residual count == 0.
+7. Update roadmap (Phase 3 exit) -> begin Phase 4.
+
+Success Criteria:
+- Full mypy run zero import-untyped errors without per-module suppression.
+- No increase in runtime exceptions attributable to stub misuse (monitored over one deploy cycle).
+
+## RUF100 Cleanup Plan (Unused noqa)
+
+Trigger Point: After Step 1 of global flip plan (to avoid churn while collectors still moving).
+
+Steps:
+1. Dry run: `ruff check --select RUF100` capture count.
+2. Auto-fix: `ruff check --select RUF100 --fix` (mechanical removal).
+3. Manually inspect any remaining noqa that still suppress active violations (convert to targeted code fix where feasible).
+4. Commit: `chore: remove unused noqa (RUF100)`.
+5. (Optional) Add `RUF100` permanently to CI selection set.
+
+Rollback: If removal unexpectedly unmasks large volume (>25) of real violations due to configuration drift, revert commit and re-scope by directory.

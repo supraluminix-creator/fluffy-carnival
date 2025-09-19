@@ -69,6 +69,7 @@ ignore_missing_imports = false
 module = ["pipeline.collectors.txcount"]
 disallow_untyped_defs = true
 ignore_missing_imports = false
+disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.hashrate"]
@@ -76,7 +77,17 @@ disallow_untyped_defs = true
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
+module = ["pipeline.collectors.hashrate"]
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
 module = ["pipeline.collectors.altme"]
+disallow_untyped_defs = true
+ignore_missing_imports = false
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.ws"]
 disallow_untyped_defs = true
 ignore_missing_imports = false
 
