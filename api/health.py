@@ -1,12 +1,11 @@
 """API endpoints pour monitoring et observabilité du système crypto monitor."""
 
-import time
-import asyncio
-import psutil
 import os
-from typing import Dict, Any
+import time
+import psutil
+from typing import Any
 from fastapi import FastAPI, Response, HTTPException
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -29,7 +28,7 @@ def register_scheduler(scheduler):
     scheduler_instance = scheduler
     logger.info("Scheduler registered with health API")
 
-def register_collectors(collectors: Dict[str, Any]):
+def register_collectors(collectors: dict[str, Any]):
     """Enregistre les collectors pour monitoring"""
     global collectors_registry
     collectors_registry = collectors
@@ -125,7 +124,7 @@ async def root():
         }
     }
 
-async def get_collectors_health() -> Dict[str, Dict]:
+async def get_collectors_health() -> dict[str, dict[str, Any]]:
     """Vérifie la santé de chaque collector"""
     health_status = {}
     
@@ -169,7 +168,7 @@ async def get_collectors_health() -> Dict[str, Dict]:
     
     return health_status
 
-def get_scheduler_health() -> Dict:
+def get_scheduler_health() -> dict[str, Any]:
     """Vérifie la santé du scheduler"""
     if not scheduler_instance:
         return {"status": "not_configured"}
@@ -192,7 +191,7 @@ def get_scheduler_health() -> Dict:
             "error": str(e)
         }
 
-def get_scheduler_detailed_info() -> Dict:
+def get_scheduler_detailed_info() -> dict[str, Any]:
     """Info détaillée du scheduler"""
     if not scheduler_instance:
         return {"configured": False}
@@ -208,7 +207,7 @@ def get_scheduler_detailed_info() -> Dict:
             "error": str(e)
         }
 
-async def get_collectors_detailed_status() -> Dict:
+async def get_collectors_detailed_status() -> dict[str, dict[str, Any]]:
     """Status détaillé des collectors"""
     detailed_status = {}
     
@@ -236,7 +235,7 @@ async def get_collectors_detailed_status() -> Dict:
     
     return detailed_status
 
-def get_system_info() -> Dict:
+def get_system_info() -> dict[str, Any]:
     """Informations système"""
     try:
         process = psutil.Process()
@@ -251,7 +250,7 @@ def get_system_info() -> Dict:
     except Exception:
         return {"error": "Unable to get system info"}
 
-def get_performance_metrics() -> Dict:
+def get_performance_metrics() -> dict[str, Any]:
     """Métriques de performance"""
     return {
         "uptime_seconds": int(time.time() - startup_time),
@@ -259,7 +258,7 @@ def get_performance_metrics() -> Dict:
         "scheduler_configured": scheduler_instance is not None
     }
 
-def get_environment_info() -> Dict:
+def get_environment_info() -> dict[str, Any]:
     """Informations environnement (sans secrets)"""
     env_info = {}
     

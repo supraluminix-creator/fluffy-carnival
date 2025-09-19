@@ -1,16 +1,17 @@
 import asyncio
 import importlib
-import os
-from datetime import datetime, UTC
-from random import uniform
-from typing import Any, Callable, Dict, List, Optional, Tuple
-from collections import defaultdict
-
-import structlog
 import json
+import os
+from collections import defaultdict
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from random import uniform
+from typing import Any
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+import structlog
 
 try:
     import yaml  # type: ignore
@@ -90,17 +91,17 @@ except Exception:
     CRYPTO_BUILD_INFO = None  # type: ignore
 
 # In-memory counters for simple error-rate alerting
-_ok_counts: Dict[str, int] = defaultdict(int)
-_err_counts: Dict[str, int] = defaultdict(int)
+_ok_counts: dict[str, int] = defaultdict(int)
+_err_counts: dict[str, int] = defaultdict(int)
 _ERR_RATE_WARN = float(os.getenv("TASK_ERROR_RATE_WARN", "0.2"))
 _ERR_RATE_MIN_COUNT = int(os.getenv("TASK_ERROR_RATE_MIN_COUNT", "5"))
 
 # Timestamps/state
 _STARTED_AT = datetime.now(UTC)
-_READY_TS: Optional[float] = None
+_READY_TS: float | None = None
 
 # Build/runtime info
-_BUILD_INFO: Dict[str, str] = {
+_BUILD_INFO: dict[str, str] = {
     "version": os.getenv("APP_VERSION", os.getenv("VERSION", "dev")),
     "git_sha": os.getenv("GIT_SHA", "unknown"),
     "run_id": os.getenv("RUN_ID", ""),
@@ -145,7 +146,12 @@ def _with_jitter(seconds: float) -> float:
     return max(1.0, seconds + uniform(-seconds * 0.05, seconds * 0.05))
 
 
-async def task_wrapper(name: str, fn: Callable[..., Any], args: Tuple[Any, ...] = (), kwargs: Optional[Dict[str, Any]] = None):
+async def task_wrapper(
+    name: str,
+    fn: Callable[..., Any],
+    args: tuple[Any, ...] = (),
+    kwargs: dict[str, Any] | None = None,
+):
     start = datetime.now(UTC)
     log.info("task_start", task=name, ts=start.isoformat())
     # Prometheus: increment start
@@ -224,7 +230,11 @@ async def task_wrapper(name: str, fn: Callable[..., Any], args: Tuple[Any, ...] 
         _save_state()
 
 
-def set_build_info(run_id: Optional[str] = None, version: Optional[str] = None, git_sha: Optional[str] = None) -> None:
+def set_build_info(
+    run_id: str | None = None,
+    version: str | None = None,
+    git_sha: str | None = None,
+) -> None:
     """Set build/runtime info labels for metrics and cache locally.
 
     Safe to call even if prometheus client isn't available.
@@ -255,7 +265,7 @@ def set_build_info(run_id: Optional[str] = None, version: Optional[str] = None, 
         pass
 
 
-def get_status_snapshot() -> Dict[str, Any]:
+def get_status_snapshot() -> dict[str, Any]:
     """Return current runtime status suitable for a /health endpoint."""
     try:
         started_iso = _STARTED_AT.isoformat() + "Z"
@@ -283,14 +293,14 @@ def _import_callable(dotted: str) -> Callable[[], Any]:
     return fn
 
 
-def _load_jobs_from_yaml(path: str) -> Optional[List[Dict[str, Any]]]:
+def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
     if not path or not os.path.exists(path):
         log.warning("scheduler_config_missing", path=path)
         return None
     if yaml is None:
         log.warning("pyyaml_not_installed", hint="pip install pyyaml")
         return None
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     jobs = data.get("jobs", [])
     if not isinstance(jobs, list):
@@ -304,9 +314,9 @@ def _load_jobs_from_yaml(path: str) -> Optional[List[Dict[str, Any]]]:
         if isinstance(val, dict):
             return {k: _expand_env(v) for k, v in val.items()}
         if isinstance(val, list):
-            return [ _expand_env(v) for v in val ]
+            return [_expand_env(v) for v in val]
         return val
-    expanded: List[Dict[str, Any]] = []
+    expanded: list[dict[str, Any]] = []
     for j in jobs:
         if isinstance(j, dict):
             j = {k: _expand_env(v) for k, v in j.items()}
