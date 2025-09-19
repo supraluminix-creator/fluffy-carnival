@@ -68,7 +68,12 @@ async def get_historical_chain_data(chain: str) -> list[list | dict] | None:
                 return None
             return historical_data
     except httpx.HTTPError as e:
-        log.error("defillama_historical_http_error", chain=chain, status_code=getattr(e.response, 'status_code', 'unknown'))
+        status_code = getattr(e.response, 'status_code', 'unknown')
+        log.error(
+            "defillama_historical_http_error",
+            chain=chain,
+            status_code=status_code,
+        )
         return None
     except Exception as e:
         log.error("defillama_historical_error", chain=chain, error_type=type(e).__name__, error_msg=str(e))
@@ -82,19 +87,15 @@ def parse_historical_point(point: list | dict) -> tuple | None:
     try:
         if isinstance(point, list) and len(point) >= 2:
             return int(point[0]), float(point[1])
-        elif isinstance(point, dict):
-            # Try to parse ISO date or timestamp
-            if "date" in point and "tvl" in point:
-                # Accept both ISO date and timestamp
+        if isinstance(point, dict) and "date" in point and "tvl" in point:
+            try:
+                ts = int(point["date"])
+            except Exception:
                 try:
-                    ts = int(point["date"])
+                    ts = int(datetime.fromisoformat(point["date"]).replace(tzinfo=UTC).timestamp())
                 except Exception:
-                    # Try ISO date string
-                    try:
-                        ts = int(datetime.fromisoformat(point["date"]).replace(tzinfo=UTC).timestamp())
-                    except Exception:
-                        return None
-                return ts, float(point["tvl"])
+                    return None
+            return ts, float(point["tvl"])
     except Exception as e:
         log.warning("defillama_parse_point_error", error=str(e), point=point)
     return None

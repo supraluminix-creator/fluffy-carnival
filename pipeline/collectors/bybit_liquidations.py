@@ -152,7 +152,9 @@ class BybitLiquidationsWriter:
 
             # Parquet flush (optional)
             if self.parquet_enabled:
-                parquet_path = os.path.join(self.parquet_dir, f"bybit_liquidations_{datetime.utcnow().strftime('%Y%m%d_%H')}.parquet")
+                ts_hour = datetime.utcnow().strftime('%Y%m%d_%H')
+                filename = f"bybit_liquidations_{ts_hour}.parquet"
+                parquet_path = os.path.join(self.parquet_dir, filename)
                 df.to_parquet(parquet_path, index=False, engine="pyarrow")
                 logger.debug("Flushed to parquet: %s", parquet_path)
 

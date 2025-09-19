@@ -10,7 +10,7 @@ Features:
 - Handles both single and batch liquidation events
 
 Usage Example (Windows):
-    "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe\\.venv\\Scripts\\python.exe" "c:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe\\pipeline\\collectors\\bybit_ws.py" --symbols BTCUSDT,ETHUSDT
+    python pipeline/collectors/bybit_ws.py --symbols BTCUSDT,ETHUSDT
 
 Prometheus Metrics:
 - bybit_ws_connections_total: Total successful WS connections
@@ -239,11 +239,9 @@ class BybitWSCollector:
                 # Consume messages; tests typically cancel after a short timeout
                 while self._running:
                     msg = await ws.recv()
-                    try:
+                    import contextlib
+                    with contextlib.suppress(Exception):
                         self.on_message(msg)
-                    except Exception:
-                        # Swallow callback errors in this shim to not flap tests
-                        pass
         except asyncio.CancelledError:
             # Normal path when tests use wait_for(..., timeout=...)
             raise

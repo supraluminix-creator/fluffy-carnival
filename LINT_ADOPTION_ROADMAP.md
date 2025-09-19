@@ -11,9 +11,11 @@ This document tracks the staged rollout of unified linting (Ruff) and progressiv
 
 ## Next Phases
 ### Phase 2 – Expand Ruff Enforcement
-- Add `pipeline/collectors/` after normalizing imports & obvious simplifications.
-- Remove per-file ignores for `pipeline/reporter.py` & `pipeline/exporter.py` once tabs/mixed indents and >120 lines are refactored.
-- Introduce `RUF100` (if desired) and consider enabling `ANN` (annotations) selectively.
+- ✅ Added `pipeline/collectors/` to enforced Ruff scope; all collectors now Ruff-clean (E,F,I,UP,B,SIM,PERF) at 120 columns.
+- ✅ Addressed long lines and simplification warnings (SIM105/SIM102) in key collectors.
+- ✅ Introduced Ruff formatter configuration (no external Black dependency yet).
+- ⏳ Remaining: Remove per-file ignores for `pipeline/reporter.py` & `pipeline/exporter.py` after indentation and line-length refactors.
+- ⏳ Optional: Evaluate enabling `RUF100` and selective `ANN` (annotation) rules once legacy modules shrink.
 
 ### Phase 3 – Typing Tightening
 - Enable: `disallow_untyped_defs = true` for `scheduler/` and `api/` first.

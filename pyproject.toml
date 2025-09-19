@@ -28,6 +28,13 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["pipeline", "scheduler", "api"]
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 # Flake8 retained temporarily (will be removed from CI soon). Mirrors Ruff line length.
 # Flake8 removed (redundant with Ruff). Historical config deleted to avoid drift.
 
@@ -40,6 +47,10 @@ strict_optional = false
 check_untyped_defs = true
 no_implicit_optional = true
 exclude = ["^\\.venv/", "^build/", "^dist/"]
+
+[[tool.mypy.overrides]]
+module = ["scheduler.*"]
+disallow_untyped_defs = true
 
 # Future tightening roadmap (not yet enabled):
 # disallow_untyped_defs = true

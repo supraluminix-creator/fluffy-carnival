@@ -22,8 +22,8 @@ jobs:
           pip install pytest pytest-asyncio
       - name: Lint (ruff)
         run: |
-          # Enforced Ruff scope (incremental adoption): core maintained surfaces only
-          python -m ruff check api scheduler main.py
+          # Enforced Ruff scope (Phase 2): add pipeline collectors
+          python -m ruff check api scheduler pipeline/collectors main.py
       - name: Lint (ruff full project - non blocking)
         continue-on-error: true
         run: |
