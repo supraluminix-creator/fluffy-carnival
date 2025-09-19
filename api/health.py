@@ -2,11 +2,12 @@
 
 import os
 import time
-import psutil
 from typing import Any
-from fastapi import FastAPI, Response, HTTPException
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+import psutil
 import structlog
+from fastapi import FastAPI, HTTPException, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 logger = structlog.get_logger(__name__)
 

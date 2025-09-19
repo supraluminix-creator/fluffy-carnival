@@ -9,9 +9,9 @@ from pathlib import Path
 from random import uniform
 from typing import Any
 
+import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-import structlog
 
 try:
     import yaml  # type: ignore
@@ -23,7 +23,7 @@ log = structlog.get_logger(__name__)
 # --- Prometheus metrics (optional) ---
 _PROM_AVAILABLE = False
 try:
-    from prometheus_client import Counter, Histogram, Gauge  # type: ignore
+    from prometheus_client import Counter, Gauge, Histogram  # type: ignore
     try:
         # Info is available in newer prometheus_client versions
         from prometheus_client import Info  # type: ignore
