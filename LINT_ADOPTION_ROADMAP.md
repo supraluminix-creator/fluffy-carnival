@@ -21,6 +21,7 @@ This document tracks the staged rollout of unified linting (Ruff) and progressiv
 Updated Progress:
 - ✅ `scheduler.*` and `api.*` under `disallow_untyped_defs`.
 - ✅ Collectors strict & import-tightened: `defillama`, `txcount`, `hashrate`, `altme` (each with explicit TypedDict models & cache typing).
+- ✅ WebSocket liquidation collector (`ws`) strict-typed with `LiquidationEntry` / `LiquidationMessage` schema and per-module `ignore_missing_imports = false`.
 - ✅ Local stub for `diskcache` (minimal surface: Cache ctor/get/set) + documented in `typings/README.md`.
 - ✅ Stub packages installed & verified via venv: `types-requests`, `types-PyYAML`, `pandas-stubs`.
 - ✅ `warn_unused_configs = true` enabled (no spurious warnings).
@@ -37,10 +38,13 @@ Refined Next Slice Candidates:
 
 Revised Exit Criteria for Phase 3 (on track):
 - ✅ Scheduler + API strict & import-clean.
-- ✅ ≥4 collectors strict (current: 4).
+- ✅ ≥4 collectors strict (current: 5 including websocket).
 - ✅ Core external stub coverage (requests/httpx/yaml/pandas/diskcache) achieved.
 - ✅ Documented stub policy (`typings/README.md`).
 - ⏳ Decision point: readiness to widen `ignore_missing_imports = false` beyond pilot set.
+
+Pilot Extensions:
+- ✅ `disallow_incomplete_defs` enabled for `pipeline.collectors.hashrate` (noise level: zero) — candidate for broader rollout after 1–2 more modules trial.
 
 ### Phase 4 – Full Project Coverage
 - Expand Ruff enforced scope to entire repository (drop non-blocking full scan step).
