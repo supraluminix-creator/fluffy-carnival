@@ -28,17 +28,17 @@ def test_sopr_blockchain():
 	result = collector.fetch_sopr("BTC")
 	assert result is None or "sopr" in result
 
-def test_bybit_ws():
-	messages = []
-	def on_msg(msg):
-		messages.append(msg)
-	ws = BybitWSCollector(symbol="BTCUSDT", on_message=on_msg)
-	try:
-		asyncio.run(asyncio.wait_for(ws.connect(), timeout=3))
-	except Exception:
-		pass
-	ws.stop()
-	assert isinstance(messages, list)
+def test_bybit_ws(monkeypatch):
+    messages: list[object] = []
+    def on_msg(msg: object) -> None:
+        messages.append(msg)
+    ws = BybitWSCollector(symbol="BTCUSDT", on_message=on_msg)
+    try:
+        asyncio.run(asyncio.wait_for(ws.connect(), timeout=3))
+    except Exception:  # pragma: no cover - network dependent
+        pass
+    ws.stop()
+    assert isinstance(messages, list)
 
 
 import pytest
@@ -59,13 +59,12 @@ def test_defillama_cache():
 	assert result1 == result2
 
 def test_defillama_retry_backoff(monkeypatch):
-	collector = DefillamaCollector()
-	# Monkeypatch pour forcer l'échec
-	async def fail_fetch(*args, **kwargs):
-		raise httpx.HTTPError("Simulated error")
-	collector.fetch_tvl_async = fail_fetch
-	result = collector.fetch_tvl("ethereum")
-	assert result is None
+    collector = DefillamaCollector()
+    async def fail_fetch(*args, **kwargs):  # pragma: no cover - forced failure
+        raise httpx.HTTPError("Simulated error")
+    monkeypatch.setattr(collector, "fetch_tvl_async", fail_fetch)
+    result = collector.fetch_tvl("ethereum")
+    assert result is None
 
 def test_txcount():
 	collector = TxCountCollector()

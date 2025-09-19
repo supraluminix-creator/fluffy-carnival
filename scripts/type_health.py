@@ -45,7 +45,7 @@ def load_overrides() -> list[dict]:
     data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     tool = data.get("tool", {})
     mypy = tool.get("mypy", {})
-    overrides: list[dict] = mypy.get("overrides", [])  # type: ignore[assignment]
+    overrides: list[dict] = mypy.get("overrides", [])
     return overrides
 
 

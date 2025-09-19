@@ -29,7 +29,7 @@ ADDITIONAL_DATA = {
     'derivatives': {'BTC': {'funding_rate': 0.0002, 'open_interest': 10000000}, 'ETH': {'funding_rate': -0.0001, 'open_interest': 5000000}}
 }
 SIGNALS = {'accumulation_signal': 1, 'leverage_signal': -1, 'liquidity_signal': 1}
-DUNE_DATA = {}
+DUNE_DATA: dict[str, object] = {}
 
 
 

@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 from prometheus_client import start_http_server
 import structlog
 

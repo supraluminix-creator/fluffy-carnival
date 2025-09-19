@@ -7,7 +7,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-import requests
+import requests  # type: ignore[import-untyped]
 import structlog
 import websockets
 from prometheus_client import Counter, Summary
@@ -49,6 +49,7 @@ class BybitWSCollector:
     def stop(self):
         self.running = False
 
+    @staticmethod
     @BYBIT_OI_LATENCY.time()
     def fetch_bybit_oi(symbol: str) -> dict[str, Any] | None:
         """
@@ -66,10 +67,12 @@ class BybitWSCollector:
         try:
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
-            data = resp.json()
+            data_obj = resp.json()
+            if not isinstance(data_obj, dict):
+                return None
             BYBIT_OI_SUCCESS.inc()
             log.info("bybit_oi_success", symbol=symbol)
-            return data
+            return data_obj
         except Exception as e:
             BYBIT_OI_ERRORS.inc()
             log.error("bybit_oi_error", symbol=symbol, error=str(e))

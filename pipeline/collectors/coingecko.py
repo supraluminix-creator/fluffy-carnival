@@ -1,6 +1,6 @@
 from typing import Any
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 
 def fetch_coingecko_price(symbol: str) -> dict[str, Any] | None:

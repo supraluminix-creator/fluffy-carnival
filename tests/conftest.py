@@ -1,15 +1,16 @@
 import pytest
 from diskcache import Cache
+from typing import Iterator
 
 @pytest.fixture(autouse=True)
-def clear_global_caches():
+def clear_global_caches() -> Iterator[None]:
     """
     Ensure disk-based caches used by collectors do not leak state across tests.
     This avoids false positives/negatives when tests rely on specific HTTP behavior.
     """
     for path in [".cache", ".cache_txcount"]:
         try:
-            cache = Cache(path)
+            cache: Cache = Cache(path)
             cache.clear()
             cache.close()
         except Exception:

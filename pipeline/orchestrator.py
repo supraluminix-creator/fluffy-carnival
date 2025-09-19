@@ -40,12 +40,12 @@ class ParallelOrchestrator:
             collectors: Liste des collectors à gérer
         """
         self.collectors = collectors or []
-        self.execution_stats = {
+        self.execution_stats: dict[str, Any] = {
             'total_executions': 0,
             'successful_executions': 0,
             'failed_executions': 0,
-            'last_execution_time': None,
-            'last_execution_duration': None
+            'last_execution_time': 0.0,
+            'last_execution_duration': 0.0
         }
         
         logger.info(
@@ -130,8 +130,9 @@ class ParallelOrchestrator:
             execution_summary['execution_time_seconds'] = round(execution_time, 2)
             
             # Mettre à jour stats
-            self.execution_stats['last_execution_time'] = start_time
-            self.execution_stats['last_execution_duration'] = execution_time
+            # Store as float for clarity (mypy):
+            self.execution_stats['last_execution_time'] = float(start_time)
+            self.execution_stats['last_execution_duration'] = float(execution_time)
             
             if execution_summary['successful_count'] > 0:
                 self.execution_stats['successful_executions'] += 1

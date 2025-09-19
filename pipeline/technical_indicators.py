@@ -1,7 +1,8 @@
 
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 import pandas_ta as ta
-import requests
+import requests  # type: ignore[import-untyped]
+from typing import Any, Mapping
 
 
 def fetch_binance_ohlc(symbol: str = "BTCUSDT", interval: str = "5m", limit: int = 500) -> pd.DataFrame | None:
@@ -23,7 +24,7 @@ def fetch_binance_ohlc(symbol: str = "BTCUSDT", interval: str = "5m", limit: int
         DataFrame with OHLC data, or None if error.
     """
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    params: dict[str, str | int] = {"symbol": symbol, "interval": interval, "limit": limit}
     try:
         resp = requests.get(url, params=params, timeout=10)
         data = resp.json()

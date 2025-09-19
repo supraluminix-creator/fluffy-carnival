@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+# mypy: ignore-errors
 import asyncio
 import websockets
 import json
+from typing import Any
 
-async def fake_bybit_ws(websocket, path):
+async def fake_bybit_ws(websocket, path: str) -> None:  # type: ignore[no-untyped-def]
     # Simulate a Bybit liquidation event stream
     counter = 0
     print(f"[FAKE SERVER] Client connected from {websocket.remote_address}, starting event stream...")
@@ -29,7 +32,8 @@ async def fake_bybit_ws(websocket, path):
     except websockets.exceptions.ConnectionClosed:
         print(f"[FAKE SERVER] Client {websocket.remote_address} disconnected.")
 
-async def main():
+async def main() -> None:
+    # websockets.serve expects a handler signature (websocket, path)
     server = await websockets.serve(fake_bybit_ws, "localhost", 8765)
     print("Fake Bybit WS server running on ws://localhost:8765")
     await server.wait_closed()

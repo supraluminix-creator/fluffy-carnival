@@ -35,9 +35,16 @@ async def get_chain_data(chain: str) -> ChainData | None:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=15)
             resp.raise_for_status()
-            chains_data = cast(list[dict[str, Any]], resp.json())
+            chains_raw = resp.json()
+            if not isinstance(chains_raw, list):
+                log.error("defillama_invalid_root", type=type(chains_raw).__name__)
+                return None
+            chains_data = cast(list[Any], chains_raw)
             for chain_data in chains_data:
-                if chain_data.get("name", "").lower() == chain.lower():
+                if not isinstance(chain_data, dict):
+                    continue
+                name_val = chain_data.get("name")
+                if isinstance(name_val, str) and name_val.lower() == chain.lower():
                     return cast(ChainData, chain_data)
             log.error("defillama_chain_not_found", chain=chain)
             return None

@@ -15,7 +15,10 @@ PATTERN_COLLECTOR_FAIL = re.compile(r"\[SCHEDULER\]\s*Collector\s+(?P<name>\w+)\
 
 # Optional: parse structlog JSON lines if present
 
-def try_parse_structlog(line: str):
+from typing import Any, Optional, Dict
+
+
+def try_parse_structlog(line: str) -> Optional[dict[str, Any]]:
     try:
         obj = json.loads(line)
         if isinstance(obj, dict) and obj.get("event"):
@@ -25,13 +28,13 @@ def try_parse_structlog(line: str):
     return None
 
 
-def parse_lines(lines):
-    counts = Counter()
-    collector_runs = Counter()
-    collector_failures = Counter()
-    error_messages = Counter()
-    first_ts = None
-    last_ts = None
+def parse_lines(lines: list[str]) -> dict[str, Any]:
+    counts: Counter[str] = Counter()
+    collector_runs: Counter[str] = Counter()
+    collector_failures: Counter[str] = Counter()
+    error_messages: Counter[str] = Counter()
+    first_ts: datetime | None = None
+    last_ts: datetime | None = None
 
     for line in lines:
         line = line.strip()
@@ -104,7 +107,7 @@ def parse_lines(lines):
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize pipeline logs")
     parser.add_argument("logfile", help="Path to log file")
     parser.add_argument("--since-min", type=int, default=None, help="Only include last N minutes of logs")

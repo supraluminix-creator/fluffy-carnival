@@ -19,7 +19,7 @@ from logging.handlers import TimedRotatingFileHandler
 import structlog
 import structlog.contextvars as structlog_ctx
 from dotenv import load_dotenv
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 from pipeline.collectors.defillama import fetch_defillama_tvl
 from pipeline.collectors.derivatives import fetch_bybit_long_short_ratio, fetch_bybit_oi
@@ -61,21 +61,21 @@ class LegacyCollectorWrapper:
     """Wrapper pour adapter les fonctions collectors existantes au pattern BaseCollector"""
     
     def __init__(self, name: str, collect_func, *args, **kwargs):
-        self.name = name
+        self.name: str = name
         self.collect_func = collect_func
         self.args = args
         self.kwargs = kwargs
-        self.last_success_time = None
-        self.last_error_time = None
+        self.last_success_time: float | None = None
+        self.last_error_time: float | None = None
     
     async def collect(self):
         """Exécute la fonction collector et gère les erreurs"""
         try:
             result = await self.collect_func(*self.args, **self.kwargs)
-            self.last_success_time = asyncio.get_event_loop().time()
+            self.last_success_time = float(asyncio.get_event_loop().time())
             return result
         except Exception as e:
-            self.last_error_time = asyncio.get_event_loop().time()
+            self.last_error_time = float(asyncio.get_event_loop().time())
             logger.error(f"Collector {self.name} failed", error=str(e))
             raise
 
@@ -264,15 +264,15 @@ async def run_scheduler_mode():
     logger.info("Scheduler started successfully")
     
     # Heartbeat task (optional visibility)
-    async def heartbeat(period_secs: int = 30):
+    async def heartbeat(period_secs: int = 30) -> None:
         while True:
-            payload = {"alive": True}
+            payload: dict[str, bool | float | int] = {"alive": True}
             try:
-                import psutil  # optional
+                import psutil  # type: ignore[import-untyped]  # optional
                 p = psutil.Process()
                 payload.update({
-                    "rss_mb": round(p.memory_info().rss / 1024 / 1024, 1),
-                    "cpu_percent": p.cpu_percent(interval=None),
+                    "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
+                    "cpu_percent": float(p.cpu_percent(interval=None)),
                 })
             except Exception:
                 pass
@@ -339,13 +339,13 @@ async def main():
         # Heartbeat and optional metrics in this mode too
         async def heartbeat(period_secs: int = 30):
             while True:
-                payload = {"alive": True}
+                payload: dict[str, float | int | bool] = {"alive": True}
                 try:
                     import psutil  # optional
                     p = psutil.Process()
                     payload.update({
-                        "rss_mb": round(p.memory_info().rss / 1024 / 1024, 1),
-                        "cpu_percent": p.cpu_percent(interval=None),
+                        "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
+                        "cpu_percent": float(p.cpu_percent(interval=None)),
                     })
                 except Exception:
                     pass
@@ -374,11 +374,12 @@ async def main():
                 from http.server import BaseHTTPRequestHandler, HTTPServer
 
                 class HealthHandler(BaseHTTPRequestHandler):
+                    HEALTH_PORT: int | None = None
                     def log_message(self, format, *args):
                         # Silence default HTTP logs; we already have heartbeat
                         return
 
-                    def do_GET(self):  # type: ignore[override]
+                    def do_GET(self) -> None:
                         try:
                             path = self.path.split("?")[0]
                             if path == "/metrics/ready":
@@ -420,7 +421,7 @@ async def main():
                                 pass
 
                 # Provide health port to handler for inclusion in payload
-                HealthHandler.HEALTH_PORT = health_port  # type: ignore[attr-defined]
+                HealthHandler.HEALTH_PORT = health_port
                 health_server = HTTPServer(("0.0.0.0", health_port), HealthHandler)
                 th = threading.Thread(target=health_server.serve_forever, name="health-http", daemon=True)
                 th.start()

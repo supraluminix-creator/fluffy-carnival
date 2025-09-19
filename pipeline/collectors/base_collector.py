@@ -9,7 +9,7 @@ from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
-cache = Cache(".cache")
+cache: Cache[Any, Any] = Cache(".cache")
 
 class BaseCollector:
     """
@@ -26,11 +26,12 @@ class BaseCollector:
         self.cache = cache
         self.log = log.bind(collector=name)
 
-    async def fetch(self, *args, **kwargs) -> Any | None:
+    async def fetch(self, *args: Any, **kwargs: Any) -> Any | None:
         key = f"{self.name}_" + "_".join(map(str, args))
-        if key in self.cache:
+        if key in self.cache:  # membership supported by diskcache
             self.log.info("cache_hit", key=key)
-            return self.cache[key]
+            # Use .get to satisfy type checker instead of direct indexing
+            return self.cache.get(key, None)
         try:
             with self.COLLECTOR_LATENCY.labels(self.name).time():
                 result = await self._fetch_with_fallback(*args, **kwargs)
@@ -48,7 +49,7 @@ class BaseCollector:
             return None
 
     @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-    async def _fetch_with_fallback(self, *args, **kwargs) -> Any | None:
+    async def _fetch_with_fallback(self, *args: Any, **kwargs: Any) -> Any | None:
         try:
             return await self.fetch_main(*args, **kwargs)
         except Exception as e:
@@ -59,8 +60,8 @@ class BaseCollector:
                 self.log.error("backup_failed", error=str(e2))
                 return None
 
-    async def fetch_main(self, *args, **kwargs) -> Any:
+    async def fetch_main(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("fetch_main must be implemented by subclass")
 
-    async def fetch_backup(self, *args, **kwargs) -> Any:
+    async def fetch_backup(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("fetch_backup must be implemented by subclass")

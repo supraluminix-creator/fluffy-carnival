@@ -11,11 +11,11 @@ from random import uniform
 from typing import Any, cast
 
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
+from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
 
 try:
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 except Exception:  # pragma: no cover - optional dependency
     yaml = None
 
@@ -146,7 +146,7 @@ def _load_state() -> None:
                 path=str(_STATE_FILE),
                 tasks=len(_ok_counts),
             )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.warning("counters_state_load_failed", error=str(e))
 
 def _save_state() -> None:
@@ -173,7 +173,7 @@ async def task_wrapper(
     fn: Callable[..., Any],
     args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
-):
+)-> None:
     start = datetime.now(UTC)
     log.info("task_start", task=name, ts=start.isoformat())
     # Prometheus: increment start
@@ -406,8 +406,7 @@ def build_scheduler() -> AsyncIOScheduler:
                     job=job,
                 )
     else:
-        
-        async def _noop():  # noqa: D401 - trivial inline async
+        async def _noop() -> None:
             await asyncio.sleep(0.05)
         defaults = [
             ("macro", _noop, 300),

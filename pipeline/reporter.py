@@ -3,10 +3,10 @@ import sys
 from datetime import datetime
 
 try:
-    from tabulate import tabulate
+	from tabulate import tabulate  # type: ignore[import-untyped]
 except ImportError:
     tabulate = None
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 
 class Reporter:

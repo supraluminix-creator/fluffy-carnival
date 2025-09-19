@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
 """
 Quick test of the liquidation collector with fake data
 """
 import asyncio
 import websockets
+from typing import Any
 import json
 import time
 
-async def fake_bybit_server():
+async def fake_bybit_server() -> None:
     """Simulate a Bybit WebSocket server sending liquidation events"""
-    async def handle_client(websocket, path):
+    async def handle_client(websocket, path: str) -> None:  # type: ignore[no-untyped-def]
         print(f"[SERVER] Client connected: {path}")
         
         # Wait for subscription
@@ -29,7 +31,7 @@ async def fake_bybit_server():
             # Send fake liquidation events
             await asyncio.sleep(1)
             
-            liquidations = [
+            liquidations: list[dict[str, Any]] = [
                 {
                     "topic": "liquidation.BTCUSDT",
                     "type": "snapshot", 

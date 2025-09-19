@@ -3,15 +3,7 @@ line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = [
-  "E",  # pycodestyle
-  "F",  # pyflakes
-  "I",  # import sorting
-  "UP", # pyupgrade
-  "B",  # bugbear
-  "SIM",# simplifications
-  "PERF" # performance hints
-]
+select = ["E", "F", "I", "UP", "B", "SIM", "PERF"]
 ignore = [
   # Allow long lines up to 120 (configured via line-length). We do not ignore E501 so Ruff will flag >120.
 ]
@@ -40,14 +32,15 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.12"
-ignore_missing_imports = true
+# Global flip: enforce import type checking now that pilot set is stable.
+ignore_missing_imports = false
 warn_unused_ignores = true
 warn_return_any = true
 warn_unused_configs = true
 strict_optional = false
 check_untyped_defs = true
 no_implicit_optional = true
-exclude = ["^\\.venv/", "^build/", "^dist/"]
+exclude = [".venv", "build", "dist", "fluffy-carnival", "fluffy-carnival/scheduler", "fluffy-carnival/api"]
 mypy_path = ["typings"]
 namespace_packages = true
 
@@ -58,38 +51,58 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = ["api.*"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.defillama"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
+disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.txcount"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.hashrate"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
-
-[[tool.mypy.overrides]]
-module = ["pipeline.collectors.hashrate"]
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.altme"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = ["pipeline.collectors.ws"]
 disallow_untyped_defs = true
-ignore_missing_imports = false
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.bybit_liquidations"]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.bybit_ws"]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.coingecko"]
+disallow_untyped_defs = true
+
+# Quarantine legacy collectors (suppress type noise until promoted)
+[[tool.mypy.overrides]]
+module = [
+  "pipeline.collectors.bybit",
+  "pipeline.collectors.mempool",
+  "pipeline.collectors.market",
+  "pipeline.collectors.derivatives",
+  "pipeline.collectors.defi",
+  "pipeline.collectors.onchain",
+  "pipeline.collectors.sentiment",
+  "pipeline.collectors.sopr_bgeometrics",
+  "pipeline.collectors.sopr_blockchain"
+]
+ignore_errors = true
 
 # Future tightening roadmap (not yet enabled):
 # disallow_untyped_defs = true

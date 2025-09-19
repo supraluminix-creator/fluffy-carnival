@@ -15,9 +15,9 @@ import random
 import signal
 
 import structlog
-from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED  # type: ignore[import-untyped]
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
+from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
 
 logger = structlog.get_logger(__name__)
 

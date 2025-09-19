@@ -26,6 +26,8 @@ Integration:
 - Writer must implement async write_record(dict) method
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -33,6 +35,7 @@ import logging
 import os
 import signal
 import sys
+from typing import Protocol, Any, Mapping, Optional, List, Callable
 
 import structlog
 import websockets
@@ -62,6 +65,11 @@ BYBIT_WS_LATENCY = Summary('bybit_ws_latency_seconds', 'WS message handling late
 # ---------------------------------------------------------
 # SERVICE WS
 # ---------------------------------------------------------
+class _WriterProtocol(Protocol):
+    async def write_record(self, record: Mapping[str, Any]) -> None: ...  # pragma: no cover
+    async def close(self) -> None: ...  # pragma: no cover
+
+
 class BybitWSService:
     """
     Real-time Bybit Liquidations WebSocket Collector
@@ -71,33 +79,31 @@ class BybitWSService:
         writer: Object with async write_record(dict) method (e.g., BybitLiquidationsWriter)
         ws_url (str): Optional custom WS endpoint
     """
-    def __init__(self, symbols, ws_url=None, db_path="data/crypto.db",
-                 parquet_dir="data/bybit_liquidations", flush_size=100,
-                 flush_interval=5, subscribe_tpl="liquidation.{}"):
-        self.symbols = symbols
-        self.ws_url = ws_url or self._auto_detect_url(symbols)
-        self.subscribe_tpl = subscribe_tpl
+    def __init__(self, symbols: List[str], ws_url: Optional[str] = None, db_path: str = "data/crypto.db",
+                 parquet_dir: str = "data/bybit_liquidations", flush_size: int = 100,
+                 flush_interval: int = 5, subscribe_tpl: str = "liquidation.{}"):
+        self.symbols: List[str] = symbols
+        self.ws_url: str = ws_url or self._auto_detect_url(symbols)
+        self.subscribe_tpl: str = subscribe_tpl
 
         os.makedirs(parquet_dir, exist_ok=True)
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        self.writer = BybitLiquidationsWriter(
+        self.writer: _WriterProtocol = BybitLiquidationsWriter(
             db=db_path,
             parquet_dir=parquet_dir,
             flush_size=flush_size,
-            flush_interval=flush_interval
+            flush_interval=flush_interval,
         )
 
-        self.ws = None
-        self.stop_event = asyncio.Event()
-        self._reconnect_delay = 1
+        # websocket-client protocol object (runtime from websockets library)
+        self.ws: Optional[Any] = None
+        self.stop_event: asyncio.Event = asyncio.Event()
+        self._reconnect_delay: int = 1
 
-        logger.info(
-            "BybitWSService created",
-            symbols=symbols, ws_url=self.ws_url
-        )
+        logger.info("BybitWSService created", symbols=symbols, ws_url=self.ws_url)
 
-    def _auto_detect_url(self, symbols):
+    def _auto_detect_url(self, symbols: List[str]) -> str:
         """
         Auto-detect correct Bybit WS endpoint based on symbol suffixes.
         """
@@ -106,7 +112,7 @@ class BybitWSService:
             return "wss://stream.bybit.com/v5/public/linear"
         return "wss://stream.bybit.com/v5/public/linear"
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Connect to Bybit WS, subscribe to liquidation topics, handle messages.
         Auto-reconnects on error with exponential backoff. Metrics and logs instrumented.
@@ -141,7 +147,14 @@ class BybitWSService:
             if not self.stop_event.is_set():
                 await self.connect()
 
-    async def _handle_message(self, raw_msg):
+    async def _handle_message(self, raw_msg: object) -> None:
+        if isinstance(raw_msg, bytes):  # decode best-effort
+            try:
+                raw_msg = raw_msg.decode("utf-8", errors="ignore")
+            except Exception:
+                return
+        if not isinstance(raw_msg, str):
+            return
         print(f"[COLLECTOR] Received raw message: {raw_msg}")
         """
         Parse and process a single WS message. Handles both single and batch events.
@@ -167,7 +180,7 @@ class BybitWSService:
                     for d in data:
                         await self.writer.write_record(d)
 
-    async def run(self):
+    async def run(self) -> None:
         """
         Main run loop: manages signal handling, reconnects, and graceful shutdown.
         """
@@ -184,18 +197,23 @@ class BybitWSService:
         while not self.stop_event.is_set():
             await self.connect()
 
-        await self.writer.close()
+        if hasattr(self.writer, "close"):
+            await self.writer.close()  # runtime check; writer conforms
         logger.info("BybitWSService stopped")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         Stop the service, close WS and writer.
         """
         logger.info("Stopping BybitWSService")
         self.stop_event.set()
         if self.ws:
-            await self.ws.close()
-        await self.writer.close()
+            try:
+                await self.ws.close()
+            except Exception:
+                pass
+        if hasattr(self.writer, "close"):
+            await self.writer.close()
 
 
 # ---------------------------------------------------------
@@ -216,15 +234,16 @@ class BybitWSCollector:
     - ws_url: optional WebSocket URL override
     """
 
-    def __init__(self, symbol: str, on_message=None, ws_url: str | None = None):
-        self.symbol = (symbol or "BTCUSDT").upper()
-        self.on_message = on_message or (lambda _msg: None)
-        # Use Bybit linear public endpoint by default
-        self.ws_url = ws_url or "wss://stream.bybit.com/v5/public/linear"
-        self._ws = None
-        self._running = False
+    def __init__(self, symbol: str, on_message: Optional[Callable[[str | bytes], None]] = None, ws_url: str | None = None) -> None:
+        self.symbol: str = (symbol or "BTCUSDT").upper()
+        # Ensure on_message is always a callable accepting a single str argument.
+        # websockets.recv() may yield either str or bytes; we pass through transparently.
+        self.on_message: Callable[[str | bytes], None] = on_message or (lambda _msg: None)
+        self.ws_url: str = ws_url or "wss://stream.bybit.com/v5/public/linear"
+        self._ws: Any | None = None
+        self._running: bool = False
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Open a WS connection and subscribe to liquidation.<symbol>.
         Runs until cancelled (e.g., by asyncio.wait_for timeout in tests).
@@ -252,7 +271,7 @@ class BybitWSCollector:
             self._running = False
             self._ws = None
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Signal the receive loop to stop. The actual connection is typically
         closed by cancellation in the test harness; this only toggles the flag.
@@ -263,7 +282,7 @@ class BybitWSCollector:
 # ---------------------------------------------------------
 # CLI Entrypoint
 # ---------------------------------------------------------
-def main():
+def main() -> int:
     """
     CLI entrypoint for BybitWSService. Parses args, instantiates service, runs event loop.
     """
@@ -306,8 +325,11 @@ def main():
     except KeyboardInterrupt:
         logger.info("Interrupted; stopping service")
         loop.run_until_complete(svc.stop())
+        return 0
     except Exception as e:
         print(f"[DEBUG] Exception in main(): {e}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

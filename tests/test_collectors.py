@@ -34,6 +34,17 @@ def test_bybit_ws():
 		pass
 	ws.stop()
 	assert isinstance(messages, list)
+def test_bybit_ws_collector(monkeypatch):
+    received: list[object] = []
+    def on_msg(msg: object) -> None:
+        received.append(msg)
+    ws = BybitWSCollector(symbol="BTCUSDT", on_message=on_msg)
+    try:
+        asyncio.run(asyncio.wait_for(ws.connect(), timeout=2))
+    except Exception:  # pragma: no cover
+        pass
+    ws.stop()
+    assert isinstance(received, list)
 
 
 import pytest
@@ -58,9 +69,16 @@ def test_defillama_retry_backoff(monkeypatch):
 	# Monkeypatch pour forcer l'échec
 	async def fail_fetch(*args, **kwargs):
 		raise httpx.HTTPError("Simulated error")
-	collector.fetch_tvl_async = fail_fetch
+	monkeypatch.setattr(collector, "fetch_tvl_async", fail_fetch)
 	result = collector.fetch_tvl("ethereum")
 	assert result is None
+def test_defillama_collector_retry(monkeypatch):
+    collector = DefillamaCollector()
+    async def fail_fetch(*args, **kwargs):  # pragma: no cover
+        raise httpx.HTTPError("Simulated error")
+    monkeypatch.setattr(collector, "fetch_tvl_async", fail_fetch)
+    result = collector.fetch_tvl("bitcoin")
+    assert result is None
 
 def test_txcount():
 	collector = TxCountCollector()

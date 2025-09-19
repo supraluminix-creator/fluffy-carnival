@@ -2,7 +2,7 @@
 import os
 from datetime import UTC, datetime
 
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 
 class Exporter:

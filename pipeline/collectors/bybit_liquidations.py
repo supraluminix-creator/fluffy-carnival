@@ -1,47 +1,65 @@
+"""Bybit liquidation events writer (async buffer -> SQLite + optional Parquet).
+
+This version normalise incoming events and maintains both a raw events table and
+an hourly aggregate table. Safe for concurrent async writes using an asyncio.Lock.
 """
-Bybit Liquidations Writer (prod-safe)
-- Ecrit en SQLite (événements + agrégats horaires)
-- Flush vers Parquet (optionnel)
-- Utilisé par bybit_ws.py
-"""
+
+from __future__ import annotations
 
 import asyncio
 import logging
 import os
 import sqlite3
 from datetime import datetime
+from typing import Any, Mapping, List, TypedDict
 
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
 
+class LiquidationRecord(TypedDict):
+    symbol: str
+    side: str
+    price: float
+    qty: float
+    time: int  # epoch ms
+
+
 class BybitLiquidationsWriter:
-    def __init__(self, db="data/crypto.db", parquet_dir="data/bybit_liquidations",
-                 flush_size=100, flush_interval=5, parquet_enabled=True):
-        self.db = db
-        self.parquet_dir = parquet_dir
-        self.flush_size = flush_size
-        self.flush_interval = flush_interval
-        self.parquet_enabled = parquet_enabled
+    def __init__(
+        self,
+        db: str = "data/crypto.db",
+        parquet_dir: str = "data/bybit_liquidations",
+        flush_size: int = 100,
+        flush_interval: int = 5,
+        parquet_enabled: bool = True,
+    ) -> None:
+        self.db: str = db
+        self.parquet_dir: str = parquet_dir
+        self.flush_size: int = flush_size
+        self.flush_interval: int = flush_interval
+        self.parquet_enabled: bool = parquet_enabled
 
         os.makedirs(os.path.dirname(db), exist_ok=True)
         os.makedirs(parquet_dir, exist_ok=True)
 
-        self.conn = sqlite3.connect(self.db, check_same_thread=False)
+        self.conn: sqlite3.Connection = sqlite3.connect(self.db, check_same_thread=False)
         self._create_tables()
 
-        self.buffer = []
-        self.last_flush = datetime.utcnow().timestamp()
-        self.lock = asyncio.Lock()
+        self.buffer: List[LiquidationRecord] = []
+        self.last_flush: float = datetime.utcnow().timestamp()
+        self.lock: asyncio.Lock = asyncio.Lock()
 
         logger.info(
             "BybitLiquidationsWriter initialized (db=%s parquet=%s parquet_enabled=%s)",
-            db, parquet_dir, parquet_enabled
+            db,
+            parquet_dir,
+            parquet_enabled,
         )
 
-    def _create_tables(self):
-        """Create database tables if they don't exist"""
+    def _create_tables(self) -> None:
+        """Create database tables if they don't exist."""
         cur = self.conn.cursor()
         
         # Raw liquidations table
@@ -81,27 +99,37 @@ class BybitLiquidationsWriter:
     # -----------------------------------------------------
     # RECORD WRITE
     # -----------------------------------------------------
-    async def write_record(self, record):
+    async def write_record(self, record: Mapping[str, Any]) -> None:
         async with self.lock:
             try:
                 # Extract data from Bybit liquidation message format
-                symbol = record.get("symbol", "")
-                side = record.get("side", "UNKNOWN")
-                price = float(record.get("price", 0))
-                size = float(record.get("size", 0))  # Bybit uses "size" not "qty"
-                ts = int(record.get("updatedTime", record.get("ts", datetime.utcnow().timestamp() * 1000)))
+                symbol_raw = record.get("symbol")
+                side_raw = record.get("side", "UNKNOWN")
+                price_val = record.get("price", 0)
+                size_val = record.get("size", 0)  # Bybit uses "size" not "qty"
+                ts_val = record.get("updatedTime", record.get("ts", datetime.utcnow().timestamp() * 1000))
+
+                try:
+                    price = float(price_val)
+                    size = float(size_val)
+                    ts = int(ts_val)
+                except (TypeError, ValueError):
+                    return
+                symbol = (str(symbol_raw) if symbol_raw else "").upper()
+                side = str(side_raw).upper()
 
                 if not symbol or price == 0 or size == 0:
                     logger.debug("Skipping invalid record: symbol=%s price=%s size=%s", symbol, price, size)
                     return
 
-                self.buffer.append({
-                    "symbol": symbol.upper(),
-                    "side": side.upper(),
+                rec: LiquidationRecord = {
+                    "symbol": symbol,
+                    "side": side,
                     "price": price,
-                    "qty": size,  # Store as qty for consistency
-                    "time": ts
-                })
+                    "qty": size,
+                    "time": ts,
+                }
+                self.buffer.append(rec)
 
                 logger.debug("Buffered liquidation: %s %s %.3f @ $%.2f", symbol, side, size, price)
 
@@ -115,7 +143,7 @@ class BybitLiquidationsWriter:
     # -----------------------------------------------------
     # FLUSH
     # -----------------------------------------------------
-    async def flush(self):
+    async def flush(self) -> None:
         if not self.buffer:
             return
 
@@ -161,6 +189,6 @@ class BybitLiquidationsWriter:
         except Exception as e:
             logger.error("Error during flush: %s", e, exc_info=True)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.flush()
         self.conn.close()
