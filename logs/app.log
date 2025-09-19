@@ -20524,3 +20524,339 @@ HTTP Request: GET https://api.coingecko.com/api/v3/coins/bitcoin "HTTP/1.1 200 O
 {"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:29:29.240415Z", "run_id": "6505023b", "level": "info"}
 {"task": "macro", "duration": 0.581629, "event": "task_end", "timestamp": "2025-09-19T20:29:29.241414Z", "run_id": "6505023b", "level": "info"}
 Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:34:13 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:29:47.458921Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:29:47.878831Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 42.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:30:47.463891Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.1, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:30:47.888723Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:35:49 CEST)" (scheduled at 2025-09-19 22:30:49.122193+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:30:49.135226+00:00", "event": "task_start", "timestamp": "2025-09-19T20:30:49.135226Z", "run_id": "a9115bb8", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:35:49 CEST)" (scheduled at 2025-09-19 22:30:49.262493+02:00)
+{"task": "macro", "ts": "2025-09-19T20:30:49.566114+00:00", "event": "task_start", "timestamp": "2025-09-19T20:30:49.566114Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:30:49.567120Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:30:49.568122Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.002008, "event": "task_end", "timestamp": "2025-09-19T20:30:49.568122Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:35:49 CEST)" executed successfully
+HTTP Request: GET https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:30:49.824302Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:30:49.825314Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.690088, "event": "task_end", "timestamp": "2025-09-19T20:30:49.825314Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:35:49 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:36:22 CEST)" (scheduled at 2025-09-19 22:31:25.370547+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:31:25.373531+00:00", "event": "task_start", "timestamp": "2025-09-19T20:31:25.373531Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/open-interest?category=linear&symbol=BTCUSDT&intervalTime=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:31:26.044521Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:31:26.045538Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.672987, "event": "task_end", "timestamp": "2025-09-19T20:31:26.046518Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:36:22 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.9, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:31:47.464671Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:31:47.904399Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:15:23.671526], next run at: 2025-09-19 22:48:06 CEST)" (scheduled at 2025-09-19 22:32:43.088131+02:00)
+{"task": "defillama", "ts": "2025-09-19T20:32:43.090893+00:00", "event": "task_start", "timestamp": "2025-09-19T20:32:43.090893Z", "run_id": "a9115bb8", "level": "info"}
+{"chain": "ethereum", "event": "defillama_cache_hit", "timestamp": "2025-09-19T20:32:43.090893Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "defillama", "event": "task_ok", "timestamp": "2025-09-19T20:32:43.091891Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "defillama", "duration": 0.000998, "event": "task_end", "timestamp": "2025-09-19T20:32:43.091891Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:15:23.671526], next run at: 2025-09-19 22:48:06 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.9, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:32:47.474172Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:32:47.909960Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:37:48 CEST)" (scheduled at 2025-09-19 22:32:59.325929+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:32:59.337935+00:00", "event": "task_start", "timestamp": "2025-09-19T20:32:59.337935Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:32:59.338936Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:32:59.339948Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.002013, "event": "task_end", "timestamp": "2025-09-19T20:32:59.339948Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:37:48 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:38:12 CEST)" (scheduled at 2025-09-19 22:33:14.104355+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:33:14.118628+00:00", "event": "task_start", "timestamp": "2025-09-19T20:33:14.118628Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:33:14.119601Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:33:14.120603Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.001975, "event": "task_end", "timestamp": "2025-09-19T20:33:14.120603Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:38:12 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.9, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:33:47.492558Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:33:47.932681Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:38:59 CEST)" (scheduled at 2025-09-19 22:34:13.910672+02:00)
+{"task": "macro", "ts": "2025-09-19T20:34:13.930826+00:00", "event": "task_start", "timestamp": "2025-09-19T20:34:13.930826Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:34:13.931825Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:34:13.931825Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "duration": 0.001988, "event": "task_end", "timestamp": "2025-09-19T20:34:13.932814Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:38:59 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.9, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:34:47.499452Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:34:47.939635Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 42.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:35:47.490226Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:35:47.944328Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:40:49 CEST)" (scheduled at 2025-09-19 22:35:49.414505+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:35:49.418595+00:00", "event": "task_start", "timestamp": "2025-09-19T20:35:49.418595Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:35:49.418595Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:35:49.422593Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.004998, "event": "task_end", "timestamp": "2025-09-19T20:35:49.423593Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:40:49 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:40:49 CEST)" (scheduled at 2025-09-19 22:35:49.564759+02:00)
+{"task": "macro", "ts": "2025-09-19T20:35:49.576176+00:00", "event": "task_start", "timestamp": "2025-09-19T20:35:49.576176Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.coingecko.com/api/v3/coins/bitcoin "HTTP/1.1 200 OK"
+{"symbol": "bitcoin", "source": "coingecko", "event": "macro_success", "timestamp": "2025-09-19T20:35:50.114005Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:35:50.116010Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.539834, "event": "task_end", "timestamp": "2025-09-19T20:35:50.116010Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:40:49 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:41:19 CEST)" (scheduled at 2025-09-19 22:36:22.276231+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:36:22.286587+00:00", "event": "task_start", "timestamp": "2025-09-19T20:36:22.286587Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:36:22.287584Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:36:22.288580Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.001993, "event": "task_end", "timestamp": "2025-09-19T20:36:22.288580Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:41:19 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:36:47.504023Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:36:47.959608Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:29:48.955614], next run at: 2025-09-19 23:07:26 CEST)" (scheduled at 2025-09-19 22:37:37.488328+02:00)
+{"task": "onchain_hashrate", "ts": "2025-09-19T20:37:37.492035+00:00", "event": "task_start", "timestamp": "2025-09-19T20:37:37.492035Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.blockchain.info/q/hashrate "HTTP/1.1 200 OK"
+{"symbol": "BTC", "source": "blockchain.info", "event": "onchain_success", "timestamp": "2025-09-19T20:37:38.022577Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_hashrate", "event": "task_ok", "timestamp": "2025-09-19T20:37:38.023561Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_hashrate", "duration": 0.531526, "event": "task_end", "timestamp": "2025-09-19T20:37:38.023561Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:48.955614], next run at: 2025-09-19 23:07:26 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:37:47.514224Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:37:47.966040Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:42:38 CEST)" (scheduled at 2025-09-19 22:37:48.987830+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:37:48.995784+00:00", "event": "task_start", "timestamp": "2025-09-19T20:37:48.995784Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/open-interest?category=linear&symbol=BTCUSDT&intervalTime=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:37:49.744974Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:37:49.745987Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.751201, "event": "task_end", "timestamp": "2025-09-19T20:37:49.746985Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:42:38 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:29:52.086798], next run at: 2025-09-19 23:08:00 CEST)" (scheduled at 2025-09-19 22:38:08.802168+02:00)
+{"task": "onchain_sopr", "ts": "2025-09-19T20:38:08.817002+00:00", "event": "task_start", "timestamp": "2025-09-19T20:38:08.817993Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://bitcoin-data.com/v1/sopr/csv "HTTP/1.1 200 "
+{"symbol": "BTC", "source": "bitcoin-data.com", "event": "onchain_success", "timestamp": "2025-09-19T20:38:09.752082Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_sopr", "event": "task_ok", "timestamp": "2025-09-19T20:38:09.753081Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_sopr", "duration": 0.937079, "event": "task_end", "timestamp": "2025-09-19T20:38:09.754081Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:52.086798], next run at: 2025-09-19 23:08:00 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:43:11 CEST)" (scheduled at 2025-09-19 22:38:12.852968+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:38:12.854810+00:00", "event": "task_start", "timestamp": "2025-09-19T20:38:12.854810Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:38:13.630446Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:38:13.631448Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.777638, "event": "task_end", "timestamp": "2025-09-19T20:38:13.632448Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:43:11 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:59:51.500866], next run at: 2025-09-19 23:38:36 CEST)" (scheduled at 2025-09-19 22:38:45.441518+02:00)
+{"task": "sentiment_fg", "ts": "2025-09-19T20:38:45.454481+00:00", "event": "task_start", "timestamp": "2025-09-19T20:38:45.454481Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.alternative.me/fng/ "HTTP/1.1 200 OK"
+{"metric": "fear_greed", "source": "alternative.me", "event": "sentiment_success", "timestamp": "2025-09-19T20:38:46.226474Z", "run_id": "6505023b", "level": "info"}
+{"task": "sentiment_fg", "event": "task_ok", "timestamp": "2025-09-19T20:38:46.227491Z", "run_id": "6505023b", "level": "info"}
+{"task": "sentiment_fg", "duration": 0.773994, "event": "task_end", "timestamp": "2025-09-19T20:38:46.228475Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:59:51.500866], next run at: 2025-09-19 23:38:36 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.1, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:38:47.525354Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:38:47.979744Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:43:44 CEST)" (scheduled at 2025-09-19 22:38:59.168454+02:00)
+{"task": "macro", "ts": "2025-09-19T20:38:59.184177+00:00", "event": "task_start", "timestamp": "2025-09-19T20:38:59.184177Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:38:59.184177Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:38:59.185183Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "duration": 0.001006, "event": "task_end", "timestamp": "2025-09-19T20:38:59.185183Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:43:44 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:30:00.849457], next run at: 2025-09-19 23:09:37 CEST)" (scheduled at 2025-09-19 22:39:36.425761+02:00)
+{"task": "onchain_tx", "ts": "2025-09-19T20:39:36.438373+00:00", "event": "task_start", "timestamp": "2025-09-19T20:39:36.438373Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.blockchain.info/q/getblockcount "HTTP/1.1 200 OK"
+{"symbol": "BTC", "source": "blockchain.info", "event": "onchain_success", "timestamp": "2025-09-19T20:39:37.004794Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_tx", "event": "task_ok", "timestamp": "2025-09-19T20:39:37.005794Z", "run_id": "6505023b", "level": "info"}
+{"task": "onchain_tx", "duration": 0.568422, "event": "task_end", "timestamp": "2025-09-19T20:39:37.006795Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:30:00.849457], next run at: 2025-09-19 23:09:37 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.1, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:39:47.547895Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:39:47.987737Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 42.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:40:47.552954Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:40:47.991735Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:45:49 CEST)" (scheduled at 2025-09-19 22:40:49.706817+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:40:49.710250+00:00", "event": "task_start", "timestamp": "2025-09-19T20:40:49.710250Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:40:49.710250Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:40:49.711256Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.001006, "event": "task_end", "timestamp": "2025-09-19T20:40:49.711256Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:45:49 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:45:50 CEST)" (scheduled at 2025-09-19 22:40:49.867025+02:00)
+{"task": "macro", "ts": "2025-09-19T20:40:49.883298+00:00", "event": "task_start", "timestamp": "2025-09-19T20:40:49.883298Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:40:49.884304Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:40:49.884304Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.002008, "event": "task_end", "timestamp": "2025-09-19T20:40:49.885306Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:45:50 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:46:16 CEST)" (scheduled at 2025-09-19 22:41:19.181915+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:41:19.196148+00:00", "event": "task_start", "timestamp": "2025-09-19T20:41:19.196148Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:41:19.197147Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:41:19.197147Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.000999, "event": "task_end", "timestamp": "2025-09-19T20:41:19.198145Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:46:16 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:41:47.581570Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:41:48.002485Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:47:28 CEST)" (scheduled at 2025-09-19 22:42:38.649731+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:42:38.668773+00:00", "event": "task_start", "timestamp": "2025-09-19T20:42:38.668773Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/open-interest?category=linear&symbol=BTCUSDT&intervalTime=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:42:39.414897Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:42:39.416854Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.749092, "event": "task_end", "timestamp": "2025-09-19T20:42:39.417865Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:47:28 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:42:47.584916Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:42:48.005810Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:48:10 CEST)" (scheduled at 2025-09-19 22:43:11.601581+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:43:11.618556+00:00", "event": "task_start", "timestamp": "2025-09-19T20:43:11.618556Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:43:12.326517Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:43:12.327520Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.709949, "event": "task_end", "timestamp": "2025-09-19T20:43:12.328505Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:48:10 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:48:29 CEST)" (scheduled at 2025-09-19 22:43:44.426236+02:00)
+{"task": "macro", "ts": "2025-09-19T20:43:44.454014+00:00", "event": "task_start", "timestamp": "2025-09-19T20:43:44.454014Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.coingecko.com/api/v3/coins/bitcoin "HTTP/1.1 200 OK"
+{"symbol": "bitcoin", "source": "coingecko", "event": "macro_success", "timestamp": "2025-09-19T20:43:45.039092Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:43:45.040106Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "duration": 0.587077, "event": "task_end", "timestamp": "2025-09-19T20:43:45.041091Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:48:29 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.0, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:43:47.611954Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 50.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:43:48.019625Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:29:30.235683], next run at: 2025-09-19 23:13:45 CEST)" (scheduled at 2025-09-19 22:44:15.439549+02:00)
+{"task": "onchain_tx", "ts": "2025-09-19T20:44:15.451351+00:00", "event": "task_start", "timestamp": "2025-09-19T20:44:15.451351Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.blockchain.info/q/getblockcount "HTTP/1.1 200 OK"
+{"symbol": "BTC", "source": "blockchain.info", "event": "onchain_success", "timestamp": "2025-09-19T20:44:16.104077Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_tx", "event": "task_ok", "timestamp": "2025-09-19T20:44:16.106074Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_tx", "duration": 0.654723, "event": "task_end", "timestamp": "2025-09-19T20:44:16.106074Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:29:30.235683], next run at: 2025-09-19 23:13:45 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:15:15.109453], next run at: 2025-09-19 22:59:45 CEST)" (scheduled at 2025-09-19 22:44:30.119258+02:00)
+{"task": "defillama", "ts": "2025-09-19T20:44:30.134238+00:00", "event": "task_start", "timestamp": "2025-09-19T20:44:30.134238Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.llama.fi/v2/chains "HTTP/1.1 200 OK"
+HTTP Request: GET https://api.llama.fi/v2/chains "HTTP/1.1 200 OK"
+HTTP Request: GET https://api.llama.fi/v2/historicalChainTvl/Ethereum "HTTP/1.1 200 OK"
+{"tvlPrevDay": 93564508576.0, "tvlPrevWeek": 96577196061.0, "tvlPrevMonth": 88853733521.0, "event": "defillama_historical_calculated", "timestamp": "2025-09-19T20:44:32.113931Z", "run_id": "6505023b", "level": "info"}
+{"chain": "ethereum", "has_valid_historical": true, "event": "defillama_success", "timestamp": "2025-09-19T20:44:32.115965Z", "run_id": "6505023b", "level": "info"}
+{"task": "defillama", "event": "task_ok", "timestamp": "2025-09-19T20:44:32.116964Z", "run_id": "6505023b", "level": "info"}
+{"task": "defillama", "duration": 1.982726, "event": "task_end", "timestamp": "2025-09-19T20:44:32.116964Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:15:15.109453], next run at: 2025-09-19 22:59:45 CEST)" executed successfully
+{"alive": true, "rss_mb": 43.6, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:44:47.629247Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 51.2, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:44:48.049388Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 43.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:45:47.657648Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:45:48.034440Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:50:50 CEST)" (scheduled at 2025-09-19 22:45:49.999129+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:45:50.013734+00:00", "event": "task_start", "timestamp": "2025-09-19T20:45:50.013734Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:45:50.013734Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:45:50.014732Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.000998, "event": "task_end", "timestamp": "2025-09-19T20:45:50.014732Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:50:50 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:50:50 CEST)" (scheduled at 2025-09-19 22:45:50.169291+02:00)
+{"task": "macro", "ts": "2025-09-19T20:45:50.185037+00:00", "event": "task_start", "timestamp": "2025-09-19T20:45:50.185037Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:45:50.186551Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:45:50.193578Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.009529, "event": "task_end", "timestamp": "2025-09-19T20:45:50.194566Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:50:50 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:51:12 CEST)" (scheduled at 2025-09-19 22:46:16.087599+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:46:16.109726+00:00", "event": "task_start", "timestamp": "2025-09-19T20:46:16.109726Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:46:16.110736Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:46:16.111728Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.002002, "event": "task_end", "timestamp": "2025-09-19T20:46:16.111728Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:51:12 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:30:19.590843], next run at: 2025-09-19 23:17:03 CEST)" (scheduled at 2025-09-19 22:46:43.506031+02:00)
+{"task": "onchain_hashrate", "ts": "2025-09-19T20:46:43.510810+00:00", "event": "task_start", "timestamp": "2025-09-19T20:46:43.510810Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.blockchain.info/q/hashrate "HTTP/1.1 200 OK"
+{"symbol": "BTC", "source": "blockchain.info", "event": "onchain_success", "timestamp": "2025-09-19T20:46:44.124137Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_hashrate", "event": "task_ok", "timestamp": "2025-09-19T20:46:44.125127Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_hashrate", "duration": 0.615305, "event": "task_end", "timestamp": "2025-09-19T20:46:44.126115Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:30:19.590843], next run at: 2025-09-19 23:17:03 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:46:47.676951Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:46:48.038125Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:52:17 CEST)" (scheduled at 2025-09-19 22:47:28.311632+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:47:28.327387+00:00", "event": "task_start", "timestamp": "2025-09-19T20:47:28.327387Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:47:28.328386Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:47:28.328386Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.001998, "event": "task_end", "timestamp": "2025-09-19T20:47:28.329385Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:52:17 CEST)" executed successfully
+{"alive": true, "rss_mb": 42.5, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:47:47.698128Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:47:48.043619Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:15:23.671526], next run at: 2025-09-19 23:03:30 CEST)" (scheduled at 2025-09-19 22:48:06.759657+02:00)
+{"task": "defillama", "ts": "2025-09-19T20:48:06.770883+00:00", "event": "task_start", "timestamp": "2025-09-19T20:48:06.770883Z", "run_id": "a9115bb8", "level": "info"}
+{"chain": "ethereum", "event": "defillama_cache_hit", "timestamp": "2025-09-19T20:48:06.770883Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "defillama", "event": "task_ok", "timestamp": "2025-09-19T20:48:06.771884Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "defillama", "duration": 0.001001, "event": "task_end", "timestamp": "2025-09-19T20:48:06.771884Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:15:23.671526], next run at: 2025-09-19 23:03:30 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:53:09 CEST)" (scheduled at 2025-09-19 22:48:10.350194+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:48:10.356051+00:00", "event": "task_start", "timestamp": "2025-09-19T20:48:10.356051Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:48:10.357057Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:48:10.358058Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.002007, "event": "task_end", "timestamp": "2025-09-19T20:48:10.358058Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:53:09 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:53:14 CEST)" (scheduled at 2025-09-19 22:48:29.684018+02:00)
+{"task": "macro", "ts": "2025-09-19T20:48:29.698486+00:00", "event": "task_start", "timestamp": "2025-09-19T20:48:29.698486Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:48:29.699479Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:48:29.699479Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "duration": 0.000993, "event": "task_end", "timestamp": "2025-09-19T20:48:29.699479Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:53:14 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:30:58.151663], next run at: 2025-09-19 23:19:37 CEST)" (scheduled at 2025-09-19 22:48:39.189505+02:00)
+{"task": "onchain_sopr", "ts": "2025-09-19T20:48:39.192463+00:00", "event": "task_start", "timestamp": "2025-09-19T20:48:39.192463Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://bitcoin-data.com/v1/sopr/csv "HTTP/1.1 200 "
+{"symbol": "BTC", "source": "bitcoin-data.com", "event": "onchain_success", "timestamp": "2025-09-19T20:48:40.103686Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_sopr", "event": "task_ok", "timestamp": "2025-09-19T20:48:40.104689Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "onchain_sopr", "duration": 0.913202, "event": "task_end", "timestamp": "2025-09-19T20:48:40.105665Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:30:58.151663], next run at: 2025-09-19 23:19:37 CEST)" executed successfully
+{"alive": true, "rss_mb": 44.4, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:48:47.695599Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:48:48.057039Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 44.4, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:49:47.699396Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.8, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:49:48.062848Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 43.6, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:50:47.701528Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:50:48.076468Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:55:50 CEST)" (scheduled at 2025-09-19 22:50:50.291441+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:50:50.306213+00:00", "event": "task_start", "timestamp": "2025-09-19T20:50:50.306213Z", "run_id": "a9115bb8", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:55:50 CEST)" (scheduled at 2025-09-19 22:50:50.471557+02:00)
+{"task": "macro", "ts": "2025-09-19T20:50:50.754411+00:00", "event": "task_start", "timestamp": "2025-09-19T20:50:50.754411Z", "run_id": "a9115bb8", "level": "info"}
+HTTP Request: GET https://api.coingecko.com/api/v3/coins/bitcoin "HTTP/1.1 200 OK"
+{"symbol": "bitcoin", "source": "coingecko", "event": "macro_success", "timestamp": "2025-09-19T20:50:51.327038Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:50:51.328037Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.574629, "event": "task_end", "timestamp": "2025-09-19T20:50:51.329040Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 22:55:50 CEST)" executed successfully
+HTTP Request: GET https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:50:51.457821Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:50:51.458823Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 1.153609, "event": "task_end", "timestamp": "2025-09-19T20:50:51.459822Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 22:55:50 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:56:09 CEST)" (scheduled at 2025-09-19 22:51:12.993283+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:51:13.007082+00:00", "event": "task_start", "timestamp": "2025-09-19T20:51:13.007082Z", "run_id": "6505023b", "level": "info"}
+HTTP Request: GET https://api.bybit.com/v5/market/open-interest?category=linear&symbol=BTCUSDT&intervalTime=5min "HTTP/1.1 200 OK"
+{"symbol": "BTCUSDT", "source": "bybit", "event": "deriv_success", "timestamp": "2025-09-19T20:51:13.652336Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:51:13.653337Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.647254, "event": "task_end", "timestamp": "2025-09-19T20:51:13.654336Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 22:56:09 CEST)" executed successfully
+{"alive": true, "rss_mb": 44.3, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:51:47.704811Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:51:48.078837Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:57:07 CEST)" (scheduled at 2025-09-19 22:52:17.973533+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:52:17.980709+00:00", "event": "task_start", "timestamp": "2025-09-19T20:52:17.980709Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:52:17.980709Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:52:17.981707Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.000998, "event": "task_end", "timestamp": "2025-09-19T20:52:17.981707Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:49.661901], next run at: 2025-09-19 22:57:07 CEST)" executed successfully
+{"alive": true, "rss_mb": 44.3, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:52:47.710671Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:52:48.087216Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:58:07 CEST)" (scheduled at 2025-09-19 22:53:09.098807+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:53:09.120534+00:00", "event": "task_start", "timestamp": "2025-09-19T20:53:09.120534Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:53:09.122532Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:53:09.123531Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.002997, "event": "task_end", "timestamp": "2025-09-19T20:53:09.123531Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:58.748613], next run at: 2025-09-19 22:58:07 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:58:00 CEST)" (scheduled at 2025-09-19 22:53:14.941800+02:00)
+{"task": "macro", "ts": "2025-09-19T20:53:14.957703+00:00", "event": "task_start", "timestamp": "2025-09-19T20:53:14.957703Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:53:14.958704Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:53:14.959706Z", "run_id": "6505023b", "level": "info"}
+{"task": "macro", "duration": 0.002003, "event": "task_end", "timestamp": "2025-09-19T20:53:14.959706Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:45.257782], next run at: 2025-09-19 22:58:00 CEST)" executed successfully
+{"alive": true, "rss_mb": 44.3, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:53:47.721107Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:53:48.099841Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 44.3, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:54:47.737720Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 49.7, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:54:48.114087Z", "run_id": "6505023b", "level": "info"}
+{"alive": true, "rss_mb": 44.3, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:55:47.736370Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.6, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:55:48.115693Z", "run_id": "6505023b", "level": "info"}
+Running job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 23:00:50 CEST)" (scheduled at 2025-09-19 22:55:50.583753+02:00)
+{"task": "derivatives_lsr", "ts": "2025-09-19T20:55:50.595026+00:00", "event": "task_start", "timestamp": "2025-09-19T20:55:50.595026Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "BTCUSDT", "metric": "long_short_ratio", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:55:50.595026Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "event": "task_ok", "timestamp": "2025-09-19T20:55:50.596031Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "derivatives_lsr", "duration": 0.002001, "event": "task_end", "timestamp": "2025-09-19T20:55:50.597027Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.292312], next run at: 2025-09-19 23:00:50 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 23:00:51 CEST)" (scheduled at 2025-09-19 22:55:50.773823+02:00)
+{"task": "macro", "ts": "2025-09-19T20:55:50.781987+00:00", "event": "task_start", "timestamp": "2025-09-19T20:55:50.781987Z", "run_id": "a9115bb8", "level": "info"}
+{"symbol": "bitcoin", "event": "macro_cache_hit", "timestamp": "2025-09-19T20:55:50.782989Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "event": "task_ok", "timestamp": "2025-09-19T20:55:50.782989Z", "run_id": "a9115bb8", "level": "info"}
+{"task": "macro", "duration": 0.002003, "event": "task_end", "timestamp": "2025-09-19T20:55:50.783990Z", "run_id": "a9115bb8", "level": "info"}
+Job "task_wrapper (trigger: interval[0:05:00.302266], next run at: 2025-09-19 23:00:51 CEST)" executed successfully
+Running job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 23:01:06 CEST)" (scheduled at 2025-09-19 22:56:09.898967+02:00)
+{"task": "derivatives_oi", "ts": "2025-09-19T20:56:09.903173+00:00", "event": "task_start", "timestamp": "2025-09-19T20:56:09.903173Z", "run_id": "6505023b", "level": "info"}
+{"symbol": "BTCUSDT", "event": "deriv_cache_hit", "timestamp": "2025-09-19T20:56:09.904180Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "event": "task_ok", "timestamp": "2025-09-19T20:56:09.905180Z", "run_id": "6505023b", "level": "info"}
+{"task": "derivatives_oi", "duration": 0.003018, "event": "task_end", "timestamp": "2025-09-19T20:56:09.906191Z", "run_id": "6505023b", "level": "info"}
+Job "task_wrapper (trigger: interval[0:04:56.905684], next run at: 2025-09-19 23:01:06 CEST)" executed successfully
+{"alive": true, "rss_mb": 44.1, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:56:47.735967Z", "run_id": "a9115bb8", "level": "info"}
+{"alive": true, "rss_mb": 48.6, "cpu_percent": 0.0, "event": "heartbeat", "timestamp": "2025-09-19T20:56:48.130685Z", "run_id": "6505023b", "level": "info"}

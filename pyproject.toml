@@ -86,6 +86,16 @@ module = ["pipeline.collectors.bybit_ws"]
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
+module = ["pipeline.collectors.bybit_OI"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pipeline.collectors.sopr"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
 module = ["pipeline.collectors.coingecko"]
 disallow_untyped_defs = true
 

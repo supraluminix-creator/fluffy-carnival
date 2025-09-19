@@ -31,19 +31,21 @@ Target next: reduce legacy bucket (< 30%) by promoting high–value collectors.
 | `pipeline.collectors.hashrate` | strict+incomplete |
 | `pipeline.collectors.txcount` | strict+incomplete |
 | `pipeline.collectors.ws` | strict+incomplete |
+| `pipeline.collectors.bybit_OI` | strict+incomplete |
+| `pipeline.collectors.sopr` | strict+incomplete |
 
 ## Remaining Legacy Collectors (Quarantine)
 | Module | Rationale / Notes | Suggested Promotion Path |
 |--------|-------------------|--------------------------|
 | `pipeline.collectors.base_collector` | Core base, still some dynamic attrs | Add full annotations, enable strict first |
-| `pipeline.collectors.bybit_OI` | Recently partially typed; network shapes loose | Add TypedDict for API response, strict+imports |
+| `pipeline.collectors.bybit_OI` | PROMOTED (remove from list next summary) | Completed |
 | `pipeline.collectors.defi` | Likely varied external schema | Segment per source, add schema TypedDicts |
 | `pipeline.collectors.derivatives` | Mixed endpoints | Split fetchers & unify return contract |
 | `pipeline.collectors.market` | Heterogeneous macro data | Factor per provider, define normalized record type |
 | `pipeline.collectors.onchain` | Multi-chain sources | Create per-chain adapter + shared models |
 | `pipeline.collectors.sentiment` | External sentiment APIs | Add lightweight TypedDicts |
-| `pipeline.collectors.sopr_bgeometrics` | SOPR variants, JSON parsing | Consolidate SOPR model |
-| `pipeline.collectors.sopr_blockchain` | Similar to above | Merge with SOPR model |
+| `pipeline.collectors.sopr_bgeometrics` | Deprecated shim -> `sopr` | Remove after transition |
+| `pipeline.collectors.sopr_blockchain` | Deprecated shim -> `sopr` | Remove after transition |
 
 ## Immediate Wins for Next Sprint
 1. Promote `bybit_OI` (already close) -> add response model & strict.
@@ -79,6 +81,8 @@ pytest -q
 - Normalized websocket test servers & isolated with `mypy: ignore-errors` pragmas.
 - Eliminated unused `noqa` (RUF100) across health & scheduler modules.
 - Hardened `bybit_OI` return typing.
+- Promoted `bybit_OI` collector (TypedDict + strict override, added return annotations for async methods).
+- Unified SOPR collectors into `pipeline.collectors.sopr` with TypedDict + enums; added shims.
 - Added comprehensive typing documentation (this file).
 
 ## Next Promotion Candidate Checklist (Template)
