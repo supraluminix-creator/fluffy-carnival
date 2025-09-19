@@ -1,0 +1,121 @@
+openapi: 3.1.0
+info:
+  title: Crypto Pipeline API (Draft)
+  version: 0.1.0-draft
+  description: >-
+    Esquisse de l'API pour exposer les collectors, leurs statuts et les snapshots agrégés.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health probe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+  /collectors:
+    get:
+      summary: Liste des collectors disponibles
+      responses:
+        '200':
+          description: Liste
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  collectors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CollectorInfo'
+  /collectors/run:
+    post:
+      summary: Exécute un sous-ensemble de collectors et retourne leurs résultats
+      parameters:
+        - in: query
+          name: names
+          schema:
+            type: string
+          description: Liste séparée par des virgules
+      responses:
+        '200':
+          description: Résultats d'exécution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectorRunBatch'
+  /snapshot:
+    get:
+      summary: Snapshot agrégé des derniers résultats collectors
+      responses:
+        '200':
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        alive:
+          type: boolean
+        run_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    CollectorInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        schedule:
+          type: string
+          nullable: true
+    CollectorResult:
+      type: object
+      properties:
+        collector:
+          type: string
+        status:
+          type: string
+          enum: [success, error]
+        execution_time:
+          type: number
+        result:
+          description: Payload brut renvoyé par le collector
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    CollectorRunBatch:
+      type: object
+      properties:
+        status:
+          type: string
+        total:
+          type: integer
+        successful:
+          type: integer
+        failed:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorResult'
+    Snapshot:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        collectors:
+            type: array
+            items:
+              $ref: '#/components/schemas/CollectorResult'
