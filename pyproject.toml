@@ -1,37 +1,47 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+[tool.ruff.lint]
 select = [
-  "E",   # pycodestyle errors
-  "F",   # pyflakes
-  "I",   # isort
-  "UP",  # pyupgrade
+  "E",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # import sorting
+  "UP", # pyupgrade
+  "B",  # bugbear
+  "SIM",# simplifications
+  "PERF" # performance hints
 ]
 ignore = [
-  "E501",  # line length handled by formatter/editor
+  # Allow long lines up to 120 (configured via line-length). We do not ignore E501 so Ruff will flag >120.
 ]
+
+# Per-file ignores for legacy modules scheduled for later cleanup
+[tool.ruff.lint.per-file-ignores]
+"pipeline/reporter.py" = [
+  "E101", "E117", "W191", # mixed tabs/spaces / over-indent
+  "E501"                    # extremely long lines kept until refactor
+]
+"pipeline/exporter.py" = ["W191", "E101", "E117", "E501"]
+"pipeline/orchestrator.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pipeline", "scheduler", "api"]
 
-[tool.flake8]
-max-line-length = 120
-extend-ignore = ["E203", "W503"]
-exclude = [
-  ".git",
-  "__pycache__",
-  ".venv",
-]
+# Flake8 retained temporarily (will be removed from CI soon). Mirrors Ruff line length.
+# Flake8 removed (redundant with Ruff). Historical config deleted to avoid drift.
 
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_ignores = true
+warn_return_any = true
 strict_optional = false
 check_untyped_defs = true
 no_implicit_optional = true
-exclude = [
-  "^\\.venv/",
-  "^build/",
-  "^dist/",
-]
+exclude = ["^\\.venv/", "^build/", "^dist/"]
+
+# Future tightening roadmap (not yet enabled):
+# disallow_untyped_defs = true
+# disallow_incomplete_defs = true
+# enable_error_code = true

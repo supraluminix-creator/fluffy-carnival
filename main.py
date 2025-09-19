@@ -7,30 +7,31 @@ Cette version intègre:
 - Collectors basés sur BaseCollector pattern
 """
 
-import os
 import asyncio
-import sys
+import contextlib
 import logging
+import os
+import sys
+import uuid
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
+
 import structlog
 import structlog.contextvars as structlog_ctx
-import uuid
 from dotenv import load_dotenv
-from typing import Dict
-from datetime import datetime
 from tabulate import tabulate
-import contextlib
 
-# Import components Sprint 1
-from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
-from pipeline.orchestrator import ParallelOrchestrator
+from pipeline.collectors.defillama import fetch_defillama_tvl
+from pipeline.collectors.derivatives import fetch_bybit_long_short_ratio, fetch_bybit_oi
 
 # Import collectors (existants)
 from pipeline.collectors.market import fetch_macro
-from pipeline.collectors.defillama import fetch_defillama_tvl
-from pipeline.collectors.onchain import fetch_txcount, fetch_hashrate, fetch_sopr
-from pipeline.collectors.derivatives import fetch_bybit_oi, fetch_bybit_long_short_ratio
+from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcount
 from pipeline.collectors.sentiment import fetch_fear_greed
+
+# Import components Sprint 1
+from pipeline.orchestrator import ParallelOrchestrator
+from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
 try:
     from scheduler.runner import build_scheduler
@@ -127,12 +128,14 @@ async def run_legacy_collection():
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)
     safe_print_table("Macro - CoinGecko/CMC", [macro] if macro else [], "keys")
-    if macro: results.append(macro)
+    if macro:
+        results.append(macro)
 
     # DeFi
     defi = await fetch_defillama_tvl("ethereum")
     safe_print_table("DeFi - Defillama", [defi] if defi else [], "keys")
-    if defi: results.append(defi)
+    if defi:
+        results.append(defi)
 
     # On-chain
     txcount = await fetch_txcount("BTC", etherscan_api_key=etherscan_api_key)
@@ -141,24 +144,30 @@ async def run_legacy_collection():
     safe_print_table("On-chain - TxCount", [txcount] if txcount else [], "keys")
     safe_print_table("On-chain - Hashrate", [hashrate] if hashrate else [], "keys")
     safe_print_table("On-chain - SOPR", [sopr] if sopr else [], "keys")
-    if txcount: results.append(txcount)
-    if hashrate: results.append(hashrate)
-    if sopr: results.append(sopr)
+    if txcount:
+        results.append(txcount)
+    if hashrate:
+        results.append(hashrate)
+    if sopr:
+        results.append(sopr)
 
     # Dérivés - Open Interest
     bybit_oi = await fetch_bybit_oi("BTCUSDT")
     safe_print_table("Dérivés - Bybit OI", [bybit_oi] if bybit_oi else [], "keys")
-    if bybit_oi: results.append(bybit_oi)
+    if bybit_oi:
+        results.append(bybit_oi)
 
     # Dérivés - Long/Short Ratio Bybit
     bybit_lsr = await fetch_bybit_long_short_ratio("BTCUSDT")
     safe_print_table("Dérivés - Bybit Long/Short Ratio", [bybit_lsr] if bybit_lsr else [], "keys")
-    if bybit_lsr: results.append(bybit_lsr)
+    if bybit_lsr:
+        results.append(bybit_lsr)
 
     # Sentiment
     fg = await fetch_fear_greed()
     safe_print_table("Sentiment - Fear & Greed", [fg] if fg else [], "keys")
-    if fg: results.append(fg)
+    if fg:
+        results.append(fg)
 
     # Export CSV (consolidé + horodaté)
     export_csv(results, os.path.join(EXPORT_DIR, "latest_export.csv"))
@@ -170,7 +179,7 @@ async def run_legacy_collection():
     
     return results
 
-def create_collectors() -> Dict[str, LegacyCollectorWrapper]:
+def create_collectors() -> dict[str, LegacyCollectorWrapper]:
     """Crée les collectors avec wrapper compatibility"""
     
     # API keys depuis environnement
@@ -223,11 +232,7 @@ async def run_scheduler_mode():
             # Traiter les résultats pour export CSV
             if results.get('status') == 'completed':
                 successful_results = results.get('successful_results', [])
-                data_for_export = []
-                
-                for result in successful_results:
-                    if result.get('result'):
-                        data_for_export.append(result['result'])
+                data_for_export = [r['result'] for r in successful_results if r.get('result')]
                 
                 # Export CSV
                 if data_for_export:
@@ -312,7 +317,7 @@ async def main():
     os.environ.setdefault('SCHEDULER_CONFIG', sched_cfg)
     logger.info("Starting Crypto Monitor", mode=mode, enable_sched=enable_sched, sched_cfg=sched_cfg)
 
-    tasks = []
+    # (Removed unused 'tasks' list previously here)
 
     if enable_sched and build_scheduler is not None:
         scheduler = build_scheduler()
@@ -364,9 +369,9 @@ async def main():
         health_port = int(os.getenv("HEALTH_PORT", "9310"))
         if os.getenv("ENABLE_HEALTH", "1") == "1":
             try:
+                import json
                 import threading
                 from http.server import BaseHTTPRequestHandler, HTTPServer
-                import json
 
                 class HealthHandler(BaseHTTPRequestHandler):
                     def log_message(self, format, *args):
@@ -381,7 +386,7 @@ async def main():
                                 snap = get_status_snapshot()
                                 ready_val = 1 if snap.get("ready") else 0
                                 ts_val = int(snap.get("ready_ts") or 0)
-                                body = f"ready {ready_val}\nready_timestamp {ts_val}\n".encode("utf-8")
+                                body = f"ready {ready_val}\nready_timestamp {ts_val}\n".encode()
                                 self.send_response(200)
                                 self.send_header("Content-Type", "text/plain; charset=utf-8")
                                 self.send_header("Content-Length", str(len(body)))
@@ -407,7 +412,7 @@ async def main():
                             self.send_header("Content-Length", str(len(payload)))
                             self.end_headers()
                             self.wfile.write(payload)
-                        except Exception as e:
+                        except Exception:
                             try:
                                 self.send_response(500)
                                 self.end_headers()
@@ -430,23 +435,15 @@ async def main():
             logger.info("Scheduler interrupted by user")
         finally:
             # Stop health server if any
-            try:
+            with contextlib.suppress(Exception):
                 if health_server is not None:
-                    with contextlib.suppress(Exception):
-                        health_server.shutdown()
-                        health_server.server_close()
-            except Exception:
-                pass
-            try:
+                    health_server.shutdown()
+                    health_server.server_close()
+            with contextlib.suppress(Exception):
                 hb_task.cancel()
-                with contextlib.suppress(Exception):
-                    await hb_task
-            except Exception:
-                pass
-            try:
+                await hb_task
+            with contextlib.suppress(Exception):
                 scheduler.shutdown(wait=False)
-            except Exception:
-                pass
         return
     else:
         logger.warning("Scheduler disabled or builder missing")
@@ -510,15 +507,13 @@ def setup_logging():
     )
 
     # Announce where logs are written
-    try:
+    with contextlib.suppress(Exception):
         structlog.get_logger(__name__).info(
             "Logging initialized",
             run_log=run_log_path,
             rotating_log=os.path.join(logs_dir, "app.log"),
             run_id=run_id,
         )
-    except Exception:
-        pass
 
 if __name__ == "__main__":
     try:

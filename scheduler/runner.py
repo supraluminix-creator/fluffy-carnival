@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import importlib
 import json
 import os
@@ -7,29 +8,29 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from random import uniform
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 try:
-    import yaml  # type: ignore
-except Exception:
-    yaml = None  # type: ignore
+    import yaml  # type: ignore[import-untyped]
+except Exception:  # pragma: no cover - optional dependency
+    yaml = None
 
 log = structlog.get_logger(__name__)
 
 # --- Prometheus metrics (optional) ---
 _PROM_AVAILABLE = False
+CRYPTO_BUILD_INFO: Any = None
 try:
-    from prometheus_client import Counter, Gauge, Histogram  # type: ignore
+    from prometheus_client import Counter, Gauge, Histogram
     try:
         # Info is available in newer prometheus_client versions
-        from prometheus_client import Info  # type: ignore
+        from prometheus_client import Info
         _HAS_INFO = True
-    except Exception:
-        Info = None  # type: ignore
+    except Exception:  # pragma: no cover - older prometheus_client
         _HAS_INFO = False
 
     CRYPTO_TASK_START = Counter(
@@ -51,7 +52,23 @@ try:
         "crypto_task_duration_seconds",
         "Task duration in seconds",
         labelnames=("task",),
-        buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
+        buckets=(
+            0.001,
+            0.005,
+            0.01,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2.5,
+            5,
+            10,
+            30,
+            60,
+            120,
+            300,
+        ),
     )
     CRYPTO_TASK_ERROR_RATE = Gauge(
         "crypto_task_error_rate",
@@ -67,7 +84,7 @@ try:
         "Unix epoch seconds when process became ready",
     )
     # Build info (labels: version, git_sha, run_id)
-    if _HAS_INFO and Info is not None:
+    if _HAS_INFO and 'Info' in locals():
         CRYPTO_BUILD_INFO = Info(
             "crypto_build_info",
             "Build and runtime info",
@@ -79,16 +96,16 @@ try:
             labelnames=("version", "git_sha", "run_id"),
         )
     _PROM_AVAILABLE = True
-except Exception:
+except Exception:  # pragma: no cover - metrics optional
     # Metrics library not installed; metrics will be disabled gracefully
-    CRYPTO_TASK_START = None  # type: ignore
-    CRYPTO_TASK_OK = None  # type: ignore
-    CRYPTO_TASK_ERR = None  # type: ignore
-    CRYPTO_TASK_DURATION = None  # type: ignore
-    CRYPTO_TASK_ERROR_RATE = None  # type: ignore
-    CRYPTO_READY = None  # type: ignore
-    CRYPTO_READY_TS = None  # type: ignore
-    CRYPTO_BUILD_INFO = None  # type: ignore
+    CRYPTO_TASK_START = None
+    CRYPTO_TASK_OK = None
+    CRYPTO_TASK_ERR = None
+    CRYPTO_TASK_DURATION = None
+    CRYPTO_TASK_ERROR_RATE = None
+    CRYPTO_READY = None
+    CRYPTO_READY_TS = None
+    CRYPTO_BUILD_INFO = None
 
 # In-memory counters for simple error-rate alerting
 _ok_counts: dict[str, int] = defaultdict(int)
@@ -112,6 +129,7 @@ _STATE_DIR = Path(os.getenv("STATE_DIR", "data"))
 _STATE_DIR.mkdir(parents=True, exist_ok=True)
 _STATE_FILE = _STATE_DIR / "scheduler_counters.json"
 
+
 def _load_state() -> None:
     try:
         if _STATE_FILE.exists():
@@ -123,8 +141,12 @@ def _load_state() -> None:
                 _ok_counts[k] = int(v)
             for k, v in err.items():
                 _err_counts[k] = int(v)
-            log.info("counters_state_loaded", path=str(_STATE_FILE), tasks=len(_ok_counts))
-    except Exception as e:
+            log.info(
+                "counters_state_loaded",
+                path=str(_STATE_FILE),
+                tasks=len(_ok_counts),
+            )
+    except Exception as e:  # noqa: BLE001
         log.warning("counters_state_load_failed", error=str(e))
 
 def _save_state() -> None:
@@ -156,10 +178,8 @@ async def task_wrapper(
     log.info("task_start", task=name, ts=start.isoformat())
     # Prometheus: increment start
     if _PROM_AVAILABLE and CRYPTO_TASK_START is not None:
-        try:
+        with contextlib.suppress(Exception):
             CRYPTO_TASK_START.labels(task=name).inc()
-        except Exception:
-            pass
     try:
         kwargs = kwargs or {}
         res = fn(*args, **kwargs)
@@ -167,55 +187,42 @@ async def task_wrapper(
             await res
         log.info("task_ok", task=name)
         if _PROM_AVAILABLE and CRYPTO_TASK_OK is not None:
-            try:
+            with contextlib.suppress(Exception):
                 CRYPTO_TASK_OK.labels(task=name).inc()
-            except Exception:
-                pass
         _ok_counts[name] += 1
         # Mark readiness after first success
         if (CRYPTO_READY is not None) or (CRYPTO_READY_TS is not None):
-            try:
+            with contextlib.suppress(Exception):
                 # mark readiness
                 if CRYPTO_READY is not None:
                     CRYPTO_READY.set(1)
                 global _READY_TS
                 if _READY_TS is None:
                     _READY_TS = datetime.now(UTC).timestamp()
-                    # Emit a one-time readiness log line for log-based health checks
-                    try:
+                    with contextlib.suppress(Exception):
                         log.info("ready", ready_ts=_READY_TS)
-                    except Exception:
-                        pass
                     if CRYPTO_READY_TS is not None:
                         CRYPTO_READY_TS.set(_READY_TS)
-            except Exception:
-                pass
     except Exception as e:  # pragma: no cover - sanity log
         log.error("task_err", task=name, error=str(e))
         if _PROM_AVAILABLE and CRYPTO_TASK_ERR is not None:
-            try:
+            with contextlib.suppress(Exception):
                 CRYPTO_TASK_ERR.labels(task=name).inc()
-            except Exception:
-                pass
         _err_counts[name] += 1
     finally:
         end = datetime.now(UTC)
         duration = (end - start).total_seconds()
         log.info("task_end", task=name, duration=duration)
         if _PROM_AVAILABLE and CRYPTO_TASK_DURATION is not None:
-            try:
+            with contextlib.suppress(Exception):
                 CRYPTO_TASK_DURATION.labels(task=name).observe(duration)
-            except Exception:
-                pass
         # Compute and expose error rate
         total = _ok_counts[name] + _err_counts[name]
         if total > 0:
             err_rate = _err_counts[name] / total
             if _PROM_AVAILABLE and CRYPTO_TASK_ERROR_RATE is not None:
-                try:
+                with contextlib.suppress(Exception):
                     CRYPTO_TASK_ERROR_RATE.labels(task=name).set(err_rate)
-                except Exception:
-                    pass
             if total >= _ERR_RATE_MIN_COUNT and err_rate >= _ERR_RATE_WARN:
                 log.warning(
                     "task_error_rate_high",
@@ -248,19 +255,17 @@ def set_build_info(
             _BUILD_INFO["git_sha"] = git_sha
         # Set metric
         if _PROM_AVAILABLE and CRYPTO_BUILD_INFO is not None:
-            try:
-                # If Info metric type available
-                if hasattr(CRYPTO_BUILD_INFO, "info"):
-                    CRYPTO_BUILD_INFO.info(dict(_BUILD_INFO))  # type: ignore[attr-defined]
-                else:
-                    # Gauge with labels
-                    CRYPTO_BUILD_INFO.labels(
-                        version=_BUILD_INFO["version"],
-                        git_sha=_BUILD_INFO["git_sha"],
-                        run_id=_BUILD_INFO["run_id"],
-                    ).set(1)  # type: ignore[call-arg]
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                if CRYPTO_BUILD_INFO is not None:
+                    # Info metric type
+                    if hasattr(CRYPTO_BUILD_INFO, "info"):
+                        CRYPTO_BUILD_INFO.info(dict(_BUILD_INFO))
+                    elif hasattr(CRYPTO_BUILD_INFO, "labels"):
+                        CRYPTO_BUILD_INFO.labels(
+                            version=_BUILD_INFO["version"],
+                            git_sha=_BUILD_INFO["git_sha"],
+                            run_id=_BUILD_INFO["run_id"],
+                        ).set(1)
     except Exception:
         pass
 
@@ -269,7 +274,10 @@ def get_status_snapshot() -> dict[str, Any]:
     """Return current runtime status suitable for a /health endpoint."""
     try:
         started_iso = _STARTED_AT.isoformat() + "Z"
-        total_tasks = {k: {"ok": _ok_counts.get(k, 0), "err": _err_counts.get(k, 0)} for k in set(list(_ok_counts.keys()) + list(_err_counts.keys()))}
+        total_tasks = {
+            k: {"ok": _ok_counts.get(k, 0), "err": _err_counts.get(k, 0)}
+            for k in set(list(_ok_counts.keys()) + list(_err_counts.keys()))
+        }
         ready = _READY_TS is not None
         return {
             "started_at": started_iso,
@@ -282,7 +290,7 @@ def get_status_snapshot() -> dict[str, Any]:
         return {"error": str(e)}
 
 
-def _import_callable(dotted: str) -> Callable[[], Any]:
+def _import_callable(dotted: str) -> Callable[..., Any]:
     if ":" not in dotted:
         raise ValueError(f"Invalid func path (missing ':'): {dotted}")
     mod_name, func_name = dotted.split(":", 1)
@@ -290,7 +298,7 @@ def _import_callable(dotted: str) -> Callable[[], Any]:
     fn = getattr(mod, func_name)
     if not callable(fn):
         raise TypeError(f"Imported object is not callable: {dotted}")
-    return fn
+    return cast(Callable[..., Any], fn)
 
 
 def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
@@ -382,11 +390,24 @@ def build_scheduler() -> AsyncIOScheduler:
                     misfire_grace_time=60,
                     max_instances=1,
                 )
-                log.info("job_registered", id=job_id, every=seconds, func=func_path, args=args, kwargs=list(kwargs.keys()))
+                log.info(
+                    "job_registered",
+                    id=job_id,
+                    every=seconds,
+                    func=func_path,
+                    args=args,
+                    kwargs=list(kwargs.keys()),
+                )
             except Exception as e:
-                log.error("job_register_error", id=job_id, error=str(e), job=job)
+                log.error(
+                    "job_register_error",
+                    id=job_id,
+                    error=str(e),
+                    job=job,
+                )
     else:
-        async def _noop():
+        
+        async def _noop():  # noqa: D401 - trivial inline async
             await asyncio.sleep(0.05)
         defaults = [
             ("macro", _noop, 300),

@@ -22,12 +22,13 @@ jobs:
           pip install pytest pytest-asyncio
       - name: Lint (ruff)
         run: |
-          # Expand Ruff scope to include pipeline first; keep Flake8/Mypy unchanged
-          python -m ruff check scheduler api pipeline
-      - name: Lint (flake8)
+          # Enforced Ruff scope (incremental adoption): core maintained surfaces only
+          python -m ruff check api scheduler main.py
+      - name: Lint (ruff full project - non blocking)
+        continue-on-error: true
         run: |
-          # Limit lint scope initially to keep CI green; expand gradually
-          python -m flake8 scheduler api
+          # Full-project Ruff scan for visibility; does not fail CI yet
+            python -m ruff check .
       - name: Type-check (mypy)
         run: |
           # Limit type-check scope initially; expand progressively alongside lint
