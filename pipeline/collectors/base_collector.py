@@ -5,11 +5,12 @@ from typing import Any, Protocol, runtime_checkable, TypedDict
 
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary
+from prometheus_client import Counter, Summary, Gauge
+import time
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
-cache: Cache[Any, Any] = Cache(".cache")
+cache = Cache(".cache")  # type: ignore[assignment]
 
 class CollectorResult(TypedDict, total=False):
     timestamp: int | None
@@ -32,9 +33,11 @@ class BaseCollector:
     COLLECTOR_LATENCY = Summary('collector_latency_seconds', 'Latency of collector calls', ['collector'])
     COLLECTOR_ERRORS = Counter('collector_errors_total', 'Total collector errors', ['collector'])
     COLLECTOR_SUCCESS = Counter('collector_success_total', 'Total collector successes', ['collector'])
+    COLLECTOR_LAST_SUCCESS_TS = Gauge('collector_last_success_timestamp', 'Epoch timestamp of last successful collector fetch', ['collector'])
 
-    def __init__(self, name: str, cache_ttl: int = 300):
-        self.name = name
+    def __init__(self, name: str = "unnamed", cache_ttl: int = 300):
+        # name optionnel pour compat avec anciens tests instanciant sans paramètre
+        self.name = name or "unnamed"
         self.cache_ttl = cache_ttl
         self.cache = cache
         self.log = log.bind(collector=name)
@@ -51,6 +54,10 @@ class BaseCollector:
             if result is not None:
                 self.cache.set(key, result, expire=self.cache_ttl)
                 self.COLLECTOR_SUCCESS.labels(self.name).inc()
+                try:  # ne jamais casser le flux pour une gauge
+                    self.COLLECTOR_LAST_SUCCESS_TS.labels(self.name).set(int(time.time()))
+                except Exception:  # pragma: no cover
+                    pass
                 self.log.info("success", key=key)
             else:
                 self.COLLECTOR_ERRORS.labels(self.name).inc()
@@ -78,6 +85,11 @@ class BaseCollector:
 
     async def fetch_backup(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("fetch_backup must be implemented by subclass")
+
+    # Compat héritée (anciens tests synchrones) : interface minimale .collect()
+    # Les implémentations modernes devraient utiliser les méthodes async.
+    def collect(self, *args: Any, **kwargs: Any):  # type: ignore[override]
+        raise NotImplementedError("collect() non implémenté: utiliser fetch_main/fetch_backup async")
 
 __all__ = [
     "BaseCollector",

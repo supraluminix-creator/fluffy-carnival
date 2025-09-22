@@ -13,17 +13,30 @@ from typing import Any, cast
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
+from pipeline.circuit_breaker import _STATES as _CB_STATES  # type: ignore
+from time import time as _time
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except Exception:  # pragma: no cover - optional dependency
-    yaml = None
+try:  # pragma: no cover - optional dependency
+    import yaml
+except Exception:  # pragma: no cover
+    import types as _types
+    class _YamlFallback:
+        def safe_load(self, *_a: Any, **_kw: Any) -> dict[str, Any]:
+            return {}
+    yaml = _YamlFallback()  # type: ignore[assignment]
 
 log = structlog.get_logger(__name__)
 
 # --- Prometheus metrics (optional) ---
 _PROM_AVAILABLE = False
 CRYPTO_BUILD_INFO: Any = None
+CRYPTO_TASK_START: Any | None = None
+CRYPTO_TASK_OK: Any | None = None
+CRYPTO_TASK_ERR: Any | None = None
+CRYPTO_TASK_DURATION: Any | None = None
+CRYPTO_TASK_ERROR_RATE: Any | None = None
+CRYPTO_READY: Any | None = None
+CRYPTO_READY_TS: Any | None = None
 try:
     from prometheus_client import Counter, Gauge, Histogram
     try:
@@ -117,6 +130,21 @@ _ERR_RATE_MIN_COUNT = int(os.getenv("TASK_ERROR_RATE_MIN_COUNT", "5"))
 _STARTED_AT = datetime.now(UTC)
 _READY_TS: float | None = None
 
+# Breaker readiness policy
+_CRITICAL_BREAKERS = set(os.getenv("BREAKER_CRITICAL_LIST", "market,deriv_oi,onchain_txcount").split(","))
+_BREAKER_GRACE_SECONDS = float(os.getenv("BREAKER_OPEN_GRACE_SECONDS", "120"))
+
+def _breaker_blocks_readiness() -> bool:
+    now = _time()
+    for name, st in _CB_STATES.items():  # type: ignore[attr-defined]
+        if name not in _CRITICAL_BREAKERS:
+            continue
+        if st.opened_at is not None:
+            # si encore dans fenêtre active (is_open True) ET dépasse grace -> bloque
+            if st.is_open() and (now - st.opened_at) >= _BREAKER_GRACE_SECONDS:
+                return True
+    return False
+
 # Build/runtime info
 _BUILD_INFO: dict[str, str] = {
     "version": os.getenv("APP_VERSION", os.getenv("VERSION", "dev")),
@@ -193,9 +221,10 @@ async def task_wrapper(
         # Mark readiness after first success
         if (CRYPTO_READY is not None) or (CRYPTO_READY_TS is not None):
             with contextlib.suppress(Exception):
-                # mark readiness
-                if CRYPTO_READY is not None:
-                    CRYPTO_READY.set(1)
+                # readiness condition étendue: aucune condition bloquante de breakers critiques
+                if not _breaker_blocks_readiness():
+                    if CRYPTO_READY is not None:
+                        CRYPTO_READY.set(1)
                 global _READY_TS
                 if _READY_TS is None:
                     _READY_TS = datetime.now(UTC).timestamp()

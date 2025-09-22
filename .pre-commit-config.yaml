@@ -14,3 +14,11 @@ repos:
         name: mypy (scheduler, api, collectors)
         additional_dependencies: ["types-PyYAML", "types-requests"]
         args: ["--config-file=pyproject.toml", "scheduler", "api"]
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: secret-scan (heuristic)
+        entry: python tools/secret_scan.py --fail-on-find
+        language: system
+        pass_filenames: false
+        stages: [commit]

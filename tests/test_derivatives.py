@@ -3,6 +3,7 @@ import httpx
 from typing import Any
 
 from pipeline.collectors.derivatives import fetch_bybit_oi, fetch_bybit_long_short_ratio, OpenInterestRecord, LongShortRatioRecord
+from pipeline import circuit_breaker
 
 class DummyResp:
     def __init__(self, payload: Any):
@@ -14,6 +15,7 @@ class DummyResp:
 
 @pytest.mark.asyncio
 async def test_derivatives_oi_bybit_success(monkeypatch):
+    circuit_breaker.reset()  # ensure clean state
     payload: dict[str, object] = {"result": {"list": [{"timestamp": 1700000000000, "openInterest": "1234.56"}]}}
     class DummyAsyncClient:
         def __init__(self, *a, **k):
@@ -33,6 +35,7 @@ async def test_derivatives_oi_bybit_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_derivatives_oi_binance_fallback(monkeypatch):
+    circuit_breaker.reset()
     # First call (Bybit) returns empty list to trigger fallback, second call (Binance) returns data list.
     bybit_payload: dict[str, object] = {"result": {"list": []}}
     binance_payload: list[dict[str, object]] = [{"timestamp": 1700000005000, "sumOpenInterest": "999.9"}]
@@ -58,6 +61,7 @@ async def test_derivatives_oi_binance_fallback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_derivatives_long_short_ratio_success(monkeypatch):
+    circuit_breaker.reset()
     payload: dict[str, object] = {"result": {"list": [{"timestamp": 1700000010000, "buyRatio": "0.55", "sellRatio": "0.45"}]}}
     class DummyAsyncClient:
         def __init__(self, *a, **k):
@@ -78,6 +82,7 @@ async def test_derivatives_long_short_ratio_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_derivatives_long_short_ratio_failure(monkeypatch):
+    circuit_breaker.reset()
     payload: dict[str, object] = {"result": {"list": []}}  # triggers error path
     class DummyAsyncClient:
         def __init__(self, *a, **k):

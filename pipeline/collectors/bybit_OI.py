@@ -7,7 +7,7 @@ import json
 from collections.abc import Callable
 from typing import Any, TypedDict, cast
 
-import requests  # type: ignore[import-untyped]
+import requests
 import structlog
 import websockets
 from prometheus_client import Counter, Summary

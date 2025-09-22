@@ -10,7 +10,7 @@ class SOPRBlockchainCollector:  # pragma: no cover - thin shim
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key
 
-    def fetch_sopr(self, symbol: str = "BTC") -> SOPRRecord | None:  # type: ignore[override]
+    def fetch_sopr(self, symbol: str = "BTC") -> SOPRRecord | None:
         return _fetch(symbol=symbol, source=SOPRSource.BLOCKCHAIN, api_key=self.api_key)
 
 __all__ = ["SOPRBlockchainCollector"]

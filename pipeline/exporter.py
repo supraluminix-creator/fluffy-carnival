@@ -1,12 +1,18 @@
-
 import os
+import warnings
 from datetime import UTC, datetime
 
-import pandas as pd  # type: ignore[import-untyped]
+import pandas as pd
+
+warnings.warn(
+    "pipeline.exporter.Exporter est déprécié; utiliser pipeline.export_utils.export_latest_and_timestamped",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class Exporter:
-	"""Export CSV consolidé, horodaté, robustesse prod-safe."""
+	"""Export CSV consolidé, horodaté, robustesse prod-safe (LEGACY)."""
 	def __init__(self, export_dir: str = "exports"):
 		self.export_dir = export_dir
 		os.makedirs(self.export_dir, exist_ok=True)

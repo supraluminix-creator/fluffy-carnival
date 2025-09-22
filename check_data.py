@@ -5,7 +5,7 @@ Check what data was collected overnight
 """
 import sqlite3
 import os
-import pandas as pd  # type: ignore[import-untyped]
+import pandas as pd
 from datetime import datetime
 
 def check_database():

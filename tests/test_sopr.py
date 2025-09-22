@@ -1,7 +1,7 @@
 import pytest
 from typing import Any
 
-import requests  # type: ignore[import-untyped]
+import requests
 
 from pipeline.collectors.sopr import fetch_sopr, SOPRSource, SOPRRecord
 

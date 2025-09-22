@@ -6,7 +6,7 @@ from typing import Any, TypedDict, cast
 
 import diskcache
 import httpx
-import requests  # type: ignore[import-untyped]
+import requests
 import structlog
 from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential

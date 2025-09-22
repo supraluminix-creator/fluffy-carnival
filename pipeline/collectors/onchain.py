@@ -12,6 +12,7 @@ import httpx
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
+from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
@@ -154,14 +155,16 @@ async def fetch_txcount(
                     }
                     cache.set(key, tx_result_fb, expire=cache_ttl)
                     ONCHAIN_SUCCESS.inc()
-                    log.info("onchain_fallback_success", symbol=symbol, source="etherscan")
+                    FALLBACK_INVOCATIONS_TOTAL.labels(collector="onchain_txcount", status="success").inc()
+                    log.info("onchain_fallback_success", symbol=symbol, source="etherscan", fallback=1, primary_error=type(e).__name__)
                     return tx_result_fb
             except Exception as e2:
                 ONCHAIN_ERRORS.inc()
-                log.error("onchain_fallback_error", symbol=symbol, error=str(e2))
+                FALLBACK_INVOCATIONS_TOTAL.labels(collector="onchain_txcount", status="error").inc()
+                log.error("onchain_fallback_error", symbol=symbol, error=str(e2), fallback=1, primary_error=type(e).__name__, fallback_error=type(e2).__name__)
                 return None
         ONCHAIN_ERRORS.inc()
-        log.error("onchain_final_error", symbol=symbol, error=str(e))
+        log.error("onchain_final_error", symbol=symbol, error=str(e), primary_error=type(e).__name__)
         return None
 
 @ONCHAIN_LATENCY.time()
@@ -195,7 +198,18 @@ async def fetch_hashrate(
         url = "https://api.blockchain.info/q/hashrate"
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10)
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as he:
+                sc = he.response.status_code
+                # 404/429 => endpoint indisponible / quota -> erreur dure (ne pas retourner success)
+                if sc in (404, 429):
+                    ONCHAIN_ERRORS.inc()
+                    log.error(
+                        "onchain_hashrate_http_error", symbol=symbol, status=sc, hard_error=1
+                    )
+                    raise  # Propagation pour marquer task_err
+                raise
             try:
                 hashrate = float(resp.text)
             except (TypeError, ValueError):
@@ -213,6 +227,9 @@ async def fetch_hashrate(
             log.info("onchain_success", symbol=symbol, source="blockchain.info")
             return hashrate_result
     except Exception as e:
+        # 404/429: déjà compté et traité comme hard -> retourner None sans succès
+        if isinstance(e, httpx.HTTPStatusError):
+            return None
         ONCHAIN_ERRORS.inc()
         log.error("onchain_error", symbol=symbol, error=str(e))
         return None
@@ -248,7 +265,15 @@ async def fetch_sopr(
         url = "https://bitcoin-data.com/v1/sopr/csv"
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=20)
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as he:
+                sc = he.response.status_code
+                if sc in (404, 429):
+                    ONCHAIN_ERRORS.inc()
+                    log.error("onchain_sopr_http_error", symbol=symbol, status=sc, hard_error=1)
+                    raise
+                raise
             text = resp.text
             f = io.StringIO(text)
             reader = csv.DictReader(f)
@@ -282,8 +307,11 @@ async def fetch_sopr(
             else:
                 ONCHAIN_ERRORS.inc()
                 log.warning("onchain_sopr_no_valid_line", symbol=symbol)
-                return None
+                raise RuntimeError("No valid SOPR line parsed")
     except Exception as e:
+        # For hard HTTP (404/429) we return None; others already counted; keep backward compat tests.
+        if isinstance(e, httpx.HTTPStatusError):
+            return None
         ONCHAIN_ERRORS.inc()
         log.error("onchain_sopr_error", symbol=symbol, error=str(e))
         return None

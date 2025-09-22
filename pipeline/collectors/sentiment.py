@@ -9,6 +9,7 @@ import httpx
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
+from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
@@ -101,9 +102,11 @@ async def fetch_fear_greed(
             }
             cache.set(key, fallback_result, expire=cache_ttl)
             SENTIMENT_SUCCESS.inc()
-            log.info("sentiment_fallback_success", metric="fear_greed", source="tokenmetrics (mock)")
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="sentiment", status="success").inc()
+            log.info("sentiment_fallback_success", metric="fear_greed", source="tokenmetrics (mock)", fallback=1, primary_error=type(e).__name__)
             return fallback_result
         except Exception as e2:
             SENTIMENT_ERRORS.inc()
-            log.error("sentiment_fallback_error", metric="fear_greed", error=str(e2))
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="sentiment", status="error").inc()
+            log.error("sentiment_fallback_error", metric="fear_greed", error=str(e2), fallback=1, primary_error=type(e).__name__, fallback_error=type(e2).__name__)
             return None

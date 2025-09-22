@@ -8,7 +8,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TypedDict, Any, Final
 
-import requests  # type: ignore[import-untyped]
+import requests
 import structlog
 from prometheus_client import Counter, Summary
 

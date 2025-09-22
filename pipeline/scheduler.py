@@ -15,6 +15,15 @@ import random
 import signal
 
 import structlog
+try:  # pragma: no cover - robust optional import
+    from pipeline.metrics import collector_timing
+except Exception:  # pragma: no cover
+    def collector_timing(name: str):  # type: ignore
+        from contextlib import contextmanager
+        @contextmanager
+        def _noop():
+            yield
+        return _noop()
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED  # type: ignore[import-untyped]
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
@@ -45,8 +54,8 @@ class CryptoScheduler:
         
         logger.info("CryptoScheduler initialized", jitter_percent=jitter_percent)
     
-    def add_collector(self, collector, interval_seconds: int, 
-                     jitter_percent: int = None) -> None:
+    def add_collector(self, collector, interval_seconds: int,
+                      jitter_percent: int | None = None) -> None:
         """
         Ajoute un collector au scheduler avec jitter.
         
@@ -97,22 +106,17 @@ class CryptoScheduler:
         
         try:
             logger.info("Starting collector execution", collector=collector_name)
-            
-            # Exécuter le collector
-            result = await collector.collect()
-            
+            with collector_timing(collector_name):
+                result = await collector.collect()
             execution_time = asyncio.get_event_loop().time() - start_time
-            
             logger.info(
                 "Collector execution completed",
                 collector=collector_name,
                 execution_time_seconds=round(execution_time, 2),
                 result_summary=str(result)[:100] if result else "None"
             )
-            
         except Exception as e:
             execution_time = asyncio.get_event_loop().time() - start_time
-            
             logger.error(
                 "Collector execution failed",
                 collector=collector_name,
@@ -199,7 +203,11 @@ class CryptoScheduler:
             "jobs": [
                 {
                     "id": job.id,
-                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                    # Compat APScheduler: certaines versions peuvent ne pas exposer next_run_time publiquement
+                    "next_run": (
+                        getattr(job, "next_run_time").isoformat()  # type: ignore[attr-defined]
+                        if getattr(job, "next_run_time", None) is not None else None
+                    ),
                     "trigger": str(job.trigger)
                 }
                 for job in jobs

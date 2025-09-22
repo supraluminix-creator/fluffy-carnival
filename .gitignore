@@ -24,3 +24,5 @@ run_*.log
 .pytest_cache/
 **/__pycache__/
 .mypy_cache/
+\n+# Prevent accidental nested clone duplication
+fluffy-carnival/

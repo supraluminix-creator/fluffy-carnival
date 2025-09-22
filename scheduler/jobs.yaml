@@ -44,3 +44,15 @@ jobs:
     every: 1h
     func: pipeline.collectors.sentiment:fetch_fear_greed
     enabled: true
+  - id: export_batch
+    every: 5m
+    func: pipeline.export_job:perform_export_batch
+    enabled: true
+    # Utilise RUN_ID, CMC_API_KEY, ETHERSCAN_API_KEY depuis l'environnement
+
+  - id: flush_liq
+    every: 2m
+    func: pipeline.flush_jobs:flush_bybit_liquidations
+    enabled: true
+    # Flush opportuniste du buffer WS (si même process). Sans effet sinon.
+

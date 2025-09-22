@@ -1,7 +1,7 @@
 import json
 from typing import Any
 from pipeline.collectors.bybit_OI import BybitWSCollector
-import requests  # type: ignore[import-untyped]
+import requests
 import pytest
 
 class DummyResp:

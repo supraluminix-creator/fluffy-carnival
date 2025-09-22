@@ -6,7 +6,7 @@ import os
 import time
 from typing import Any
 
-import psutil  # type: ignore[import-untyped]
+import psutil
 import structlog
 from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest

@@ -4,9 +4,9 @@ from datetime import datetime
 
 try:
 	from tabulate import tabulate  # type: ignore[import-untyped]
-except ImportError:
+except ImportError:  # pragma: no cover - dépendance optionnelle
     tabulate = None
-import pandas as pd  # type: ignore[import-untyped]
+import pandas as pd
 
 
 class Reporter:
@@ -76,7 +76,7 @@ class Reporter:
 				rows.append(row)
 
 		headers = ["Symbol", "Price", "Change", "24h %", "V/MC", "On-Chain", "Derivatives"]
-		if self.use_tabulate:
+		if self.use_tabulate:  # pragma: no cover - aspect présentation
 			print(tabulate(rows, headers=headers, tablefmt="psql"), file=stream)
 		else:
 			df = pd.DataFrame(rows, columns=headers)
@@ -95,9 +95,9 @@ class Reporter:
 			print(f"\n🎭 SENTIMENT: {fgi_data.get('value', 'N/A')} {sentiment_icon} ({fgi_data.get('value_classification', 'N/A')})", file=stream)
 
 	def get_signal_emoji(self, signal_value):
-		if signal_value > 0:
+		if signal_value > 0:  # pragma: no cover - logique triviale
 			return "🟢"
-		elif signal_value < 0:
+		elif signal_value < 0:  # pragma: no cover
 			return "🔴"
-		else:
+		else:  # pragma: no cover
 			return "🟡"

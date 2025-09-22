@@ -44,15 +44,10 @@ from prometheus_client import Counter, Summary, start_http_server
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 
 # ---------------------------------------------------------
-# LOGGING
+# LOGGING (centralisé)
 # ---------------------------------------------------------
-structlog.configure(
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer()
-    ]
-)
+from pipeline.logging_config import setup_logging  # import tardif pour éviter cycles
+setup_logging(simple=True)
 logger = structlog.get_logger("bybit_ws")
 
 # Prometheus metrics
@@ -95,6 +90,12 @@ class BybitWSService:
             flush_size=flush_size,
             flush_interval=flush_interval,
         )
+        # Enregistre le writer dans un registre global pour permettre un job de flush périodique.
+        try:  # pragma: no cover - simple instrumentation
+            from pipeline.liquidations_registry import set_writer
+            set_writer(self.writer)  # type: ignore[arg-type]
+        except Exception:  # pragma: no cover - défense
+            logger.warning("Impossible d'enregistrer le writer dans le registre global", exc_info=True)
 
         # websocket-client protocol object (runtime from websockets library)
         self.ws: Optional[Any] = None
@@ -185,14 +186,19 @@ class BybitWSService:
         Main run loop: manages signal handling, reconnects, and graceful shutdown.
         """
         logger.info("Starting BybitWSService")
-
-        loop = asyncio.get_event_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                loop.add_signal_handler(sig, self.stop_event.set)
-            except (NotImplementedError, ValueError):
-                # Signal handling not supported (e.g., on Windows or in some environments)
-                print(f"[DEBUG] Signal handling not supported for {sig} on this platform.")
+        # Register signal handlers only where supported (POSIX). On Windows rely on KeyboardInterrupt.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and sys.platform != "win32":
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(sig, self.stop_event.set)
+                except (NotImplementedError, ValueError):
+                    print(f"[DEBUG] Signal handling not supported for {sig} on this platform.")
+        else:
+            print("[DEBUG] Skipping signal handler registration (platform limitation)")
 
         while not self.stop_event.is_set():
             await self.connect()
@@ -317,14 +323,16 @@ def main() -> int:
     )
     print("[DEBUG] BybitWSService instantiated")
 
-    loop = asyncio.get_event_loop()
     try:
-        print("[DEBUG] Before loop.run_until_complete(svc.run())")
-        loop.run_until_complete(svc.run())
-        print("[DEBUG] After loop.run_until_complete (should not reach unless svc.run() returns)")
+        print("[DEBUG] Before asyncio.run(svc.run())")
+        asyncio.run(svc.run())
+        print("[DEBUG] After asyncio.run (graceful stop)")
     except KeyboardInterrupt:
         logger.info("Interrupted; stopping service")
-        loop.run_until_complete(svc.stop())
+        try:
+            asyncio.run(svc.stop())
+        except Exception:
+            pass
         return 0
     except Exception as e:
         print(f"[DEBUG] Exception in main(): {e}")

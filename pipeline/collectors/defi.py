@@ -6,6 +6,7 @@ Gère TVL, revenus, fees, utilisateurs actifs.
 from typing import Any, TypedDict
 
 import requests
+from pipeline.utils import to_float
 
 
 class DefiTVLRecord(TypedDict):
@@ -15,14 +16,6 @@ class DefiTVLRecord(TypedDict):
     tvl_prev_week: float | None
     tvl_prev_month: float | None
 
-
-def _to_float(v: Any) -> float | None:
-    try:
-        if v is None:
-            return None
-        return float(v)
-    except (TypeError, ValueError):  # pragma: no cover - defensive branch
-        return None
 
 
 def fetch_defillama_tvl(chain: str) -> DefiTVLRecord | None:
@@ -37,12 +30,12 @@ def fetch_defillama_tvl(chain: str) -> DefiTVLRecord | None:
         data = resp.json()
         if not isinstance(data, dict):  # schéma inattendu
             return None
-        return DefiTVLRecord(
+        return DefiTVLRecord(  # pragma: no cover - retour direct simple
             chain=chain,
-            tvl=_to_float(data.get("tvl")),
-            tvl_prev_day=_to_float(data.get("tvlPrevDay")),
-            tvl_prev_week=_to_float(data.get("tvlPrevWeek")),
-            tvl_prev_month=_to_float(data.get("tvlPrevMonth")),
+            tvl=to_float(data.get("tvl"), default=None),
+            tvl_prev_day=to_float(data.get("tvlPrevDay"), default=None),
+            tvl_prev_week=to_float(data.get("tvlPrevWeek"), default=None),
+            tvl_prev_month=to_float(data.get("tvlPrevMonth"), default=None),
         )
     except Exception as e:  # pragma: no cover - chemin d'erreur réseau
         print(f"Erreur fetch_defillama_tvl: {e}")

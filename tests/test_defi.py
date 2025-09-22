@@ -1,6 +1,6 @@
 from typing import Any
 import pytest
-import requests  # type: ignore[import-untyped]
+import requests
 
 from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
 

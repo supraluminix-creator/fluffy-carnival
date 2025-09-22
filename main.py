@@ -17,9 +17,9 @@ from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
 import structlog
-import structlog.contextvars as structlog_ctx
+import structlog.contextvars as structlog_ctx  # legacy imports kept for compatibility; will rely on logging_config
 from dotenv import load_dotenv
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Any
 
 if TYPE_CHECKING:  # Only imported for type checking; avoids runtime stub dependency
     from tabulate import tabulate  # type: ignore
@@ -62,10 +62,12 @@ CollectorRecord = Union[
 from pipeline.orchestrator import ParallelOrchestrator
 from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
+from typing import Callable as _Callable, Any as _Any
 try:
-    from scheduler.runner import build_scheduler
-except Exception:
-    build_scheduler = None  # fallback if module missing
+    from scheduler.runner import build_scheduler as _imported_build_scheduler
+except Exception:  # pragma: no cover - optional path
+    _imported_build_scheduler = None  # type: ignore[assignment]
+build_scheduler: _Callable[[], _Any] | None = _imported_build_scheduler
 
 # Configuration
 load_dotenv()
@@ -73,6 +75,13 @@ logger = structlog.get_logger(__name__)
 
 EXPORT_DIR = "exports"
 os.makedirs(EXPORT_DIR, exist_ok=True)
+
+# Configuration centralisée (progressive)
+try:  # Import non critique
+    from pipeline.config import get_config
+    _APP_CONFIG = get_config()
+except Exception:  # pragma: no cover
+    _APP_CONFIG = None  # type: ignore
 
 EXPORT_FIELDS = [
     "timestamp",
@@ -121,28 +130,12 @@ def safe_print_table(title, data, headers):
     except Exception as e:
         print(f"Erreur affichage : {e}")
 
-def export_csv(data: list, filename: str):
-    """Export des données en CSV compatible avec format existant"""
-    import csv
+def export_csv(data: list, filename: str):  # Compat historique (délégué utilitaire)
+    from pipeline.export_utils import export_csv_rows
     if not data:
         logger.warning("No data to export", filename=filename)
         return
-    
-    try:
-        # Harmonise chaque dict selon EXPORT_FIELDS
-        rows = []
-        for d in data:
-            row = {k: d.get(k, None) for k in EXPORT_FIELDS}
-            rows.append(row)
-        
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=EXPORT_FIELDS)
-            writer.writeheader()
-            writer.writerows(rows)
-        
-        logger.info("CSV export completed", filename=filename, rows=len(rows))
-    except Exception as e:
-        logger.error("CSV export failed", filename=filename, error=str(e))
+    export_csv_rows(data, filename)
 
 async def run_legacy_collection():
     """Collection legacy pour compatibilité (mode fallback)"""
@@ -199,12 +192,8 @@ async def run_legacy_collection():
         results.append(fg)
 
     # Export CSV (consolidé + horodaté)
-    export_csv(results, os.path.join(EXPORT_DIR, "latest_export.csv"))
-    run_id = os.getenv("RUN_ID", "")
-    ts_name = f"pipeline_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    if run_id:
-        ts_name = f"{ts_name}_{run_id}"
-    export_csv(results, os.path.join(EXPORT_DIR, f"{ts_name}.csv"))
+    from pipeline.export_utils import export_latest_and_timestamped
+    export_latest_and_timestamped(results, EXPORT_DIR, run_id=os.getenv("RUN_ID"))
     
     return results
 
@@ -265,12 +254,8 @@ async def run_scheduler_mode():
                 
                 # Export CSV
                 if data_for_export:
-                    export_csv(data_for_export, os.path.join(EXPORT_DIR, "latest_export.csv"))
-                    run_id = os.getenv("RUN_ID", "")
-                    ts_name = f"pipeline_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                    if run_id:
-                        ts_name = f"{ts_name}_{run_id}"
-                    export_csv(data_for_export, os.path.join(EXPORT_DIR, f"{ts_name}.csv"))
+                    from pipeline.export_utils import export_latest_and_timestamped
+                    export_latest_and_timestamped(data_for_export, EXPORT_DIR, run_id=os.getenv("RUN_ID"))
             
             logger.info("Batch collection completed", **results)
             return results
@@ -297,7 +282,7 @@ async def run_scheduler_mode():
         while True:
             payload: dict[str, bool | float | int] = {"alive": True}
             try:
-                import psutil  # type: ignore[import-untyped]  # pragma: no cover
+                import psutil  # pragma: no cover
                 p = psutil.Process()
                 payload.update({
                     "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
@@ -308,11 +293,11 @@ async def run_scheduler_mode():
             logger.info("heartbeat", **payload)
             await asyncio.sleep(period_secs)
 
-    hb_secs = int(os.getenv("HEARTBEAT_SECS", "60"))
+    hb_secs = _APP_CONFIG.heartbeat_secs if _APP_CONFIG else int(os.getenv("HEARTBEAT_SECS", "60"))
     hb_task = asyncio.create_task(heartbeat(hb_secs))
 
     # Optional Prometheus metrics without API (if enabled and lib available)
-    if os.getenv("ENABLE_METRICS", "0") == "1":
+    if (_APP_CONFIG and _APP_CONFIG.enable_metrics) or os.getenv("ENABLE_METRICS", "0") == "1":
         try:
             from prometheus_client import start_http_server
             port = int(os.getenv("METRICS_PORT", "9300"))
@@ -340,9 +325,9 @@ async def run_scheduler_mode():
 async def main():
     setup_logging()
     load_dotenv()
-    mode = os.getenv('CRYPTO_MONITOR_MODE', 'scheduler')
-    enable_sched = os.getenv('ENABLE_SCHEDULER', '1') == '1'
-    sched_cfg = os.getenv('SCHEDULER_CONFIG', 'scheduler/jobs.yaml')
+    mode = _APP_CONFIG.mode if _APP_CONFIG else os.getenv('CRYPTO_MONITOR_MODE', 'scheduler')
+    enable_sched = (_APP_CONFIG.enable_scheduler if _APP_CONFIG else os.getenv('ENABLE_SCHEDULER', '1') == '1')
+    sched_cfg = _APP_CONFIG.scheduler_config if _APP_CONFIG else os.getenv('SCHEDULER_CONFIG', 'scheduler/jobs.yaml')
     os.environ.setdefault('SCHEDULER_CONFIG', sched_cfg)
     logger.info("Starting Crypto Monitor", mode=mode, enable_sched=enable_sched, sched_cfg=sched_cfg)
 
@@ -366,25 +351,11 @@ async def main():
             pass
 
         # Heartbeat and optional metrics in this mode too
-        async def heartbeat(period_secs: int = 30):
-            while True:
-                payload: dict[str, float | int | bool] = {"alive": True}
-                try:
-                    import psutil  # pragma: no cover
-                    p = psutil.Process()
-                    payload.update({
-                        "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
-                        "cpu_percent": float(p.cpu_percent(interval=None)),
-                    })
-                except Exception:
-                    pass
-                logger.info("heartbeat", **payload)
-                await asyncio.sleep(period_secs)
+        from pipeline.health import heartbeat as _heartbeat
+        hb_secs = _APP_CONFIG.heartbeat_secs if _APP_CONFIG else int(os.getenv("HEARTBEAT_SECS", "60"))
+        hb_task = asyncio.create_task(_heartbeat(hb_secs))
 
-        hb_secs = int(os.getenv("HEARTBEAT_SECS", "60"))
-        hb_task = asyncio.create_task(heartbeat(hb_secs))
-
-        if os.getenv("ENABLE_METRICS", "0") == "1":
+        if (_APP_CONFIG and _APP_CONFIG.enable_metrics) or os.getenv("ENABLE_METRICS", "0") == "1":
             try:
                 from prometheus_client import start_http_server
                 port = int(os.getenv("METRICS_PORT", "9300"))
@@ -397,74 +368,15 @@ async def main():
         health_server = None
         health_port = int(os.getenv("HEALTH_PORT", "9310"))
         if os.getenv("ENABLE_HEALTH", "1") == "1":
-            try:
-                import json
-                import threading
-                from http.server import BaseHTTPRequestHandler, HTTPServer
+            from pipeline.health import start_health_server
+            health_server = start_health_server(health_port, scheduler_ref=scheduler)
 
-                class HealthHandler(BaseHTTPRequestHandler):
-                    HEALTH_PORT: int | None = None
-                    def log_message(self, format, *args):
-                        # Silence default HTTP logs; we already have heartbeat
-                        return
-
-                    def do_GET(self) -> None:
-                        try:
-                            path = self.path.split("?")[0]
-                            if path == "/metrics/ready":
-                                from scheduler.runner import get_status_snapshot
-                                snap = get_status_snapshot()
-                                ready_val = 1 if snap.get("ready") else 0
-                                ts_val = int(snap.get("ready_ts") or 0)
-                                body = f"ready {ready_val}\nready_timestamp {ts_val}\n".encode()
-                                self.send_response(200)
-                                self.send_header("Content-Type", "text/plain; charset=utf-8")
-                                self.send_header("Content-Length", str(len(body)))
-                                self.end_headers()
-                                self.wfile.write(body)
-                                return
-                            if path not in ("/health", "/ready", "/live"):
-                                self.send_response(404)
-                                self.end_headers()
-                                return
-                            from scheduler.runner import get_status_snapshot
-                            snap = get_status_snapshot()
-                            snap["run_id"] = os.getenv("RUN_ID", "")
-                            snap["jobs"] = [j.id for j in scheduler.get_jobs()]
-                            # Add ports and config path for easier remote debugging
-                            enable_metrics = os.getenv("ENABLE_METRICS", "0") == "1"
-                            metrics_port = int(os.getenv("METRICS_PORT", "9300")) if enable_metrics else None
-                            snap["ports"] = {"metrics": metrics_port, "health": getattr(self, "HEALTH_PORT", None)}
-                            snap["config_path"] = os.getenv("SCHEDULER_CONFIG", "scheduler/jobs.yaml")
-                            payload = json.dumps(snap).encode("utf-8")
-                            self.send_response(200)
-                            self.send_header("Content-Type", "application/json")
-                            self.send_header("Content-Length", str(len(payload)))
-                            self.end_headers()
-                            self.wfile.write(payload)
-                        except Exception:
-                            try:
-                                self.send_response(500)
-                                self.end_headers()
-                            finally:
-                                pass
-
-                # Provide health port to handler for inclusion in payload
-                HealthHandler.HEALTH_PORT = health_port
-                health_server = HTTPServer(("0.0.0.0", health_port), HealthHandler)
-                th = threading.Thread(target=health_server.serve_forever, name="health-http", daemon=True)
-                th.start()
-                logger.info("health_server_started", port=health_port)
-            except Exception as e:
-                logger.warning("health_server_failed", error=str(e))
-        # Keep process alive
         try:
             while True:
                 await asyncio.sleep(60)
         except KeyboardInterrupt:
             logger.info("Scheduler interrupted by user")
         finally:
-            # Stop health server if any
             with contextlib.suppress(Exception):
                 if health_server is not None:
                     health_server.shutdown()
@@ -487,63 +399,16 @@ def setup_logging():
     logs_dir = os.path.join(os.getcwd(), "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    # Per-run log file (avoids conflicts with concurrent runs)
-    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    run_log_path = os.path.join(logs_dir, f"run_{ts}.log")
-
-    # Handlers
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(logging.Formatter("%(message)s"))
-
-    rotating_handler = TimedRotatingFileHandler(
-        filename=os.path.join(logs_dir, "app.log"),
-        when="midnight",
-        interval=1,
-        backupCount=14,
-        encoding="utf-8",
-        utc=False,
-    )
-    rotating_handler.setLevel(logging.INFO)
-    rotating_handler.setFormatter(logging.Formatter("%(message)s"))
-
-    run_file_handler = logging.FileHandler(run_log_path, mode="w", encoding="utf-8")
-    run_file_handler.setLevel(logging.INFO)
-    run_file_handler.setFormatter(logging.Formatter("%(message)s"))
-
-    # Root logger configuration
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    # Replace any existing handlers to prevent duplicate logs
-    root.handlers = [console_handler, rotating_handler, run_file_handler]
-
-    # Prepare run_id and bind into contextvars so it's present on all logs
-    run_id = os.getenv("RUN_ID") or uuid.uuid4().hex[:8]
-    os.environ["RUN_ID"] = run_id
-    structlog_ctx.clear_contextvars()
-    structlog_ctx.bind_contextvars(run_id=run_id)
-
-    # Structlog configuration: JSON lines with timestamp and level and merged contextvars
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog_ctx.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.JSONRenderer(),
-        ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-        cache_logger_on_first_use=True,
-    )
-
-    # Announce where logs are written
-    with contextlib.suppress(Exception):
-        structlog.get_logger(__name__).info(
-            "Logging initialized",
-            run_log=run_log_path,
-            rotating_log=os.path.join(logs_dir, "app.log"),
-            run_id=run_id,
-        )
+    # Central logging setup (idempotent)
+    from pipeline.logging_config import setup_logging
+    setup_logging()
+    # Metrics server (Prometheus) si activé
+    try:
+        from pipeline.metrics import init_metrics_if_enabled
+        if init_metrics_if_enabled():
+            logger.info("metrics_server_started", port=os.getenv("METRICS_PORT", "9300"))
+    except Exception as e:
+        logger.warning("metrics_init_failed", error=str(e))
 
 if __name__ == "__main__":
     try:

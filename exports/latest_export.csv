@@ -1,9 +1,7 @@
 timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
-2025-09-17T19:38:24.006Z,bitcoin,,,macro,"{'price': 115766, 'volume_24h': 51176892204, 'marketcap': 2306239293988, 'dominance': 1}",coingecko,1.0
-1758137953,,,ethereum,defi_tvl,"{'tvl': 93485731358.90291, 'tvlPrevDay': 93485503627.0, 'tvlPrevWeek': 91887804334.0, 'tvlPrevMonth': 89978270415.0}",defillama,1.0
-,BTC,,,txcount,915143,blockchain.info,1.0
-,BTC,,,hashrate,899422975036.0,blockchain.info,1.0
-1757980800,BTC,,,sopr,1.05092950446487,bitcoin-data.com,1.0
-1758123000000,,BTCUSDT,,open_interest,66853.90399999,bybit,1.0
-1758123000000,,BTCUSDT,,long_short_ratio,"{'buy_ratio': 0.6308, 'sell_ratio': 0.3692}",bybit,1.0
-1758067200,,,,fear_greed,"{'value': '53', 'classification': 'Neutral', 'time_until_update': '15643'}",alternative.me,1.0
+2025-09-22T20:27:01.665Z,bitcoin,,,macro,"{'price': 112215.0, 'volume_24h': 66809071543.0, 'marketcap': 2235680304826.0, 'dominance': 1}",coingecko,1.0
+,BTC,,,txcount,915929,blockchain.info,1.0
+1758558000000,,BTCUSDT,,open_interest,66494.416,bybit,1.0
+1758557700000,,BTCUSDT,,long_short_ratio,"{'buy_ratio': 0.6734, 'sell_ratio': 0.3266}",bybit,1.0
+1758572568,,,ethereum,defi_tvl,"{'tvl': 89853259001.1388, 'tvlPrevDay': 89859461160.0, 'tvlPrevWeek': 93858491593.0, 'tvlPrevMonth': 97135089682.0}",defillama,1.0
+1758499200,,,,fear_greed,"{'value': '45', 'classification': 'Fear', 'time_until_update': '13031'}",alternative.me,1.0

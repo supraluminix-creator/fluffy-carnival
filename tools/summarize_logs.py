@@ -60,30 +60,33 @@ def parse_lines(lines: list[str]) -> dict[str, Any]:
                 if err_text:
                     error_messages[err_text] += 1
             # timestamps
-            ts = obj.get("timestamp") or obj.get("time") or obj.get("ts")
-            if ts:
+            ts_raw = obj.get("timestamp") or obj.get("time") or obj.get("ts")
+            if ts_raw is not None:
                 try:
-                    dt = datetime.fromisoformat(str(ts).replace("Z","+00:00"))
-                    first_ts = first_ts or dt
-                    last_ts = dt
+                    dt_parsed: datetime | None = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
                 except Exception:
-                    pass
+                    dt_parsed = None
+                if dt_parsed is not None:
+                    if first_ts is None:
+                        first_ts = dt_parsed
+                    last_ts = dt_parsed
             continue
 
         m = PATTERN_STD.match(line)
         if m:
             ts_raw = m.group("ts").split("|")[0].strip()
             # best-effort ts parse
-            dt = None
+            dt_line: datetime | None = None
             for fmt in ("%Y-%m-%d %H:%M:%S,%f", "%Y-%m-%d %H:%M:%S"):
                 try:
-                    dt = datetime.strptime(ts_raw, fmt)
+                    dt_line = datetime.strptime(ts_raw, fmt)
                     break
                 except Exception:
                     continue
-            if dt:
-                first_ts = first_ts or dt
-                last_ts = dt
+            if dt_line is not None:
+                if first_ts is None:
+                    first_ts = dt_line
+                last_ts = dt_line
             lvl = m.group("level").upper()
             counts[lvl] += 1
             msg = m.group("msg")

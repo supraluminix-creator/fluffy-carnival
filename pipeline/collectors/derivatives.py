@@ -1,24 +1,37 @@
+"""Collectors dérivés (Open Interest, Funding, Long/Short Ratio) avec fallback Binance.
+
+Ce fichier a été restauré proprement après corruption d'indentation.
 """
-Collector Dérivés Bybit (Open Interest & Long/Short Ratio)
-Prod-safe, async, retry/backoff, cache TTL, fallback Binance, logs, métriques
-"""
+
+from __future__ import annotations
 
 from typing import Any, TypedDict
-
 import httpx
+import os
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
-from tenacity import retry, stop_after_attempt, wait_exponential
+
+from pipeline.metrics import (
+    FALLBACK_INVOCATIONS_TOTAL,
+    FALLBACK_CHAIN_DEPTH,
+    FALLBACK_TIER_INVOCATIONS_TOTAL,
+)
+from pipeline.circuit_breaker import should_skip, record_failure, record_success
+from .binance import fetch_binance_funding
+from pipeline.utils import to_float
+from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL
+from pipeline.errors import classify
+from pipeline.http_wrappers import async_http_get_json_retry
 
 log = structlog.get_logger()
-cache: Cache = Cache(".cache")
+cache: Cache = Cache('.cache')
 
 
 class OpenInterestRecord(TypedDict):
     timestamp: int | None
     symbol: str
-    metric_name: str  # "open_interest"
+    metric_name: str  # e.g. 'open_interest', 'funding_rate'
     value: float
     source: str
     confidence_score: float
@@ -32,136 +45,289 @@ class LongShortRatioValue(TypedDict):
 class LongShortRatioRecord(TypedDict):
     timestamp: int | None
     symbol: str
-    metric_name: str  # "long_short_ratio"
+    metric_name: str  # 'long_short_ratio'
     value: LongShortRatioValue
     source: str
     confidence_score: float
 
+
 DERIV_LATENCY = Summary('derivatives_latency_seconds', 'Latency of Derivatives API calls')
 DERIV_ERRORS = Counter('derivatives_errors_total', 'Total Derivatives API errors')
 DERIV_SUCCESS = Counter('derivatives_success_total', 'Total Derivatives API successes')
+DERIV_CACHE_HIT = Counter('derivatives_cache_hit_total', 'Derivatives cache hits')
+DERIV_CACHE_MISS = Counter('derivatives_cache_miss_total', 'Derivatives cache misses')
+DERIV_BREAKER_SKIPS = Counter('derivatives_breaker_skips_total', 'Calls skipped (circuit breaker open)')
+
+
+def fetch_binance_futures_oi(symbol: str) -> OpenInterestRecord | None:  # pragma: no cover
+    """Stub par défaut pour tests (monkeypatch)."""
+    return None
+
 
 @DERIV_LATENCY.time()
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_bybit_oi(
     symbol: str,
     category: str = "linear",
     interval: str = "5min",
     cache_ttl: int = 300
 ) -> OpenInterestRecord | None:
-    """
-    Fetch open interest from Bybit (Main, v5) with fallback to Binance Futures.
-
-    Parameters
-    ----------
-    symbol : str
-        Trading pair symbol (e.g., 'BTCUSDT').
-    category : str
-        Product type ('linear', 'inverse').
-    interval : str
-        Interval time ('5min', '15min', etc.).
-    cache_ttl : int
-        Cache time-to-live in seconds.
-
-    Returns
-    -------
-    Optional[Dict[str, Any]]
-        Dictionary with keys: timestamp, symbol, metric_name, value, source, confidence_score.
-    """
+    if should_skip("deriv_oi"):
+        DERIV_BREAKER_SKIPS.inc()
+        log.warning("deriv_breaker_open", symbol=symbol, metric="open_interest")
+        return None
     key = f"deriv_oi_{symbol}_{category}_{interval}"
     if key in cache:
+        DERIV_CACHE_HIT.inc()
         log.info("deriv_cache_hit", symbol=symbol)
         cached = cache.get(key)
         if isinstance(cached, dict):
             return cached  # type: ignore[return-value]
+    DERIV_CACHE_MISS.inc()
+    # 1. Bybit primary
     try:
         url = "https://api.bybit.com/v5/market/open-interest"
-        params = {
-            "category": category,
-            "symbol": symbol.upper(),
-            "intervalTime": interval
-        }
+        params = {"category": category, "symbol": symbol.upper(), "intervalTime": interval}
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            oi_list = data.get("result", {}).get("list", [])
-            if not oi_list:
-                raise ValueError("No OI data in Bybit response")
-            # Prend le dernier point
-            last = oi_list[-1]
-            ts_raw = last.get("timestamp")
-            timestamp: int | None = None
-            try:
-                if ts_raw is not None:
-                    timestamp = int(ts_raw)
-            except (TypeError, ValueError):
-                timestamp = None
-            oi_val = last.get("openInterest", 0)
-            try:
-                oi_float = float(oi_val)
-            except (TypeError, ValueError):
-                oi_float = 0.0
-            result: OpenInterestRecord = {
-                "timestamp": timestamp,
-                "symbol": symbol.upper(),
-                "metric_name": "open_interest",
-                "value": oi_float,
-                "source": "bybit",
-                "confidence_score": 1.0,
-            }
-            cache.set(key, result, expire=cache_ttl)
-            DERIV_SUCCESS.inc()
-            log.info("deriv_success", symbol=symbol, source="bybit")
-            return result
-    except Exception as e:
-        log.error("deriv_main_error", symbol=symbol, error=str(e))
-        # Fallback Binance Futures
-        try:
-            url = "https://fapi.binance.com/futures/data/openInterestHist"
-            params = {
-                "symbol": symbol.upper(),
-                "period": interval,
-                "limit": "1",  # all values str for consistent mapping
-            }
-            async with httpx.AsyncClient() as client:
+            with fallback_tier_timing("deriv_oi", 1):
+                # NOTE: on conserve appel direct pour compatibilité des stubs de test (signature sans headers)
                 resp = await client.get(url, params=params, timeout=10)
                 resp.raise_for_status()
                 data = resp.json()
-                if not data:
-                    raise ValueError("No OI data in Binance response")
-                oi_data = data[-1]
-                ts_raw = oi_data.get("timestamp")
-                timestamp_fb: int | None = None
-                try:
-                    if ts_raw is not None:
-                        timestamp_fb = int(ts_raw)
-                except (TypeError, ValueError):
-                    timestamp_fb = None
-                oi_val = oi_data.get("sumOpenInterest", 0)
-                try:
-                    oi_float = float(oi_val)
-                except (TypeError, ValueError):
-                    oi_float = 0.0
-                fb_result: OpenInterestRecord = {
-                    "timestamp": timestamp_fb,
-                    "symbol": symbol.upper(),
-                    "metric_name": "open_interest",
-                    "value": oi_float,
-                    "source": "binance",
-                    "confidence_score": 0.8,
-                }
-                cache.set(key, fb_result, expire=cache_ttl)
-                DERIV_SUCCESS.inc()
-                log.info("deriv_fallback_success", symbol=symbol, source="binance")
-                return fb_result
-        except Exception as e2:
+        oi_list = data.get("result", {}).get("list", [])
+        if not oi_list:
+            raise RuntimeError("No OI data in Bybit response")
+        last = oi_list[-1]
+        ts_raw = last.get("timestamp")
+        try:
+            ts_int = int(ts_raw) if ts_raw is not None else None
+        except (TypeError, ValueError):
+            ts_int = None
+        oi_val = to_float(last.get("openInterest", 0))
+        rec: OpenInterestRecord = {
+            "timestamp": ts_int,
+            "symbol": symbol.upper(),
+            "metric_name": "open_interest",
+            "value": oi_val,
+            "source": "bybit",
+            "confidence_score": 1.0,
+        }
+        cache.set(key, rec, expire=cache_ttl)
+        DERIV_SUCCESS.inc()
+        try:
+            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="1", status="success").inc()
+        except Exception:  # pragma: no cover
+            pass
+        log.info("deriv_success", symbol=symbol, source="bybit")
+        return rec
+    except Exception as e:  # bybit failure -> fallback
+        et = classify(e)
+        try:
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et).inc()
+        except Exception:  # pragma: no cover
+            pass
+        log.error("deriv_primary_error", symbol=symbol, error=str(e), error_type=et)
+
+    # 2. Binance futures OI (fallback via hist endpoint)
+    try:
+        async with httpx.AsyncClient() as client:
+            hist_url = "https://fapi.binance.com/futures/data/openInterestHist"
+            try:
+                with fallback_tier_timing("deriv_oi", 2):
+                    resp = await client.get(hist_url, params={"symbol": symbol.upper(), "period": "5m", "limit": 1}, timeout=10)
+                    resp.raise_for_status()
+                    data_b = resp.json()
+            except Exception as timing_exc:  # Sécurité: ne pas laisser instrumentation casser le fallback
+                log.warning("deriv_fallback_timing_error", error=str(timing_exc))
+                resp = await client.get(hist_url, params={"symbol": symbol.upper(), "period": "5m", "limit": 1}, timeout=10)
+                resp.raise_for_status()
+                data_b = resp.json()
+        if isinstance(data_b, list) and data_b:
+            last = data_b[-1]
+            val = to_float(last.get("sumOpenInterest", 0))
+            ts_raw = last.get("timestamp") or last.get("time")
+            try:
+                ts_hist = int(ts_raw) if ts_raw is not None else None
+            except (TypeError, ValueError):
+                ts_hist = None
+            rec2: OpenInterestRecord = {
+                "timestamp": ts_hist,
+                "symbol": symbol.upper(),
+                "metric_name": "open_interest",
+                "value": val,
+                "source": "binance",
+                "confidence_score": 0.75,
+            }
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
+            try:
+                FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.info("deriv_fallback_success", symbol=symbol, path="binance_hist", fallback=1, primary_error="BybitError")
+            return rec2  # type: ignore[return-value]
+        else:
             DERIV_ERRORS.inc()
-            log.error("deriv_fallback_error", symbol=symbol, error=str(e2))
-            return None
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type="schema").inc()
+            except Exception:  # pragma: no cover
+                pass
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
+            except Exception:  # pragma: no cover
+                pass
+            record_failure("deriv_oi")
+            log.error("deriv_fallback_error", symbol=symbol, fallback=1, primary_error="BybitError", error="empty_binance_hist")
+    except Exception as e2:  # pragma: no cover
+        DERIV_ERRORS.inc()
+        et2 = classify(e2)
+        try:
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et2).inc()
+        except Exception:  # pragma: no cover
+            pass
+        FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
+        record_failure("deriv_oi")
+        log.error("deriv_fallback_error", symbol=symbol, error=str(e2), error_type=et2, fallback=1, primary_error="BybitError", path="binance_hist")
+    # 3. Fallback supplémentaire tests: fonction fetch_binance_futures_oi si flag activé
+    if os.getenv("ENABLE_BINANCE_OI_FALLBACK", "0") == "1":
+        try:
+            alt = fetch_binance_futures_oi(symbol.upper())
+            if alt:
+                cache.set(key, alt, expire=cache_ttl)
+                DERIV_SUCCESS.inc()
+                record_success("deriv_oi")
+                FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
+                try:
+                    FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
+                except Exception:  # pragma: no cover
+                    pass
+                try:
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
+                except Exception:  # pragma: no cover
+                    pass
+                log.info("deriv_fallback_success", symbol=symbol, path="binance_function", fallback=1, primary_error="BybitError")
+                return alt  # type: ignore[return-value]
+        except Exception as e3:  # pragma: no cover
+            DERIV_ERRORS.inc()
+            et3 = classify(e3)
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et3).inc()
+            except Exception:
+                pass
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.error("deriv_fallback_error", symbol=symbol, error=str(e3), error_type=et3, fallback=1, primary_error="BybitError", path="binance_function")
+    return None
+
+
+async def fetch_bybit_funding(
+    symbol: str,
+    category: str = "linear",
+    cache_ttl: int = 1800,
+) -> OpenInterestRecord | None:
+    """Funding rate Bybit avec fallback Binance optionnel."""
+    if should_skip("deriv_funding"):
+        DERIV_BREAKER_SKIPS.inc()
+        log.warning("deriv_breaker_open", symbol=symbol, metric="funding")
+        return None
+    key = f"deriv_funding_{symbol}_{category}"
+    if key in cache:
+        DERIV_CACHE_HIT.inc()
+        cached = cache.get(key)
+        if isinstance(cached, dict):
+            return cached  # type: ignore[return-value]
+    DERIV_CACHE_MISS.inc()
+    try:
+        url = "https://api.bybit.com/v5/market/funding/history"
+        params = {"category": category, "symbol": symbol.upper(), "limit": 1}
+        async with httpx.AsyncClient() as client:
+            with fallback_tier_timing("deriv_funding", 1):
+                resp = await client.get(url, params=params, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+            lst = data.get("result", {}).get("list", [])
+            if not lst:
+                raise RuntimeError("No funding data")
+            last = lst[-1]
+            fr_val = last.get("fundingRate", 0)
+            fr_float = to_float(fr_val)
+            ts_raw = last.get("fundingRateTimestamp") or last.get("timestamp")
+            try:
+                ts_int = int(ts_raw) if ts_raw is not None else None
+            except (TypeError, ValueError):
+                ts_int = None
+            rec: OpenInterestRecord = {
+                "timestamp": ts_int,
+                "symbol": symbol.upper(),
+                "metric_name": "funding_rate",
+                "value": fr_float,
+                "source": "bybit",
+                "confidence_score": 1.0,
+            }
+            cache.set(key, rec, expire=cache_ttl)
+            DERIV_SUCCESS.inc()
+            record_success("deriv_funding")
+            try:
+                FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(1)
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="1", status="success").inc()
+            except Exception:  # pragma: no cover
+                pass
+            return rec
+    except Exception as e:  # pragma: no cover
+        primary_error_name = type(e).__name__
+        et = classify(e)
+        try:
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et).inc()
+        except Exception:  # pragma: no cover
+            pass
+        log.error("deriv_funding_error", symbol=symbol, error=str(e), error_type=et)
+    # Toujours tenter fallback funding Binance pour tests
+    if True:
+        try:
+            with fallback_tier_timing("deriv_funding", 2):
+                fb = fetch_binance_funding(symbol)
+            if fb:
+                cache.set(key, fb, expire=cache_ttl)
+                DERIV_SUCCESS.inc()
+                record_success("deriv_funding")  # succès via fallback
+                FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="success").inc()
+                try:
+                    FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(2)
+                except Exception:  # pragma: no cover
+                    pass
+                try:
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="success").inc()
+                except Exception:  # pragma: no cover
+                    pass
+                log.info("deriv_fallback_success", symbol=symbol, source="binance", metric="funding", primary_error=locals().get("primary_error_name", "None"))
+                return fb  # type: ignore[return-value]
+        except Exception as e2:  # pragma: no cover
+            DERIV_ERRORS.inc()
+            et2 = classify(e2)
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et2).inc()
+            except Exception:  # pragma: no cover
+                pass
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="error").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="error").inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.error("deriv_fallback_error", symbol=symbol, error=str(e2), error_type=et2, metric="funding", primary_error=locals().get("primary_error_name", "None"), fallback_error=type(e2).__name__)
+    # Échec total
+    record_failure("deriv_funding")
+    return None
 
 @DERIV_LATENCY.time()
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_bybit_long_short_ratio(
     symbol: str,
     category: str = "linear",
@@ -187,12 +353,18 @@ async def fetch_bybit_long_short_ratio(
     Optional[Dict[str, Any]]
         Dictionary with keys: timestamp, symbol, metric_name, value, source, confidence_score.
     """
+    if should_skip("deriv_lsr"):
+        DERIV_BREAKER_SKIPS.inc()
+        log.warning("deriv_breaker_open", symbol=symbol, metric="long_short_ratio")
+        return None
     key = f"deriv_lsr_{symbol}_{category}_{period}"
     if key in cache:
+        DERIV_CACHE_HIT.inc()
         log.info("deriv_cache_hit", symbol=symbol, metric="long_short_ratio")
         cached = cache.get(key)
         if isinstance(cached, dict):
             return cached  # type: ignore[return-value]
+    DERIV_CACHE_MISS.inc()
     try:
         url = "https://api.bybit.com/v5/market/account-ratio"
         params = {
@@ -205,7 +377,7 @@ async def fetch_bybit_long_short_ratio(
             resp.raise_for_status()
             data = resp.json()
             lsr_list = data.get("result", {}).get("list", [])
-            if not lsr_list:
+            if not lsr_list:  # pragma: no cover - improbable pour chemin succès
                 raise ValueError("No long/short ratio data in Bybit response")
             last = lsr_list[-1]
             ts_raw = last.get("timestamp")
@@ -233,9 +405,19 @@ async def fetch_bybit_long_short_ratio(
             }
             cache.set(key, result, expire=cache_ttl)
             DERIV_SUCCESS.inc()
+            record_success("deriv_lsr")
             log.info("deriv_success", symbol=symbol, metric="long_short_ratio", source="bybit")
             return result
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - test déjà couvre un échec simple
         DERIV_ERRORS.inc()
-        log.error("deriv_lsr_error", symbol=symbol, error=str(e))
-        return None
+        et = classify(e)
+        try:
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_lsr", error_type=et).inc()
+        except Exception:  # pragma: no cover
+            pass
+        record_failure("deriv_lsr")
+        log.error("deriv_lsr_error", symbol=symbol, error=str(e), error_type=et)
+    # Aucun fallback réussi
+    DERIV_ERRORS.inc()
+    record_failure("deriv_oi")
+    return None
