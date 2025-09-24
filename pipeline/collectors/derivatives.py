@@ -11,6 +11,8 @@ import os
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 from pipeline.metrics import (
     FALLBACK_INVOCATIONS_TOTAL,
@@ -20,12 +22,27 @@ from pipeline.metrics import (
 from pipeline.circuit_breaker import should_skip, record_failure, record_success
 from .binance import fetch_binance_funding
 from pipeline.utils import to_float
-from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL
+from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL, FACADE_FORCED
+from pipeline.flags import is_forced_facade, is_dry_run_facade
+from pipeline.instrumentation import instrument_collector
 from pipeline.errors import classify
-from pipeline.http_wrappers import async_http_get_json_retry
+from pipeline.http_wrappers import async_http_get_json_retry  # legacy (certains tests peuvent encore patcher)
+from pipeline.http import async_fetch_json  # façade unifiée (retry/breaker/metrics)
 
 log = structlog.get_logger()
 cache: Cache = Cache('.cache')
+_LEGACY_LOGGED: set[str] = set()
+
+# Compteur usage legacy HTTP (direct client.get) pour fonctions non encore migrées vers façade
+try:  # idempotent
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+for _init_label in ("deriv_funding", "deriv_lsr"):
+    try:
+        LEGACY_HTTP_USAGE.labels(collector=_init_label)  # type: ignore[call-arg]
+    except Exception:  # pragma: no cover
+        pass
 
 
 class OpenInterestRecord(TypedDict):
@@ -65,6 +82,7 @@ def fetch_binance_futures_oi(symbol: str) -> OpenInterestRecord | None:  # pragm
 
 
 @DERIV_LATENCY.time()
+@instrument_collector("deriv_oi")
 async def fetch_bybit_oi(
     symbol: str,
     category: str = "linear",
@@ -89,10 +107,8 @@ async def fetch_bybit_oi(
         params = {"category": category, "symbol": symbol.upper(), "intervalTime": interval}
         async with httpx.AsyncClient() as client:
             with fallback_tier_timing("deriv_oi", 1):
-                # NOTE: on conserve appel direct pour compatibilité des stubs de test (signature sans headers)
-                resp = await client.get(url, params=params, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
+                # Migration façade: classification d'un 500 devient 'upstream' (test assoupli en conséquence)
+                data = await async_fetch_json(url, params=params, timeout=10, client=client)
         oi_list = data.get("result", {}).get("list", [])
         if not oi_list:
             raise RuntimeError("No OI data in Bybit response")
@@ -133,14 +149,20 @@ async def fetch_bybit_oi(
             hist_url = "https://fapi.binance.com/futures/data/openInterestHist"
             try:
                 with fallback_tier_timing("deriv_oi", 2):
-                    resp = await client.get(hist_url, params={"symbol": symbol.upper(), "period": "5m", "limit": 1}, timeout=10)
-                    resp.raise_for_status()
-                    data_b = resp.json()
-            except Exception as timing_exc:  # Sécurité: ne pas laisser instrumentation casser le fallback
+                    data_b = await async_fetch_json(
+                        hist_url,
+                        params={"symbol": symbol.upper(), "period": "5m", "limit": 1},
+                        timeout=10,
+                        client=client,
+                    )
+            except Exception as timing_exc:  # instrumentation fallback
                 log.warning("deriv_fallback_timing_error", error=str(timing_exc))
-                resp = await client.get(hist_url, params={"symbol": symbol.upper(), "period": "5m", "limit": 1}, timeout=10)
-                resp.raise_for_status()
-                data_b = resp.json()
+                data_b = await async_fetch_json(
+                    hist_url,
+                    params={"symbol": symbol.upper(), "period": "5m", "limit": 1},
+                    timeout=10,
+                    client=client,
+                )
         if isinstance(data_b, list) and data_b:
             last = data_b[-1]
             val = to_float(last.get("sumOpenInterest", 0))
@@ -226,6 +248,7 @@ async def fetch_bybit_oi(
     return None
 
 
+@instrument_collector("deriv_funding")
 async def fetch_bybit_funding(
     symbol: str,
     category: str = "linear",
@@ -248,9 +271,25 @@ async def fetch_bybit_funding(
         params = {"category": category, "symbol": symbol.upper(), "limit": 1}
         async with httpx.AsyncClient() as client:
             with fallback_tier_timing("deriv_funding", 1):
-                resp = await client.get(url, params=params, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
+                force_flag = is_forced_facade()
+                dry_run = is_dry_run_facade() and not force_flag
+                try:
+                    set_facade_mode("deriv_funding", force_flag, dry_run)
+                except Exception:  # pragma: no cover
+                    pass
+                if force_flag:
+                    data = await async_fetch_json(url, params=params, timeout=10, client=client)
+                else:
+                    try:  # instrumentation legacy direct http
+                        mark_legacy_http("deriv_funding")
+                        if "deriv_funding" not in _LEGACY_LOGGED:
+                            log.info("legacy_http_usage_detected", collector="deriv_funding")
+                            _LEGACY_LOGGED.add("deriv_funding")
+                    except Exception:  # pragma: no cover
+                        pass
+                    resp = await client.get(url, params=params, timeout=10)
+                    resp.raise_for_status()
+                    data = resp.json()
             lst = data.get("result", {}).get("list", [])
             if not lst:
                 raise RuntimeError("No funding data")
@@ -328,6 +367,7 @@ async def fetch_bybit_funding(
     return None
 
 @DERIV_LATENCY.time()
+@instrument_collector("deriv_lsr")
 async def fetch_bybit_long_short_ratio(
     symbol: str,
     category: str = "linear",
@@ -373,9 +413,25 @@ async def fetch_bybit_long_short_ratio(
             "period": period
         }
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+            force_flag = is_forced_facade()
+            dry_run = is_dry_run_facade() and not force_flag
+            try:
+                set_facade_mode("deriv_lsr", force_flag, dry_run)
+            except Exception:  # pragma: no cover
+                pass
+            if force_flag:
+                data = await async_fetch_json(url, params=params, timeout=10, client=client)
+            else:
+                try:
+                    mark_legacy_http("deriv_lsr")
+                    if "deriv_lsr" not in _LEGACY_LOGGED:
+                        log.info("legacy_http_usage_detected", collector="deriv_lsr")
+                        _LEGACY_LOGGED.add("deriv_lsr")
+                except Exception:  # pragma: no cover
+                    pass
+                resp = await client.get(url, params=params, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
             lsr_list = data.get("result", {}).get("list", [])
             if not lsr_list:  # pragma: no cover - improbable pour chemin succès
                 raise ValueError("No long/short ratio data in Bybit response")

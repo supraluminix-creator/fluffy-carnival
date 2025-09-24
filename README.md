@@ -8,6 +8,36 @@ Prod-safe crypto monitor with:
 - Parallel orchestrator
 - YAML-driven job configuration
 
+IMPORTANT (HTTP Collectors): Utiliser désormais la façade `pipeline.http.fetch_json` / `async_fetch_json` pour tout nouvel appel réseau (retry/breaker/metrics unifiés). Les anciens accès directs `httpx.get` ou `pipeline.http_wrappers.*` sont en cours de migration progressive.
+
+### Mode façade & suivi de la dette legacy
+
+Un mode opt-in pour le collector marché sync (`fetch_market`) est disponible via:
+
+```powershell
+$env:MARKET_USE_FACADE = "1"
+```
+
+Ce flag force l'usage de la façade unifiée (retry + classification homogène) au lieu des appels `httpx.get` directs. Tant que le flag n'est pas activé, le chemin legacy incrémente le compteur Prometheus:
+
+```
+legacy_http_usage_total{collector="market"}
+```
+
+Instrumentation similaire ajoutée sur d'autres collectors encore partiellement legacy (`binance_spot`, `binance_oi`, `binance_funding`, `deriv_funding`, `deriv_lsr`, `defillama`). Une fois le nombre d'incréments stablement proche de zéro en environnement de test/staging, l'inversion de défaut (façade ON par défaut) sera effectuée.
+
+Requêtes d'observation recommandées (Prometheus):
+
+```promql
+# Top consommateurs legacy (fenêtre 1h)
+sum by(collector)(increase(legacy_http_usage_total[1h]))
+
+# Alerte si legacy encore utilisé après bascule prévue
+sum(increase(legacy_http_usage_total[24h])) > 0
+```
+
+Documentation détaillée et statut de migration: `docs/MIGRATION_HTTP_FACADE.md`.
+
 > NOTE LEGACY: Un ancien snapshot du code est conservé sous `fluffy-carnival/` uniquement comme archive. Voir `LEGACY_ARCHIVED.md` pour la politique de retrait progressif. Ne pas y ajouter de nouveau code.
 
 Note: This repository is published as "fluffy-carnival" on GitHub.

@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-09-20T19:04:57.659946+00:00",
+  "elapsed_seconds": 50.39,
+  "connections_total": 1,
+  "errors_total": 0,
+  "events_per_symbol": {},
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "AVAXUSDT",
+    "MATICUSDT",
+    "LTCUSDT",
+    "OPUSDT"
+  ],
+  "db_rows_liquidations": 1,
+  "min_db_rows_target": 1,
+  "max_duration_seconds": 900
+}

@@ -15,9 +15,9 @@ from typing import Any, Mapping, List, TypedDict
 import pandas as pd
 
 try:  # pragma: no cover - si metrics indisponible
-    from pipeline.metrics import BUFFER_LENGTH, LAST_FLUSH_TIMESTAMP, FLUSH_OPERATIONS_TOTAL, FLUSH_FAILURES_TOTAL, WRITER_FLUSH_LATENCY_SECONDS
+    from pipeline.metrics import BUFFER_LENGTH, LAST_FLUSH_TIMESTAMP, FLUSH_OPERATIONS_TOTAL, FLUSH_FAILURES_TOTAL, WRITER_FLUSH_LATENCY_SECONDS, LAST_FLUSH_DURATION_SECONDS
 except Exception:  # pragma: no cover
-    BUFFER_LENGTH = LAST_FLUSH_TIMESTAMP = FLUSH_OPERATIONS_TOTAL = FLUSH_FAILURES_TOTAL = WRITER_FLUSH_LATENCY_SECONDS = None  # type: ignore
+    BUFFER_LENGTH = LAST_FLUSH_TIMESTAMP = FLUSH_OPERATIONS_TOTAL = FLUSH_FAILURES_TOTAL = WRITER_FLUSH_LATENCY_SECONDS = LAST_FLUSH_DURATION_SECONDS = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,6 @@ class BybitLiquidationsWriter:
                 except Exception:  # pragma: no cover
                     pass
             return
-
         start_time = datetime.now(UTC).timestamp()
         buf = self.buffer
         self.buffer = []
@@ -215,9 +214,15 @@ class BybitLiquidationsWriter:
                 df.to_parquet(parquet_path, index=False, engine="pyarrow")
                 logger.debug("Flushed to parquet partitioned: %s", parquet_path)
 
+            duration = datetime.now(UTC).timestamp() - start_time
             if WRITER_FLUSH_LATENCY_SECONDS is not None:
                 try:
-                    WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="success").observe(datetime.now(UTC).timestamp() - start_time)
+                    WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="success").observe(duration)
+                except Exception:  # pragma: no cover
+                    pass
+            if LAST_FLUSH_DURATION_SECONDS is not None:
+                try:
+                    LAST_FLUSH_DURATION_SECONDS.labels(writer="bybit_liq").set(duration)
                 except Exception:  # pragma: no cover
                     pass
 
@@ -228,10 +233,16 @@ class BybitLiquidationsWriter:
                     FLUSH_FAILURES_TOTAL.labels(writer="bybit_liq", phase="write").inc()
                 except Exception:
                     pass
+            duration = datetime.now(UTC).timestamp() - start_time
             if WRITER_FLUSH_LATENCY_SECONDS is not None:
                 try:
-                    WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="error").observe(datetime.now(UTC).timestamp() - start_time)
+                    WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="error").observe(duration)
                 except Exception:
+                    pass
+            if LAST_FLUSH_DURATION_SECONDS is not None:
+                try:
+                    LAST_FLUSH_DURATION_SECONDS.labels(writer="bybit_liq").set(duration)
+                except Exception:  # pragma: no cover
                     pass
 
     async def close(self) -> None:

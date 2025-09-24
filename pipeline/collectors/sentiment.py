@@ -8,8 +8,12 @@ from typing import Any, TypedDict, Final
 import httpx
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary
-from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
+from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
+from pipeline.instrumentation import instrument_collector
+from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL, FACADE_FORCED
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.flags import is_forced_facade, is_dry_run_facade
+from pipeline.http import async_fetch_json
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
@@ -33,6 +37,18 @@ SENTIMENT_LATENCY = Summary('sentiment_latency_seconds', 'Latency of Sentiment A
 SENTIMENT_ERRORS = Counter('sentiment_errors_total', 'Total Sentiment API errors')
 SENTIMENT_SUCCESS = Counter('sentiment_success_total', 'Total Sentiment API successes')
 
+# Compteur legacy HTTP usage (idempotent)
+try:
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+try:
+    LEGACY_HTTP_USAGE.labels(collector='sentiment')  # type: ignore[call-arg]
+except Exception:  # pragma: no cover
+    pass
+_LEGACY_LOGGED = False
+
+@instrument_collector("sentiment")
 @SENTIMENT_LATENCY.time()
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_fear_greed(
@@ -63,11 +79,30 @@ async def fetch_fear_greed(
             return cached  # type: ignore[return-value]
     try:
         url = "https://api.alternative.me/fng/"
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        try:
+            set_facade_mode("sentiment", force_facade, dry_run)
+        except Exception:  # pragma: no cover
+            pass
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            fg = data["data"][0] if "data" in data and data["data"] else None
+            if force_facade:
+                data = await async_fetch_json(url, timeout=10, client=client)
+            else:
+                # Legacy direct
+                try:
+                    mark_legacy_http('sentiment')
+                    global _LEGACY_LOGGED
+                    if not _LEGACY_LOGGED:
+                        log.info('legacy_http_usage_detected', collector='sentiment')
+                        _LEGACY_LOGGED = True
+                except Exception:  # pragma: no cover
+                    pass
+                resp = await client.get(url, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+            fg_list = data.get("data") if isinstance(data, dict) else None
+            fg = fg_list[0] if isinstance(fg_list, list) and fg_list else None
             if not fg:
                 raise ValueError("No data in Alternative.me response")
             result: SentimentRecord = {
@@ -83,7 +118,7 @@ async def fetch_fear_greed(
             }
             cache.set(key, result, expire=cache_ttl)
             SENTIMENT_SUCCESS.inc()
-            log.info("sentiment_success", metric="fear_greed", source="alternative.me")
+            log.info("sentiment_success", metric="fear_greed", source="alternative.me", forced=force_facade)
             return result
     except Exception as e:
         log.error("sentiment_main_error", metric="fear_greed", error=str(e))

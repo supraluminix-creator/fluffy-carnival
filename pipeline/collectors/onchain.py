@@ -12,6 +12,7 @@ import httpx
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
+from pipeline.instrumentation import instrument_collector
 from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -49,6 +50,7 @@ ONCHAIN_LATENCY = Summary('onchain_latency_seconds', 'Latency of On-chain API ca
 ONCHAIN_ERRORS = Counter('onchain_errors_total', 'Total On-chain API errors')
 ONCHAIN_SUCCESS = Counter('onchain_success_total', 'Total On-chain API successes')
 
+@instrument_collector("onchain_txcount")
 @ONCHAIN_LATENCY.time()
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_txcount(
@@ -167,6 +169,7 @@ async def fetch_txcount(
         log.error("onchain_final_error", symbol=symbol, error=str(e), primary_error=type(e).__name__)
         return None
 
+@instrument_collector("onchain_hashrate")
 @ONCHAIN_LATENCY.time()
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_hashrate(
@@ -234,6 +237,7 @@ async def fetch_hashrate(
         log.error("onchain_error", symbol=symbol, error=str(e))
         return None
 
+@instrument_collector("onchain_sopr")
 @ONCHAIN_LATENCY.time()
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_sopr(

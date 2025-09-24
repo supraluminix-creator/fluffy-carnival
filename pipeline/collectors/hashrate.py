@@ -23,6 +23,22 @@ from typing import Any, TypedDict, cast
 import diskcache
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
+from prometheus_client import Counter, REGISTRY as PROM_REGISTRY
+from pipeline.metrics import FACADE_FORCED, FACADE_FORCED_LEAK
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.flags import is_forced_facade, is_dry_run_facade
+from pipeline.http import async_fetch_json, fetch_json
+
+# Compteur legacy (idempotent) partagé
+try:  # pragma: no cover - idempotent
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:  # déjà défini
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+try:  # pré-initialise sample
+    LEGACY_HTTP_USAGE.labels(collector='onchain_hashrate')  # type: ignore[call-arg]
+except Exception:  # pragma: no cover
+    pass
+_LEGACY_LOGGED = False
 
 
 class _ChartValue(TypedDict):
@@ -68,13 +84,39 @@ class HashrateCollector:
         if isinstance(cached, dict):  # Defensive: ensure shape before casting
             return cast(HashrateData, cached)
 
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        try:
+            set_facade_mode('onchain_hashrate', force_facade, dry_run)
+        except Exception:  # pragma: no cover
+            pass
         params = {"timespan": "1days", "format": "json"}
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(self.BASE_URL, params=params)
-                resp.raise_for_status()
-                raw = resp.json()
+            if force_facade:
+                # utilisation façade (retry centralisé)
+                raw = await async_fetch_json(self.BASE_URL, params=params, timeout=10)
+            else:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    try:
+                        mark_legacy_http('onchain_hashrate')
+                        global _LEGACY_LOGGED
+                        if not _LEGACY_LOGGED:
+                            import structlog
+                            structlog.get_logger().info('legacy_http_usage_detected', collector='onchain_hashrate')
+                            _LEGACY_LOGGED = True
+                    except Exception:  # pragma: no cover
+                        pass
+                    resp = await client.get(self.BASE_URL, params=params)
+                    resp.raise_for_status()
+                    raw = resp.json()
         except Exception:
+            if force_facade:
+                # Pas de repli legacy en mode forced pour cohérence métriques
+                try:  # leak gauge set si on détecte tentative legacy (ici on ne tente pas)
+                    FACADE_FORCED_LEAK.labels(collector='onchain_hashrate').set(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return None
             return None
 
         if not isinstance(raw, dict):  # Unexpected shape
@@ -91,6 +133,12 @@ class HashrateCollector:
         Wraps the async method with asyncio.run while swallowing exceptions to return None
         (mirrors existing resilience pattern across collectors).
         """
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        try:
+            set_facade_mode('onchain_hashrate', force_facade, dry_run)
+        except Exception:  # pragma: no cover
+            pass
         try:
             return asyncio.run(self.fetch_hashrate_async(symbol))
         except Exception:

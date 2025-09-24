@@ -4,21 +4,29 @@ Prod-safe, async, retry/backoff, cache TTL, historique TVL
 """
 import asyncio
 import os
+from pipeline.flags import is_forced_facade, is_dry_run_facade
 import time
 from datetime import UTC, datetime
 from typing import Any, TypedDict, cast
 
 import httpx
-from pipeline.http_wrappers import get_json_with_retry, async_http_get_json_retry
+# Migration HTTP: on commence à utiliser la façade unifiée pour les appels JSON asynchrones
+# get_json_with_retry (sync thread) conservé pour le chemin RETRY_FORCE_THREAD
+from pipeline.http_wrappers import get_json_with_retry
+from pipeline.http import async_fetch_json  # façade centralisée (retry/breaker/metrics)
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary
+from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 from pipeline.circuit_breaker import should_skip, record_failure, record_success
 from pipeline.utils import to_float
 from tenacity import retry, stop_after_attempt, wait_exponential
+from pipeline.instrumentation import instrument_collector
+from pipeline.metrics import FACADE_FORCED
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
+_LEGACY_LOGGED: set[str] = set()
 
 DEFI_LLAMA_LATENCY = Summary('defillama_latency_seconds', 'Latency of DefiLlama API calls')
 DEFI_LLAMA_ERRORS = Counter('defillama_errors_total', 'Total DefiLlama API errors')
@@ -26,6 +34,16 @@ DEFI_LLAMA_SUCCESS = Counter('defillama_success_total', 'Total DefiLlama API suc
 DEFI_LLAMA_CACHE_HIT = Counter('defillama_cache_hit_total', 'DefiLlama cache hits')
 DEFI_LLAMA_CACHE_MISS = Counter('defillama_cache_miss_total', 'DefiLlama cache misses')
 DEFI_LLAMA_BREAKER_SKIPS = Counter('defillama_breaker_skips_total', 'Calls skipped (circuit breaker open)')
+
+# Compteur usage HTTP legacy (appels directs client.get quand la façade n'est pas utilisée)
+try:  # idempotent
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:  # déjà enregistré
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+try:
+    LEGACY_HTTP_USAGE.labels(collector='defillama')  # type: ignore[call-arg]
+except Exception:  # pragma: no cover
+    pass
 
 class ChainData(TypedDict, total=False):
     name: str
@@ -41,13 +59,24 @@ async def get_chain_data(chain: str) -> ChainData | None:
         url = "https://api.llama.fi/v2/chains"
         # Conserve le pattern AsyncClient pour compatibilité tests existants.
         # Si retry activé on passe par helper dans un thread, sinon appel direct async.
-        if os.getenv("RETRY_FORCE_THREAD", "0") == "1":
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        set_facade_mode("defillama", force_facade, dry_run)
+        retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+        if os.getenv("RETRY_FORCE_THREAD", "0") == "1" and not force_facade:
             chains_raw = await asyncio.to_thread(get_json_with_retry, url)
         else:
-            async with httpx.AsyncClient() as client:  # garde compat mocks; interne choisit retry selon env
-                if os.getenv("RETRY_HTTP_ENABLED", "1") == "1":
-                    chains_raw = await async_http_get_json_retry(client, url, timeout=15)
-                else:  # pragma: no cover - chemin désactivé peu utilisé
+            async with httpx.AsyncClient() as client:  # garde compat mocks
+                if retry_enabled or force_facade:
+                    chains_raw = await async_fetch_json(url, timeout=15, client=client)
+                else:  # legacy direct uniquement si pas de force
+                    try:
+                        mark_legacy_http('defillama')
+                        if 'defillama' not in _LEGACY_LOGGED:
+                            log.info('legacy_http_usage_detected', collector='defillama')
+                            _LEGACY_LOGGED.add('defillama')
+                    except Exception:  # pragma: no cover
+                        pass
                     resp = await client.get(url, timeout=15)
                     resp.raise_for_status()
                     chains_raw = resp.json()
@@ -89,13 +118,24 @@ async def get_historical_chain_data(chain: str) -> list[HistoricalPoint] | None:
             log.error("defillama_no_chain_name", chain=chain)
             return None
         historical_url = f"https://api.llama.fi/v2/historicalChainTvl/{exact_chain_name}"
-        if os.getenv("RETRY_FORCE_THREAD", "0") == "1":
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        set_facade_mode("defillama", force_facade, dry_run)
+        retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+        if os.getenv("RETRY_FORCE_THREAD", "0") == "1" and not force_facade:
             historical_data = await asyncio.to_thread(get_json_with_retry, historical_url)
         else:
             async with httpx.AsyncClient() as client:  # compat mocks
-                if os.getenv("RETRY_HTTP_ENABLED", "1") == "1":
-                    historical_data = await async_http_get_json_retry(client, historical_url, timeout=15)
-                else:  # pragma: no cover
+                if retry_enabled or force_facade:
+                    historical_data = await async_fetch_json(historical_url, timeout=15, client=client)
+                else:  # legacy direct uniquement si pas de force
+                    try:
+                        LEGACY_HTTP_USAGE.labels(collector='defillama').inc()  # type: ignore[attr-defined]
+                        if 'defillama' not in _LEGACY_LOGGED:
+                            log.info('legacy_http_usage_detected', collector='defillama')
+                            _LEGACY_LOGGED.add('defillama')
+                    except Exception:  # pragma: no cover
+                        pass
                     resp = await client.get(historical_url, timeout=15)
                     resp.raise_for_status()
                     historical_data = resp.json()
@@ -193,6 +233,7 @@ def calculate_historical_values(
     return results
 
 @DEFI_LLAMA_LATENCY.time()
+@instrument_collector("defillama")
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 async def fetch_defillama_tvl(
     chain: str,
@@ -253,6 +294,10 @@ async def fetch_defillama_tvl(
             "source": "defillama",
             "confidence_score": 1.0 if has_valid_historical else 0.8
         }
+
+        # Log facultatif si mode forced façade actif (cohérence avec autres collectors)
+        if os.getenv("FORCE_HTTP_FACADE", "0") == "1":  # pragma: no cover - simple log
+            log.info("Forced HTTP facade mode enabled", collector="defillama")
 
         cache.set(key, result, expire=cache_ttl)
         DEFI_LLAMA_SUCCESS.inc()

@@ -55,6 +55,7 @@ BYBIT_WS_CONNECTIONS = Counter('bybit_ws_connections_total', 'Total WS connectio
 BYBIT_WS_ERRORS = Counter('bybit_ws_errors_total', 'Total WS errors')
 BYBIT_WS_EVENTS = Counter('bybit_ws_events_total', 'Total liquidation events received', ['symbol'])
 BYBIT_WS_LATENCY = Summary('bybit_ws_latency_seconds', 'WS message handling latency')
+BYBIT_WS_PARSE_ERRORS = Counter('bybit_ws_parse_errors_total', 'Total parse / JSON errors in WS stream')
 
 
 # ---------------------------------------------------------
@@ -164,6 +165,7 @@ class BybitWSService:
         try:
             msg = json.loads(raw_msg)
         except json.JSONDecodeError:
+            BYBIT_WS_PARSE_ERRORS.inc()
             logger.warning("Invalid JSON", raw=raw_msg)
             return
 

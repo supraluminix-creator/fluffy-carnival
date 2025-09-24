@@ -1,0 +1,16 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/crypto_pipeline_core/**": true,
+      "**/crypto_pipeline_v15_2/**": true,
+      "**/MONOLITH/**": true
+    },
+    "search.exclude": {
+      "**/.venv/**": true,
+      "**/__pycache__/**": true
+    }
+  }
+}

@@ -1,0 +1,12 @@
+title = "Gitleaks Config"
+
+# Autoriser certains patterns internes (ex: identifiants tests) sans les reporter.
+[[rules.allowlist.regexes]]
+regex = '''RUN_ID"?:\s*"?[0-9a-f]{8}"?'''
+
+[[rules.allowlist.regexes]]
+regex = '''DUNE_BTC_WIDE_QUERY_ID=\d+'''
+
+# Exclure répertoires non pertinents
+[allowlist]
+paths = [".venv", "data", "exports"]

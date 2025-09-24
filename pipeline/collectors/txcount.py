@@ -8,8 +8,24 @@ import diskcache
 import httpx
 import requests
 import structlog
-from prometheus_client import Counter, Summary
+from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
+from pipeline.instrumentation import instrument_collector
 from tenacity import retry, stop_after_attempt, wait_exponential
+from pipeline.flags import is_forced_facade, is_dry_run_facade
+from pipeline.http import async_fetch_json, fetch_json
+from pipeline.metrics import FACADE_FORCED, FACADE_FORCED_LEAK
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+
+# Legacy counter idempotent
+try:
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:  # déjà défini
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+try:
+    LEGACY_HTTP_USAGE.labels(collector='onchain_txcount')  # type: ignore[call-arg]
+except Exception:  # pragma: no cover
+    pass
+_LEGACY_LOGGED = False
 
 log = structlog.get_logger()
 TXCOUNT_LATENCY = Summary('txcount_latency_seconds', 'Latency of TxCount API calls')
@@ -33,40 +49,78 @@ class TxCountCollector:
         cached = self._disk_cache.get(cache_key)
         if isinstance(cached, dict):
             return cast(dict[str, Any], cached)
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        try:
+            set_facade_mode("onchain_txcount", force_facade, dry_run)
+        except Exception:  # pragma: no cover
+            pass
         params = {"timespan": "1days", "format": "json"}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(self.BASE_URL, params=params)
-            resp.raise_for_status()
-            data = cast(dict[str, Any], resp.json())
+        if force_facade:
+            try:
+                data = cast(dict[str, Any], await async_fetch_json(self.BASE_URL, params=params, timeout=10))
+            except Exception:
+                return None
+        else:
+            async with httpx.AsyncClient(timeout=10) as client:
+                try:
+                    mark_legacy_http('onchain_txcount')
+                    global _LEGACY_LOGGED
+                    if not _LEGACY_LOGGED:
+                        import structlog
+                        structlog.get_logger().info('legacy_http_usage_detected', collector='onchain_txcount')
+                        _LEGACY_LOGGED = True
+                except Exception:  # pragma: no cover
+                    pass
+                resp = await client.get(self.BASE_URL, params=params)
+                resp.raise_for_status()
+                data = cast(dict[str, Any], resp.json())
         self._disk_cache.set(cache_key, data, expire=self._cache_ttl)
         return data
 
+    @instrument_collector("txcount")
     @TXCOUNT_LATENCY.time()
     def fetch_txcount(self, symbol: str = "BTC") -> dict[str, Any] | None:
         """
         Wrapper sync pour compatibilité legacy/tests
         """
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        try:
+            set_facade_mode("onchain_txcount", force_facade, dry_run)
+        except Exception:  # pragma: no cover
+            pass
+        if force_facade:
+            # On réutilise le chemin async (déjà façadé) pour cohérence métriques; si erreur -> None
+            try:
+                data = asyncio.run(self.fetch_txcount_async(symbol))  # type: ignore[name-defined]
+                if isinstance(data, dict) and 'txcount' in data:
+                    TXCOUNT_SUCCESS.inc()
+                    return {"symbol": symbol, "txcount": data.get('txcount')}
+            except Exception:  # pragma: no cover
+                return None
+            return None
+        # Chemin legacy
         try:
             url = "https://api.blockchain.info/q/getblockcount"
+            try:
+                mark_legacy_http('onchain_txcount')
+                global _LEGACY_LOGGED
+                if not _LEGACY_LOGGED:
+                    import structlog
+                    structlog.get_logger().info('legacy_http_usage_detected', collector='onchain_txcount')
+                    _LEGACY_LOGGED = True
+            except Exception:  # pragma: no cover
+                pass
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             blockcount = int(resp.text)
             TXCOUNT_SUCCESS.inc()
             log.info("txcount_success", symbol=symbol, blockcount=blockcount)
-            result: dict[str, Any] = {"symbol": symbol, "txcount": blockcount}
-            return result
+            return {"symbol": symbol, "txcount": blockcount}
         except Exception as e:
             log.error("txcount_main_error", symbol=symbol, error=str(e))
-            # Fallback Etherscan (mock, à compléter avec clé API)
             try:
-                # url = f"https://api.etherscan.io/api?...&apikey=YOUR_API_KEY"
-                # resp = requests.get(url, timeout=10)
-                # resp.raise_for_status()
-                # data = resp.json()
-                # txcount = data["result"]
-                # TXCOUNT_SUCCESS.inc()
-                # log.info("txcount_fallback_success", symbol=symbol, txcount=txcount)
-                # return {"symbol": symbol, "txcount": txcount}
                 raise NotImplementedError("Fallback Etherscan non implémenté")
             except Exception as e2:
                 TXCOUNT_ERRORS.inc()

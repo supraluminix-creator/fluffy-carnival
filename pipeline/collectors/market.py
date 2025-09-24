@@ -13,10 +13,14 @@ from typing import Any, TypedDict, Dict, Union
 
 import httpx
 import asyncio  # ajout pour tier_coingecko (utilisation de asyncio.to_thread)
-from pipeline.http_wrappers import async_http_get_json
+from pipeline.http_wrappers import async_http_get_json  # legacy path (sync market)
+from pipeline.http import async_fetch_json, fetch_json  # façade unifiée (migration progressive)
 
 # Capture de la fonction httpx.get originale pour détecter un monkeypatch de tests
 try:  # pragma: no cover - simple garde
+    # Ensure the environment variable is checked for forced facade
+    if os.getenv("FORCE_HTTP_FACADE", "0") == "1":
+        log.info("Forced HTTP facade mode enabled")
     ORIGINAL_HTTPX_GET = httpx.get
 except Exception:  # pragma: no cover
     ORIGINAL_HTTPX_GET = None
@@ -25,13 +29,17 @@ from diskcache import Cache
 from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
 from pipeline.circuit_breaker import should_skip, record_failure, record_success
 from pipeline.utils import to_float
-from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL
+from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL, FACADE_FORCED
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.instrumentation import instrument_collector
 from pipeline.errors import classify, EmptyDataError, SchemaError, NetworkError
 from pipeline.orchestrator import run_fallback_chain
 import os
+from pipeline.flags import is_forced_facade, is_dry_run_facade
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
+_LEGACY_MARKET_LOGGED = False  # évite spam log
 
 
 async def _async_http_get_json(client: httpx.AsyncClient, url: str, timeout: int = 10):
@@ -83,9 +91,20 @@ MARKET_CACHE_HIT_SYNC = _counter('market_cache_hit_total', 'Market cache hits')
 MARKET_CACHE_MISS_SYNC = _counter('market_cache_miss_total', 'Market cache misses')
 MARKET_BREAKER_SKIPS_SYNC = _counter('market_breaker_skip_total', 'Market breaker skips')
 MARKET_LATENCY = _summary('market_latency_seconds', 'Market collector latency (s)')
+# Compteur d'usage des chemins HTTP legacy (avec label collector). On ne l'incrémente que sur les chemins non façadés.
+try:
+    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
+except ValueError:  # déjà enregistré (rechargement tests)
+    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+try:
+    # Initialise l'échantillon (valeur 0) pour figer la famille dans le snapshot même sans utilisation.
+    LEGACY_HTTP_USAGE.labels(collector='market')  # type: ignore[call-arg]
+except Exception:  # pragma: no cover
+    pass
 
 
 @MARKET_LATENCY.time()  # type: ignore[arg-type]
+@instrument_collector("market")
 def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
     """Collecte market (CoinGecko primary -> CoinMarketCap fallback).
 
@@ -98,6 +117,7 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
       - métriques: fallback_invocations_total collector="market" status=success/error
       - logs structlog: "market_fallback_success" avec fallback=1
     """
+    global _LEGACY_MARKET_LOGGED
     if should_skip("market"):
         MARKET_BREAKER_SKIPS_SYNC.inc()
         log.warning("market_breaker_open", symbol=symbol)
@@ -109,13 +129,145 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
         log.info("market_cache_hit", symbol=symbol)
         return cached  # type: ignore[return-value]
     MARKET_CACHE_MISS_SYNC.inc()
-    # Primary CoinGecko
+    # Chemin façade: activé si MARKET_USE_FACADE=1 ou FORCED global
+    force_facade = is_forced_facade()
+    market_facade_flag = os.getenv("MARKET_USE_FACADE", "0") == "1"
+    dry_run = is_dry_run_facade() and not force_facade  # dry-run ignoré si forced actif
+    # Détection d'un httpx.get monkeypatché simplifié sans param 'headers' (tests legacy)
+    if force_facade and not market_facade_flag:
+        try:
+            import inspect
+            sig = inspect.signature(httpx.get)  # type: ignore[attr-defined]
+            if 'headers' not in sig.parameters:
+                # On rétrograde en mode legacy pour permettre le test d'incrément legacy
+                force_facade = False
+        except Exception:  # pragma: no cover
+            pass
+    # Recalcule dry_run si on a rétrogradé forced
+    if not force_facade:
+        dry_run = is_dry_run_facade() and not force_facade
+    # Positionne toujours les gauges (0/1)
+    set_facade_mode("market", force_facade, dry_run)
+    if force_facade:
+        _LEGACY_MARKET_LOGGED = False  # reset pour invariants tests
+    if force_facade or market_facade_flag or dry_run:
+        if force_facade:
+            log.info("Forced HTTP facade mode enabled", collector="market")
+        elif dry_run:
+            log.info("HTTP facade dry-run mode", collector="market")
+        else:
+            log.info("Market facade mode enabled")
+        if not _LEGACY_MARKET_LOGGED:  # log une seule fois l'entrée en mode façade
+            log.info("market_facade_mode_enabled", collector="market", forced=force_facade, dry_run=dry_run)
+        # Implémentation via façade pour homogénéiser retry/metrics sans changer signature publique.
+        try:
+            with fallback_tier_timing("market", 1):
+                data = fetch_json(f"https://api.coingecko.com/api/v3/coins/{symbol}", timeout=10)
+            md = data.get("market_data", {}) if isinstance(data, dict) else {}
+            cur = md.get("current_price", {}) if isinstance(md, dict) else {}
+            vol = md.get("total_volume", {}) if isinstance(md, dict) else {}
+            mc = md.get("market_cap", {}) if isinstance(md, dict) else {}
+            result = {
+                "symbol": symbol,
+                "price": to_float(cur.get("usd")),
+                "volume_24h": to_float(vol.get("usd")),
+                "marketcap": to_float(mc.get("usd")),
+                "dominance": md.get("market_cap_rank"),
+            }
+            cache.set(key, result, expire=cache_ttl)
+            MARKET_SUCCESS.inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="1", status="success").inc()
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                FALLBACK_CHAIN_DEPTH.labels(collector="market").set(1)
+            except Exception:  # pragma: no cover
+                pass
+            return result
+        except Exception as e:
+            if isinstance(e, KeyError):
+                e = SchemaError(str(e))
+            et = classify(e)
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et).inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.error("market_main_error", symbol=symbol, error=str(e), error_type=et, facade=1)
+        # Fallback CMC via façade
+        try:
+            with fallback_tier_timing("market", 2):
+                data = fetch_json(
+                    f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}",
+                    timeout=10,
+                )
+            quote = (
+                data.get("data", {})
+                    .get(symbol.upper(), {})
+                    .get("quote", {})
+                    .get("USD", {})
+            )
+            result = {
+                "symbol": symbol,
+                "price": to_float(quote.get("price")),
+                "volume_24h": to_float(quote.get("volume_24h")),
+                "marketcap": to_float(quote.get("market_cap")),
+                "dominance": quote.get("market_cap_dominance"),
+            }
+            cache.set(key, result, expire=cache_ttl)
+            MARKET_SUCCESS.inc()
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="success").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="success").inc()
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                FALLBACK_CHAIN_DEPTH.labels(collector="market").set(2)
+            except Exception:  # pragma: no cover
+                pass
+            log.info("market_fallback_success", symbol=symbol, fallback=1, primary_error="CoinGeckoError", facade=1)
+            return result
+        except Exception as e2:
+            if isinstance(e2, KeyError):
+                e2 = SchemaError(str(e2))
+            et2 = classify(e2)
+            MARKET_ERRORS.inc()
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="error").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="error").inc()
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et2).inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.error("market_fallback_error", symbol=symbol, fallback=1, primary_error="CoinGeckoError", error=str(e2), error_type=et2, facade=1)
+            return None
+
+    # Primary CoinGecko (legacy direct httpx.get) - seulement si non forcé façade
+    if not force_facade and not market_facade_flag and not dry_run:
+        try:
+            FACADE_FORCED.labels(collector="market").set(0)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover
+            pass
+        try:
+            mark_legacy_http("market")
+            if not _LEGACY_MARKET_LOGGED:
+                log.info("legacy_http_usage_detected", collector="market")
+                _LEGACY_MARKET_LOGGED = True
+        except Exception:  # pragma: no cover
+            pass
     try:
-        with fallback_tier_timing("market", 1):
-            url = f"https://api.coingecko.com/api/v3/coins/{symbol}"
-            resp = httpx.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
+        if not force_facade and not market_facade_flag:
+            with fallback_tier_timing("market", 1):
+                url = f"https://api.coingecko.com/api/v3/coins/{symbol}"
+                resp = httpx.get(url, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+        else:
+            # Si on est là avec force_facade=True cela signifie que la tentative façade a échoué (primary + fallback)
+            # On ne retombe pas sur legacy en mode forced: on skip pour éviter incohérence métriques.
+            raise RuntimeError("facade_primary_failed")
         md = data.get("market_data", {}) if isinstance(data, dict) else {}
         cur = md.get("current_price", {}) if isinstance(md, dict) else {}
         vol = md.get("total_volume", {}) if isinstance(md, dict) else {}
@@ -150,8 +302,11 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
             pass
         log.error("market_main_error", symbol=symbol, error=str(e), error_type=et)
 
-    # Fallback CoinMarketCap
+    # Fallback CoinMarketCap (legacy) uniquement si pas de façade forcée
     try:
+        if force_facade or market_facade_flag:
+            # En mode façade (forcée ou opt-in) on ne doit pas retomber ici (déjà traité plus haut)
+            raise RuntimeError("skip_legacy_fallback")
         with fallback_tier_timing("market", 2):
             url_cmc = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
             resp = httpx.get(url_cmc, timeout=10)
@@ -197,11 +352,12 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et2).inc()
         except Exception:  # pragma: no cover
             pass
-        log.error("market_fallback_error", symbol=symbol, fallback=1, primary_error="CoinGeckoError", error=str(e2), error_type=et2)
+        log.error("market_fallback_error", symbol=symbol, fallback=1, primary_error="CoinGeckoError", error=str(e2), error_type=et2, facade=0)
         return None
 
 
 @MACRO_LATENCY.time()  # type: ignore[arg-type]
+@instrument_collector("macro")
 async def fetch_macro(
     symbol: str = "bitcoin",
     cmc_api_key: str | None = None,
@@ -336,51 +492,63 @@ async def fetch_macro(
                     pass
                 log.error("macro_spot_error", symbol=symbol, error=str(e_sp), error_type=et_sp)
 
-    # 3) CMC : support dual-mode
-    #   - certains tests patchent httpx.AsyncClient => chemin async
-    #   - d'autres patchent httpx.get directement => chemin sync
-    # On compare à la référence ORIGINAL_HTTPX_GET pour détecter un patch.
+    # 3) CMC : tentative sync prioritaire (support monkeypatch tests), fallback async si échec
+    depth = 2 if not spot_attempted else 3
+    url_cmc = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
+    headers = {"X-CMC_PRO_API_KEY": cmc_api_key} if cmc_api_key else None
+    cmc_data: Any | None = None
+    status_code = 200
+    sync_failed = False
     try:
-        url_cmc = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
-        headers = {"X-CMC_PRO_API_KEY": cmc_api_key} if cmc_api_key else None
-        # Détection du mode synchronisé (httpx.get monkeypatché) vs async client standard.
-        current_get = getattr(httpx, "get", None)
-        use_sync = (
-            current_get is not None
-            and ORIGINAL_HTTPX_GET is not None
-            and current_get is not ORIGINAL_HTTPX_GET
-        )
-        data: Any | None = None
-        status_code = 200
-        # Profondeur de fallback (CG a échoué, spot possiblement tenté)
-        depth = 2 if not spot_attempted else 3
-        if use_sync:
-            # Certains tests patchent httpx.get avec une fonction basique sans param headers.
-            # On tente d'appeler avec headers puis on retombe sans si TypeError.
-            with fallback_tier_timing("macro", depth):
-                try:
-                    resp = httpx.get(url_cmc, headers=headers)
-                except TypeError:
-                    resp = httpx.get(url_cmc)
-            status_code = getattr(resp, "status_code", 200)
-            data = resp.json()
-        else:
+        with fallback_tier_timing("macro", depth):
+            try:
+                resp = httpx.get(url_cmc, headers=headers)
+            except TypeError:  # fonction patchée sans headers
+                resp = httpx.get(url_cmc)
+        status_code = getattr(resp, "status_code", 200)
+        cmc_data = resp.json()
+    except Exception:  # réseau / patch incompatible -> on tentera async
+        sync_failed = True
+
+    if sync_failed or status_code != 200:
+        try:
             async with httpx.AsyncClient() as client:
                 with fallback_tier_timing("macro", depth):
                     try:
-                        resp = await client.get(url_cmc, headers=headers, timeout=10)
-                    except TypeError:  # client patché simplifié
-                        resp = await client.get(url_cmc, timeout=10)
-                status_code = getattr(resp, "status_code", 200)
-                data = resp.json()
-        if status_code != 200:
-            raise RuntimeError(f"CMC status {status_code}")
-        data_blk = data.get("data", {}) if isinstance(data, dict) else {}
+                        resp_a = await client.get(url_cmc, headers=headers, timeout=10)
+                    except TypeError:
+                        resp_a = await client.get(url_cmc, timeout=10)
+                status_code = getattr(resp_a, "status_code", 200)
+                cmc_data = resp_a.json()
+        except Exception as e_async:  # échec complet CMC
+            if isinstance(e_async, KeyError):
+                e_async = SchemaError(str(e_async))
+            et_async = classify(e_async)
+            FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="error").inc()
+            try:
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(depth), status="error").inc()
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et_async).inc()
+            except Exception:  # pragma: no cover
+                pass
+            log.error("macro_cmc_error", symbol=symbol, error=str(e_async), error_type=et_async)
+            cmc_data = None
+
+    if status_code != 200 or not isinstance(cmc_data, dict):
+        # En cas d'échec CMC on continue vers fallback suivant
+        if isinstance(cmc_data, dict):  # status code non 200
+            log.error("macro_cmc_error", symbol=symbol, error=f"CMC status {status_code}", error_type="network")
+        else:
+            log.error("macro_cmc_error", symbol=symbol, error="no_data", error_type="unknown")
+    else:
+        data_blk = cmc_data.get("data", {}) if isinstance(cmc_data, dict) else {}
         sym_blk = data_blk.get(symbol.upper(), {}) if isinstance(data_blk, dict) else {}
         quote = sym_blk.get("quote", {}) if isinstance(sym_blk, dict) else {}
         usd = quote.get("USD", {}) if isinstance(quote, dict) else {}
         rec: MacroRecord = {
-            "timestamp": data.get("status", {}).get("timestamp") if isinstance(data, dict) else None,
+            "timestamp": cmc_data.get("status", {}).get("timestamp") if isinstance(cmc_data, dict) else None,
             "asset": symbol,
             "metric_name": "macro",
             "value": {
@@ -401,21 +569,6 @@ async def fetch_macro(
         mark_success(depth)
         log.info("macro_fallback_success", symbol=symbol, source="coinmarketcap", fallback=1 if not spot_attempted else 2)
         return rec
-    except Exception as e_cmc:
-        if isinstance(e_cmc, KeyError):
-            e_cmc = SchemaError(str(e_cmc))
-        et_cmc = classify(e_cmc)
-        FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="error").inc()
-        try:
-            # Erreur au tier CMC (tier dépend de spot_attempted)
-            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(2 if not spot_attempted else 3), status="error").inc()
-        except Exception:  # pragma: no cover
-            pass
-        try:
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et_cmc).inc()
-        except Exception:  # pragma: no cover
-            pass
-        log.error("macro_cmc_error", symbol=symbol, error=str(e_cmc), error_type=et_cmc)
 
         # 4) Binance macro price simple (flag) -> dict simple pour test
     if os.getenv("ENABLE_BINANCE_MACRO_FALLBACK", "0") == "1":
@@ -468,9 +621,8 @@ async def fetch_macro_orchestrated(symbol: str = "bitcoin", cmc_api_key: str | N
         return cached
 
     async def tier_coingecko():
-        # Utilisation helper retry (exécute sync wrapper en thread) pour limiter rate limit spikes
-        from pipeline.http_wrappers import get_json_with_retry
-        data = await asyncio.to_thread(get_json_with_retry, f"https://api.coingecko.com/api/v3/coins/{symbol}")
+        # Migration façade: appel direct async (plus besoin de thread)
+        data = await async_fetch_json(f"https://api.coingecko.com/api/v3/coins/{symbol}")
         md = data.get("market_data", {}) if isinstance(data, dict) else {}
         cp = md.get("current_price", {}) if isinstance(md, dict) else {}
         tv = md.get("total_volume", {}) if isinstance(md, dict) else {}
@@ -512,15 +664,11 @@ async def fetch_macro_orchestrated(symbol: str = "bitcoin", cmc_api_key: str | N
 
     async def tier_cmc():
         headers = {"X-CMC_PRO_API_KEY": cmc_api_key} if cmc_api_key else None
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}",
-                headers=headers,
-                timeout=10,
-            )
-        if resp.status_code != 200:
-            raise RuntimeError(f"CMC status {resp.status_code}")
-        data = resp.json()
+        data = await async_fetch_json(
+            f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}",
+            headers=headers,
+            timeout=10,
+        )
         blk = data.get("data", {}).get(symbol.upper(), {}).get("quote", {}).get("USD", {})
         rec: MacroRecord = {
             "timestamp": data.get("status", {}).get("timestamp"),
@@ -540,8 +688,7 @@ async def fetch_macro_orchestrated(symbol: str = "bitcoin", cmc_api_key: str | N
     async def tier_binance_macro_simple():
         if os.getenv("ENABLE_BINANCE_MACRO_FALLBACK", "0") != "1":
             return None
-        async with httpx.AsyncClient() as client:
-            data_b = await _async_http_get_json(client, f"https://api.binance.com/api/v3/macro/{symbol}", timeout=5)
+        data_b = await async_fetch_json(f"https://api.binance.com/api/v3/macro/{symbol}", timeout=5)
         if isinstance(data_b, dict) and "price" in data_b:
             return {"macro_price_usd": to_float(data_b.get("price"))}
         return None

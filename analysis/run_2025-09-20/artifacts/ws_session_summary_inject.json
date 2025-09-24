@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-09-23T23:11:06.879801+00:00",
+  "mode": "inject",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "duration_seconds": 0.0,
+  "connections_total": 1,
+  "errors_total": 0,
+  "events_per_symbol": {
+    "BTCUSDT": 1,
+    "ETHUSDT": 1
+  },
+  "forced_close_after_seconds": null,
+  "injection_file": "analysis/run_2025-09-20/fixtures/ws_inject.jsonl"
+}
