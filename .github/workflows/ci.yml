@@ -57,6 +57,18 @@ jobs:
         run: |
           pip-audit --progress-spinner off
 
+      - name: Detect secrets (simple grep)
+        run: |
+          echo "Running lightweight secrets detection..."
+          # Search for common secret patterns in tracked files (skip .venv and vendor folders thanks to git-index)
+          set -o pipefail
+          git grep -I -n --extended-regexp 'sk-[A-Za-z0-9_\-]{20,}|API[_-]?KEY|OPENAI_API_KEY|OPENROUTER_API_KEY|OLLAMA_HOST|-----BEGIN (RSA|PRIVATE) KEY|PASSWORD|secret' || true
+          MATCHES=$(git grep -I -n --extended-regexp 'sk-[A-Za-z0-9_\-]{20,}|API[_-]?KEY|OPENAI_API_KEY|OPENROUTER_API_KEY|OLLAMA_HOST|-----BEGIN (RSA|PRIVATE) KEY|PASSWORD|secret' | wc -l || true)
+          if [ "${MATCHES:-0}" -ne 0 ]; then
+            echo "Potential secret patterns found (see above). Fail the job and handle secrets via GitHub Secrets or .env.example." >&2
+            exit 1
+          fi
+
   bandit:
     runs-on: ubuntu-latest
     needs: [lint-and-type]
@@ -138,3 +150,69 @@ jobs:
             echo "All checks passed ✅";
           else
             echo "Some checks failed ❌"; exit 1; fi
+
+  smoke-health:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke health
+        run: |
+          python tools/smoke_health.py
+
+  smoke-api:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke API
+        env:
+          API_RATE_LIMIT_PER_MIN: "100"
+        run: |
+          python tools/smoke_api.py
+
+  smoke-api-sse:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke API with POST + SSE
+        env:
+          API_RATE_LIMIT_PER_MIN: "100"
+          # Use GitHub Secrets to provide API write key in CI. Define `API_WRITE_KEY` in repository secrets.
+          API_WRITE_KEY: ${{ secrets.API_WRITE_KEY }}
+        run: |
+          python tools/smoke_api.py
