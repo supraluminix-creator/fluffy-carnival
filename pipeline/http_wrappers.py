@@ -341,7 +341,7 @@ def http_get_json_retry(
                 )
                 raise TimeoutError_(
                     f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
-                )
+                ) from e
             sleep_for = min(delay, 5, remaining)
             logger.info(
                 "retry_sleep",
@@ -497,7 +497,7 @@ async def async_http_get_json_retry(
                 )
                 raise TimeoutError_(
                     f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
-                )
+                ) from e
             sleep_for = min(delay, 5, remaining)
             logger.info(
                 "retry_sleep",
