@@ -6,52 +6,54 @@ Objectifs:
 """
 from __future__ import annotations
 
-# Assurer existence de __all__ avant utilisation incrémentale
-try:  # pragma: no cover
-    __all__  # type: ignore
-except NameError:  # pragma: no cover
-    __all__ = []  # type: ignore
+# Déclaration explicite de __all__ (évite les type: ignore inutiles)
+__all__: list[str] = []
+
+import os
+import random
+import time
 
 import httpx
-import time
-import random
-import os
 import structlog
+
 logger = structlog.get_logger(__name__)
 from collections import deque
+from collections.abc import Callable, Mapping
+from typing import Any
 from urllib.parse import urlparse
-from typing import Callable, Deque, Dict, Tuple
+
 try:  # pragma: no cover - metrics import defensive
     from .metrics import (
-        HTTP_RETRIES_TOTAL,
-        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS,
+        HTTP_BREAKER_OPEN_SECONDS,
         HTTP_BREAKER_OPENS_TOTAL,
         HTTP_BREAKER_SKIPS_TOTAL,
         HTTP_BREAKER_STATE,
-        HTTP_BREAKER_OPEN_SECONDS,
-        RETRY_BUDGET_REMAINING_SECONDS,
+        HTTP_RETRIES_TOTAL,
+        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS,
         RETRY_BUDGET_EXHAUSTED_TOTAL,
+        RETRY_BUDGET_REMAINING_SECONDS,
     )
 except Exception:  # pragma: no cover
-    HTTP_RETRIES_TOTAL = None  # type: ignore
-    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS = None  # type: ignore
-    HTTP_BREAKER_OPENS_TOTAL = None  # type: ignore
-    HTTP_BREAKER_SKIPS_TOTAL = None  # type: ignore
-    HTTP_BREAKER_STATE = None  # type: ignore
-    HTTP_BREAKER_OPEN_SECONDS = None  # type: ignore
-    RETRY_BUDGET_REMAINING_SECONDS = None  # type: ignore
-    RETRY_BUDGET_EXHAUSTED_TOTAL = None  # type: ignore
+    HTTP_RETRIES_TOTAL = None
+    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS = None
+    HTTP_BREAKER_OPENS_TOTAL = None
+    HTTP_BREAKER_SKIPS_TOTAL = None
+    HTTP_BREAKER_STATE = None
+    HTTP_BREAKER_OPEN_SECONDS = None
+    RETRY_BUDGET_REMAINING_SECONDS = None
+    RETRY_BUDGET_EXHAUSTED_TOTAL = None
 
 # (Ancien RUNTIME_RETRY_COUNT retiré pour limiter le bruit; utiliser métriques Prometheus)
 from .errors import (
-    RateLimitError,
-    NotFoundError,
-    UpstreamError,
-    TimeoutError_,
-    NetworkError,
-    SchemaError,
     EmptyDataError,
+    NetworkError,
+    NotFoundError,
+    RateLimitError,
+    SchemaError,
+    TimeoutError_,
+    UpstreamError,
 )
+
 RETRIABLE_EXC = (RateLimitError, TimeoutError_, NetworkError, UpstreamError)
 __all__.append("RETRIABLE_EXC")
 
@@ -100,8 +102,8 @@ def endpoint_label(url: str) -> str:
 __all__.append("endpoint_label")
 
 # ------------------ Breaker léger 429 ------------------
-_RATE_LIMIT_EVENTS: Dict[str, Deque[float]] = {}
-_BREAKER_OPEN_UNTIL: Dict[str, float] = {}
+_RATE_LIMIT_EVENTS: dict[str, deque[float]] = {}
+_BREAKER_OPEN_UNTIL: dict[str, float] = {}
 
 def _breaker_should_block(ep: str, now: float) -> bool:
     until = _BREAKER_OPEN_UNTIL.get(ep)
@@ -114,16 +116,16 @@ def _breaker_should_block(ep: str, now: float) -> bool:
         del _BREAKER_OPEN_UNTIL[ep]
     except KeyError:
         pass
-    if 'HTTP_BREAKER_STATE' in globals() and HTTP_BREAKER_STATE is not None:  # type: ignore
+    if 'HTTP_BREAKER_STATE' in globals() and HTTP_BREAKER_STATE is not None:
         try:
-            HTTP_BREAKER_STATE.labels(endpoint=ep).set(0)  # type: ignore[attr-defined]
-            if HTTP_BREAKER_OPEN_SECONDS is not None:  # type: ignore
-                HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(0)  # type: ignore[attr-defined]
+            HTTP_BREAKER_STATE.labels(endpoint=ep).set(0)
+            if HTTP_BREAKER_OPEN_SECONDS is not None:
+                HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(0)
         except Exception:  # pragma: no cover
             pass
     return False
 
-def _record_rate_limit_and_maybe_open(ep: str, now: float):
+def _record_rate_limit_and_maybe_open(ep: str, now: float) -> None:
     import os
     window = float(os.getenv("HTTP_BREAKER_WINDOW", "30"))  # seconds
     threshold = int(os.getenv("HTTP_BREAKER_THRESHOLD", "5"))
@@ -136,13 +138,13 @@ def _record_rate_limit_and_maybe_open(ep: str, now: float):
     if len(dq) >= threshold:
         _BREAKER_OPEN_UNTIL[ep] = now + cooldown
         # instrumentation ouverture
-        if HTTP_BREAKER_OPENS_TOTAL is not None:  # type: ignore
+        if HTTP_BREAKER_OPENS_TOTAL is not None:
             try:
-                HTTP_BREAKER_OPENS_TOTAL.labels(endpoint=ep).inc()  # type: ignore[attr-defined]
+                HTTP_BREAKER_OPENS_TOTAL.labels(endpoint=ep).inc()
             except Exception:
                 pass
         # marquer état ouvert (state=1, open_seconds=0 initial)
-        if HTTP_BREAKER_STATE is not None:  # type: ignore
+        if HTTP_BREAKER_STATE is not None:
             try:
                 HTTP_BREAKER_STATE.labels(endpoint=ep).set(1)
                 HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(0)
@@ -150,7 +152,7 @@ def _record_rate_limit_and_maybe_open(ep: str, now: float):
                 pass
 
 
-def _map_status(status: int, url: str):
+def _map_status(status: int, url: str) -> None:
     if status == 429:
         raise RateLimitError(f"HTTP 429 {url}")
     if status == 404:
@@ -158,7 +160,13 @@ def _map_status(status: int, url: str):
     if 500 <= status < 600:
         raise UpstreamError(f"HTTP {status} {url}")
 
-def http_get_json(url: str, *, timeout: float | None = None, headers=None, params=None):
+def http_get_json(
+    url: str,
+    *,
+    timeout: float | None = None,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> Any:
     t = timeout or DEFAULT_TIMEOUT
     try:
         r = httpx.get(url, headers=headers, params=params, timeout=t)
@@ -179,17 +187,24 @@ def http_get_json(url: str, *, timeout: float | None = None, headers=None, param
         raise EmptyDataError("empty_payload")
     return data
 
-async def async_http_get_json(client: httpx.AsyncClient, url: str, *, timeout: float | None = None, headers=None, params=None):
+async def async_http_get_json(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    timeout: float | None = None,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> Any:
     t = timeout or DEFAULT_TIMEOUT
     try:
         # Certains tests utilisent un DummyAsyncClient.get(url, timeout=...) sans headers/params.
         # Pour compatibilité, n'ajoutons ces kwargs que s'ils ne sont pas None.
-        get_kwargs = {"timeout": t}
+        get_kwargs: dict[str, Any] = {"timeout": t}
         if headers is not None:
             get_kwargs["headers"] = headers
         if params is not None:
             get_kwargs["params"] = params
-        r = await client.get(url, **get_kwargs)  # type: ignore[arg-type]
+        r = await client.get(url, **get_kwargs)
     except httpx.TimeoutException as e:  # pragma: no cover
         raise TimeoutError_(str(e)) from e
     except httpx.RequestError as e:  # pragma: no cover
@@ -200,12 +215,12 @@ async def async_http_get_json(client: httpx.AsyncClient, url: str, *, timeout: f
         _map_status(status, url)
         try:  # pragma: no cover - lève rarement dans tests
             if hasattr(r, "raise_for_status"):
-                r.raise_for_status()  # type: ignore[call-arg]
+                r.raise_for_status()
         except httpx.HTTPStatusError as e:  # pragma: no cover
             raise UpstreamError(str(e)) from e
     try:
         if hasattr(r, "json"):
-            data = r.json()  # type: ignore[call-arg]
+            data = r.json()
         else:  # pragma: no cover - fallback très rare
             data = getattr(r, "_payload", None)
     except ValueError as e:
@@ -214,19 +229,19 @@ async def async_http_get_json(client: httpx.AsyncClient, url: str, *, timeout: f
         raise EmptyDataError("empty_payload")
     return data
 
-__all__ = ["http_get_json", "async_http_get_json"]
+__all__.extend(["http_get_json", "async_http_get_json"])
 
 
 def http_get_json_retry(
     url: str,
     *,
     timeout: float | None = None,
-    headers=None,
-    params=None,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
     retries: int = 3,
     backoff_base: float = 0.3,
     classify_endpoint: Callable[[str], str] | None = None,
-):
+) -> Any:
     """Version résiliente avec retry/backoff exponentiel.
 
     Retries sur: RateLimitError, TimeoutError_, NetworkError, UpstreamError (5xx).
@@ -263,14 +278,14 @@ def http_get_json_retry(
             # Simuler RateLimitError immédiat (compte comme échec final si pas de retries restants)
             err = RateLimitError(f"breaker_open {ep}")
             # instrumentation skip
-            if HTTP_BREAKER_SKIPS_TOTAL is not None:  # type: ignore
+            if HTTP_BREAKER_SKIPS_TOTAL is not None:
                 try:
-                    HTTP_BREAKER_SKIPS_TOTAL.labels(endpoint=ep).inc()  # type: ignore[attr-defined]
+                    HTTP_BREAKER_SKIPS_TOTAL.labels(endpoint=ep).inc()
                 except Exception:
                     pass
             # mettre à jour temps ouvert
             until = _BREAKER_OPEN_UNTIL.get(ep)
-            if until and HTTP_BREAKER_OPEN_SECONDS is not None:  # type: ignore
+            if until and HTTP_BREAKER_OPEN_SECONDS is not None:
                 try:
                     opened_for = max(0.0, (time.time() - (until - float(os.getenv("HTTP_BREAKER_COOLDOWN", "20")))))
                     HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(opened_for)
@@ -279,9 +294,9 @@ def http_get_json_retry(
             final_status = type(err).__name__
             if attempt > retries:
                 raise err
-            if HTTP_RETRIES_TOTAL is not None:  # type: ignore
+            if HTTP_RETRIES_TOTAL is not None:
                 try:
-                    HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(err).__name__).inc()  # type: ignore[attr-defined]
+                    HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(err).__name__).inc()
                 except Exception:
                     pass
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
@@ -305,21 +320,21 @@ def http_get_json_retry(
                 _record_rate_limit_and_maybe_open(ep, now)
                 # si breaker juste ouvert un skip n'est pas enregistré ici (open == event), open_seconds déjà 0
             if attempt > retries:
-                if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:  # type: ignore
+                if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
                     try:
-                        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)  # type: ignore[attr-defined]
+                        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)
                     except Exception:  # pragma: no cover
                         pass
                 raise
             # enregistrer retry
-            if HTTP_RETRIES_TOTAL is not None:  # type: ignore
+            if HTTP_RETRIES_TOTAL is not None:
                 try:
-                    HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(e).__name__).inc()  # type: ignore[attr-defined]
+                    HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(e).__name__).inc()
                 except Exception:  # pragma: no cover
                     pass
-            if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:  # type: ignore
+            if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
                 try:
-                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status=final_status).observe(time.perf_counter()-start)  # type: ignore[attr-defined]
+                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status=final_status).observe(time.perf_counter()-start)
                 except Exception:  # pragma: no cover
                     pass
             # backoff exponentiel + jitter
@@ -340,16 +355,22 @@ def http_get_json_retry(
             continue
         except Exception:
             # Erreurs non retriées
-            if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:  # type: ignore
+            if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
                 try:
-                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)  # type: ignore[attr-defined]
+                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)
                 except Exception:  # pragma: no cover
                     pass
             raise
 
 __all__.append("http_get_json_retry")
 
-def get_json_with_retry(url: str, *, headers=None, params=None, timeout: float | None = None):
+def get_json_with_retry(
+    url: str,
+    *,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
+    timeout: float | None = None,
+) -> Any:
     """Helper interne pour collectors.
 
     Comportement:
@@ -382,12 +403,12 @@ async def async_http_get_json_retry(
     url: str,
     *,
     timeout: float | None = None,
-    headers=None,
-    params=None,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
     retries: int = 3,
     backoff_base: float = 0.3,
     classify_endpoint: Callable[[str], str] | None = None,
-):
+) -> Any:
     ep = classify_endpoint(url) if classify_endpoint else endpoint_label(url)
     attempt = 0
     cumulative_sleep = 0.0
@@ -397,51 +418,61 @@ async def async_http_get_json_retry(
         start = time.perf_counter()
         now = time.time()
         if max_cumulative and cumulative_sleep >= max_cumulative:
-            logger.warning("retry_budget_exhausted", endpoint=ep, attempt=attempt, cumulative_sleep=cumulative_sleep, max_cumulative=max_cumulative)
+            logger.warning(
+                "retry_budget_exhausted",
+                endpoint=ep,
+                attempt=attempt,
+                cumulative_sleep=cumulative_sleep,
+                max_cumulative=max_cumulative,
+            )
             if RETRY_BUDGET_EXHAUSTED_TOTAL is not None:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     RETRY_BUDGET_EXHAUSTED_TOTAL.labels(endpoint=ep).inc()
-                except Exception:
-                    pass
-            raise TimeoutError_(f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s")
+            raise TimeoutError_(
+                f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
+            )
         if RETRY_BUDGET_REMAINING_SECONDS is not None:
-            try:
+            from contextlib import suppress
+            with suppress(Exception):
                 rem = -1 if max_cumulative == 0 else max(0.0, max_cumulative - cumulative_sleep)
                 RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(rem)
-            except Exception:
-                pass
         if _breaker_should_block(ep, now):
             err = RateLimitError(f"breaker_open {ep}")
             if HTTP_BREAKER_SKIPS_TOTAL is not None:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     HTTP_BREAKER_SKIPS_TOTAL.labels(endpoint=ep).inc()
-                except Exception:
-                    pass
             until = _BREAKER_OPEN_UNTIL.get(ep)
             if until and HTTP_BREAKER_OPEN_SECONDS is not None:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     opened_for = max(0.0, (time.time() - (until - float(os.getenv("HTTP_BREAKER_COOLDOWN", "20")))))
                     HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(opened_for)
-                except Exception:
-                    pass
             if attempt > retries:
                 raise err
             if HTTP_RETRIES_TOTAL is not None:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(err).__name__).inc()
-                except Exception:
-                    pass
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
             remaining = (max_cumulative - cumulative_sleep) if max_cumulative else delay
             sleep_for = min(delay, 5, remaining)
-            logger.info("retry_sleep", endpoint=ep, attempt=attempt, delay=delay, sleep_for=sleep_for, cumulative_sleep=cumulative_sleep, breaker_state="open")
+            logger.info(
+                "retry_sleep",
+                endpoint=ep,
+                attempt=attempt,
+                delay=delay,
+                sleep_for=sleep_for,
+                cumulative_sleep=cumulative_sleep,
+                breaker_state="open",
+            )
             await _async_sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
-                except Exception:
-                    pass
             continue
         try:
             data = await async_http_get_json(client, url, timeout=timeout, headers=headers, params=params)
@@ -452,27 +483,41 @@ async def async_http_get_json_retry(
             if attempt > retries:
                 raise
             if HTTP_RETRIES_TOTAL is not None:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(e).__name__).inc()
-                except Exception:
-                    pass
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
             remaining = (max_cumulative - cumulative_sleep) if max_cumulative else delay
             if max_cumulative and remaining <= 0:
-                logger.warning("retry_budget_exhausted", endpoint=ep, attempt=attempt, cumulative_sleep=cumulative_sleep, max_cumulative=max_cumulative)
-                raise TimeoutError_(f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s")
+                logger.warning(
+                    "retry_budget_exhausted",
+                    endpoint=ep,
+                    attempt=attempt,
+                    cumulative_sleep=cumulative_sleep,
+                    max_cumulative=max_cumulative,
+                )
+                raise TimeoutError_(
+                    f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
+                )
             sleep_for = min(delay, 5, remaining)
-            logger.info("retry_sleep", endpoint=ep, attempt=attempt, delay=delay, sleep_for=sleep_for, cumulative_sleep=cumulative_sleep, breaker_state="closed")
+            logger.info(
+                "retry_sleep",
+                endpoint=ep,
+                attempt=attempt,
+                delay=delay,
+                sleep_for=sleep_for,
+                cumulative_sleep=cumulative_sleep,
+                breaker_state="closed",
+            )
             await _async_sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                try:
+                from contextlib import suppress
+                with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
-                except Exception:
-                    pass
             continue
 
-async def _async_sleep(d: float):  # petite fonction utilitaire locale
+async def _async_sleep(d: float) -> None:  # petite fonction utilitaire locale
     import asyncio
     await asyncio.sleep(min(d, 5))
 
