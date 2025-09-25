@@ -18,11 +18,18 @@ data/*.db
 exports/*.csv
 run.log
 run_*.log
+run/
 
 .env
 
 .pytest_cache/
 **/__pycache__/
 .mypy_cache/
+# Ruff cache
+.ruff_cache/
+# Coverage artifacts
+.coverage
+coverage.xml
+.coverage.*
 # Prevent accidental nested clone duplication
 fluffy-carnival/
