@@ -7,6 +7,6 @@
 	"settings": {
 		// Placeholder removed for security. Set your local key in a private env or secrets store.
 		"codeseek.apiKey": "<REDACTED>",
-		"powershell.cwd": "new_crypto_prodsafe"
+		"powershell.cwd": "."
 	}
 }

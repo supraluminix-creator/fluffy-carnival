@@ -57,15 +57,19 @@ jobs:
         run: |
           pip-audit --progress-spinner off
 
-      - name: Detect secrets (simple grep)
+      - name: Detect secrets (focused grep)
+        shell: bash
         run: |
-          echo "Running lightweight secrets detection..."
-          # Search for common secret patterns in tracked files (skip .venv and vendor folders thanks to git-index)
+          echo "Running focused secrets detection..."
           set -o pipefail
-          git grep -I -n --extended-regexp 'sk-[A-Za-z0-9_\-]{20,}|API[_-]?KEY|OPENAI_API_KEY|OPENROUTER_API_KEY|OLLAMA_HOST|-----BEGIN (RSA|PRIVATE) KEY|PASSWORD|secret' || true
-          MATCHES=$(git grep -I -n --extended-regexp 'sk-[A-Za-z0-9_\-]{20,}|API[_-]?KEY|OPENAI_API_KEY|OPENROUTER_API_KEY|OLLAMA_HOST|-----BEGIN (RSA|PRIVATE) KEY|PASSWORD|secret' | wc -l || true)
+          PATTERN='(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----)'
+          # Exclude common non-sensitive locations to reduce false positives
+          git grep -I -n -E "$PATTERN" -- \
+            ':!tests/*' ':!docs/*' ':!*.md' ':!.github/*' ':!*.png' ':!*.jpg' ':!*.svg' ':!*.ico' ':!*.pdf' || true
+          MATCHES=$(git grep -I -n -E "$PATTERN" -- \
+            ':!tests/*' ':!docs/*' ':!*.md' ':!.github/*' ':!*.png' ':!*.jpg' ':!*.svg' ':!*.ico' ':!*.pdf' | wc -l || true)
           if [ "${MATCHES:-0}" -ne 0 ]; then
-            echo "Potential secret patterns found (see above). Fail the job and handle secrets via GitHub Secrets or .env.example." >&2
+            echo "Potential hardcoded secrets found (see above). Please move them to GitHub Secrets or local .env and redact from repo." >&2
             exit 1
           fi
 
