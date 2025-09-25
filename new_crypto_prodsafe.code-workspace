@@ -1,16 +1,12 @@
 {
-  "folders": [
-    { "path": "." }
-  ],
-  "settings": {
-    "files.exclude": {
-      "**/crypto_pipeline_core/**": true,
-      "**/crypto_pipeline_v15_2/**": true,
-      "**/MONOLITH/**": true
-    },
-    "search.exclude": {
-      "**/.venv/**": true,
-      "**/__pycache__/**": true
-    }
-  }
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		// Placeholder removed for security. Set your local key in a private env or secrets store.
+		"codeseek.apiKey": "<REDACTED>",
+		"powershell.cwd": "new_crypto_prodsafe"
+	}
 }
