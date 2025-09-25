@@ -12,15 +12,14 @@ __all__: list[str] = []
 import os
 import random
 import time
+from collections import deque
+from collections.abc import Callable, Mapping
+from contextlib import suppress
+from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import structlog
-
-logger = structlog.get_logger(__name__)
-from collections import deque
-from collections.abc import Callable, Mapping
-from typing import Any
-from urllib.parse import urlparse
 
 try:  # pragma: no cover - metrics import defensive
     from .metrics import (
@@ -54,6 +53,8 @@ from .errors import (
     UpstreamError,
 )
 
+logger = structlog.get_logger(__name__)
+
 RETRIABLE_EXC = (RateLimitError, TimeoutError_, NetworkError, UpstreamError)
 __all__.append("RETRIABLE_EXC")
 
@@ -79,10 +80,7 @@ def endpoint_label(url: str) -> str:
             parts_host.pop(0)
         # Heuristique: si au moins 2 segments restants (ex: coingecko com) on prend l'avant dernier
         # sinon on prend le seul segment.
-        if len(parts_host) >= 2:
-            core = parts_host[-2]
-        else:
-            core = parts_host[0]
+        core = parts_host[-2] if len(parts_host) >= 2 else parts_host[0]
         raw_segs = [s for s in p.path.split('/') if s]
         ignore = {"api", "v1", "v2", "v3"}
         chosen = None
@@ -112,17 +110,13 @@ def _breaker_should_block(ep: str, now: float) -> bool:
     if now < until:
         return True
     # expiration: fermer breaker (state -> 0) et supprimer entrée
-    try:
+    with suppress(KeyError):
         del _BREAKER_OPEN_UNTIL[ep]
-    except KeyError:
-        pass
     if 'HTTP_BREAKER_STATE' in globals() and HTTP_BREAKER_STATE is not None:
-        try:
+        with suppress(Exception):  # pragma: no cover - instrumentation best-effort
             HTTP_BREAKER_STATE.labels(endpoint=ep).set(0)
             if HTTP_BREAKER_OPEN_SECONDS is not None:
                 HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(0)
-        except Exception:  # pragma: no cover
-            pass
     return False
 
 def _record_rate_limit_and_maybe_open(ep: str, now: float) -> None:
@@ -139,17 +133,13 @@ def _record_rate_limit_and_maybe_open(ep: str, now: float) -> None:
         _BREAKER_OPEN_UNTIL[ep] = now + cooldown
         # instrumentation ouverture
         if HTTP_BREAKER_OPENS_TOTAL is not None:
-            try:
+            with suppress(Exception):
                 HTTP_BREAKER_OPENS_TOTAL.labels(endpoint=ep).inc()
-            except Exception:
-                pass
         # marquer état ouvert (state=1, open_seconds=0 initial)
         if HTTP_BREAKER_STATE is not None:
-            try:
+            with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                 HTTP_BREAKER_STATE.labels(endpoint=ep).set(1)
                 HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(0)
-            except Exception:  # pragma: no cover
-                pass
 
 
 def _map_status(status: int, url: str) -> None:
@@ -219,10 +209,7 @@ async def async_http_get_json(
         except httpx.HTTPStatusError as e:  # pragma: no cover
             raise UpstreamError(str(e)) from e
     try:
-        if hasattr(r, "json"):
-            data = r.json()
-        else:  # pragma: no cover - fallback très rare
-            data = getattr(r, "_payload", None)
+        data = r.json() if hasattr(r, "json") else getattr(r, "_payload", None)  # pragma: no cover - fallback très rare
     except ValueError as e:
         raise SchemaError(f"invalid_json:{e}") from e
     if data in (None, {}, []):
@@ -260,56 +247,58 @@ def http_get_json_retry(
         now = time.time()
         if max_cumulative and cumulative_sleep >= max_cumulative:
             # Budget épuisé -> arrêter immédiatement
-            logger.warning("retry_budget_exhausted", endpoint=ep, attempt=attempt, cumulative_sleep=cumulative_sleep, max_cumulative=max_cumulative)
+            logger.warning(
+                "retry_budget_exhausted",
+                endpoint=ep,
+                attempt=attempt,
+                cumulative_sleep=cumulative_sleep,
+                max_cumulative=max_cumulative,
+            )
             if RETRY_BUDGET_EXHAUSTED_TOTAL is not None:
-                try:
+                with suppress(Exception):
                     RETRY_BUDGET_EXHAUSTED_TOTAL.labels(endpoint=ep).inc()
-                except Exception:
-                    pass
             raise TimeoutError_(f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s")
         if RETRY_BUDGET_REMAINING_SECONDS is not None:
-            try:
+            with suppress(Exception):
                 rem = -1 if max_cumulative == 0 else max(0.0, max_cumulative - cumulative_sleep)
                 RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(rem)
-            except Exception:
-                pass
         # Breaker open ?
         if _breaker_should_block(ep, now):
             # Simuler RateLimitError immédiat (compte comme échec final si pas de retries restants)
             err = RateLimitError(f"breaker_open {ep}")
             # instrumentation skip
             if HTTP_BREAKER_SKIPS_TOTAL is not None:
-                try:
+                with suppress(Exception):
                     HTTP_BREAKER_SKIPS_TOTAL.labels(endpoint=ep).inc()
-                except Exception:
-                    pass
             # mettre à jour temps ouvert
             until = _BREAKER_OPEN_UNTIL.get(ep)
             if until and HTTP_BREAKER_OPEN_SECONDS is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     opened_for = max(0.0, (time.time() - (until - float(os.getenv("HTTP_BREAKER_COOLDOWN", "20")))))
                     HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(opened_for)
-                except Exception:  # pragma: no cover
-                    pass
             final_status = type(err).__name__
             if attempt > retries:
                 raise err
             if HTTP_RETRIES_TOTAL is not None:
-                try:
+                with suppress(Exception):
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(err).__name__).inc()
-                except Exception:
-                    pass
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
             remaining = max_cumulative - cumulative_sleep if max_cumulative else delay
             sleep_for = min(delay, 5, remaining)
-            logger.info("retry_sleep", endpoint=ep, attempt=attempt, delay=delay, sleep_for=sleep_for, cumulative_sleep=cumulative_sleep, breaker_state="open")
+            logger.info(
+                "retry_sleep",
+                endpoint=ep,
+                attempt=attempt,
+                delay=delay,
+                sleep_for=sleep_for,
+                cumulative_sleep=cumulative_sleep,
+                breaker_state="open",
+            )
             time.sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                try:
+                with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
-                except Exception:
-                    pass
             continue
         try:
             data = http_get_json(url, timeout=timeout, headers=headers, params=params)
@@ -321,45 +310,63 @@ def http_get_json_retry(
                 # si breaker juste ouvert un skip n'est pas enregistré ici (open == event), open_seconds déjà 0
             if attempt > retries:
                 if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
-                    try:
-                        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)
-                    except Exception:  # pragma: no cover
-                        pass
+                    with suppress(Exception):  # pragma: no cover
+                        HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(
+                            endpoint=ep,
+                            attempt=str(attempt),
+                            final_status="fail",
+                        ).observe(time.perf_counter() - start)
                 raise
             # enregistrer retry
             if HTTP_RETRIES_TOTAL is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(e).__name__).inc()
-                except Exception:  # pragma: no cover
-                    pass
             if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
-                try:
-                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status=final_status).observe(time.perf_counter()-start)
-                except Exception:  # pragma: no cover
-                    pass
+                with suppress(Exception):  # pragma: no cover
+                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(
+                        endpoint=ep,
+                        attempt=str(attempt),
+                        final_status=final_status,
+                    ).observe(time.perf_counter() - start)
             # backoff exponentiel + jitter
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
             remaining = (max_cumulative - cumulative_sleep) if max_cumulative else delay
             if max_cumulative and remaining <= 0:
-                logger.warning("retry_budget_exhausted", endpoint=ep, attempt=attempt, cumulative_sleep=cumulative_sleep, max_cumulative=max_cumulative)
-                raise TimeoutError_(f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s")
+                logger.warning(
+                    "retry_budget_exhausted",
+                    endpoint=ep,
+                    attempt=attempt,
+                    cumulative_sleep=cumulative_sleep,
+                    max_cumulative=max_cumulative,
+                )
+                raise TimeoutError_(
+                    f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
+                )
             sleep_for = min(delay, 5, remaining)
-            logger.info("retry_sleep", endpoint=ep, attempt=attempt, delay=delay, sleep_for=sleep_for, cumulative_sleep=cumulative_sleep, breaker_state="closed")
+            logger.info(
+                "retry_sleep",
+                endpoint=ep,
+                attempt=attempt,
+                delay=delay,
+                sleep_for=sleep_for,
+                cumulative_sleep=cumulative_sleep,
+                breaker_state="closed",
+            )
             time.sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                try:
+                with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
-                except Exception:
-                    pass
             continue
         except Exception:
             # Erreurs non retriées
             if HTTP_RETRY_ATTEMPT_LATENCY_SECONDS is not None:
-                try:
-                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(endpoint=ep, attempt=str(attempt), final_status="fail").observe(time.perf_counter()-start)
-                except Exception:  # pragma: no cover
-                    pass
+                with suppress(Exception):  # pragma: no cover
+                    HTTP_RETRY_ATTEMPT_LATENCY_SECONDS.labels(
+                        endpoint=ep,
+                        attempt=str(attempt),
+                        final_status="fail",
+                    ).observe(time.perf_counter() - start)
             raise
 
 __all__.append("http_get_json_retry")
@@ -415,7 +422,6 @@ async def async_http_get_json_retry(
     max_cumulative = float(os.getenv("RETRY_MAX_CUMULATIVE_SLEEP_SEC", "0"))
     while True:
         attempt += 1
-        start = time.perf_counter()
         now = time.time()
         if max_cumulative and cumulative_sleep >= max_cumulative:
             logger.warning(
@@ -426,33 +432,28 @@ async def async_http_get_json_retry(
                 max_cumulative=max_cumulative,
             )
             if RETRY_BUDGET_EXHAUSTED_TOTAL is not None:
-                from contextlib import suppress
                 with suppress(Exception):
                     RETRY_BUDGET_EXHAUSTED_TOTAL.labels(endpoint=ep).inc()
             raise TimeoutError_(
                 f"retry_budget_exhausted {ep} cumulative={cumulative_sleep:.2f}s > {max_cumulative}s"
             )
         if RETRY_BUDGET_REMAINING_SECONDS is not None:
-            from contextlib import suppress
             with suppress(Exception):
                 rem = -1 if max_cumulative == 0 else max(0.0, max_cumulative - cumulative_sleep)
                 RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(rem)
         if _breaker_should_block(ep, now):
             err = RateLimitError(f"breaker_open {ep}")
             if HTTP_BREAKER_SKIPS_TOTAL is not None:
-                from contextlib import suppress
                 with suppress(Exception):
                     HTTP_BREAKER_SKIPS_TOTAL.labels(endpoint=ep).inc()
             until = _BREAKER_OPEN_UNTIL.get(ep)
             if until and HTTP_BREAKER_OPEN_SECONDS is not None:
-                from contextlib import suppress
                 with suppress(Exception):
                     opened_for = max(0.0, (time.time() - (until - float(os.getenv("HTTP_BREAKER_COOLDOWN", "20")))))
                     HTTP_BREAKER_OPEN_SECONDS.labels(endpoint=ep).set(opened_for)
             if attempt > retries:
                 raise err
             if HTTP_RETRIES_TOTAL is not None:
-                from contextlib import suppress
                 with suppress(Exception):
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(err).__name__).inc()
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
@@ -470,7 +471,6 @@ async def async_http_get_json_retry(
             await _async_sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                from contextlib import suppress
                 with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
             continue
@@ -483,7 +483,6 @@ async def async_http_get_json_retry(
             if attempt > retries:
                 raise
             if HTTP_RETRIES_TOTAL is not None:
-                from contextlib import suppress
                 with suppress(Exception):
                     HTTP_RETRIES_TOTAL.labels(endpoint=ep, reason=type(e).__name__).inc()
             delay = backoff_base * (2 ** (attempt - 1)) * random.uniform(0.8, 1.3)
@@ -512,7 +511,6 @@ async def async_http_get_json_retry(
             await _async_sleep(sleep_for)
             cumulative_sleep += sleep_for
             if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
-                from contextlib import suppress
                 with suppress(Exception):
                     RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
             continue
