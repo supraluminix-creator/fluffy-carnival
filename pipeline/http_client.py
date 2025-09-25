@@ -13,10 +13,11 @@ Expose:
 from __future__ import annotations
 
 import asyncio
-import time
 import logging
 import random
-from typing import Any, Mapping
+import time
+from collections.abc import Mapping
+from typing import Any
 
 import httpx
 
@@ -45,19 +46,23 @@ def get_async_client() -> httpx.AsyncClient:
 
 
 def _backoff(attempt: int) -> float:
-    return min(0.25 * (2 ** (attempt - 1)) + random.uniform(0, 0.25), 5.0)
+    val = 0.25 * (2 ** (attempt - 1)) + float(random.uniform(0, 0.25))
+    return float(min(val, 5.0))
 
 
 def _retryable(exc: Exception, status: int | None) -> bool:
     if status in RETRY_STATUS:
         return True
     name = type(exc).__name__.lower()
-    if any(k in name for k in ("timeout", "connect", "network", "proxy")):
-        return True
-    return False
+    return any(k in name for k in ("timeout", "connect", "network", "proxy"))
 
 
-def get_json(url: str, *, headers: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None) -> Any:  # pragma: no cover - legacy path
+def get_json(
+    url: str,
+    *,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> Any:  # pragma: no cover - legacy path
     client = get_sync_client()
     attempt = 1
     while True:
@@ -65,13 +70,18 @@ def get_json(url: str, *, headers: Mapping[str, str] | None = None, params: Mapp
             r = client.get(url, headers=headers, params=params)
             if r.status_code in RETRY_STATUS and attempt < MAX_RETRIES:
                 b = _backoff(attempt)
-                logger.warning("retry_sync_status", url=url, status=r.status_code, attempt=attempt, backoff=b)
+                logger.warning(
+                    "retry_sync_status url=%s status=%s attempt=%s backoff=%s",
+                    url,
+                    r.status_code,
+                    attempt,
+                    b,
+                )
                 attempt += 1
                 # sleep synchronously (ne pas utiliser asyncio.sleep dans contexte sync)
-                try:
+                from contextlib import suppress
+                with suppress(Exception):  # pragma: no cover
                     time.sleep(b)
-                except Exception:  # pragma: no cover
-                    pass
                 continue
             r.raise_for_status()
             return r.json()
@@ -79,17 +89,27 @@ def get_json(url: str, *, headers: Mapping[str, str] | None = None, params: Mapp
             status = getattr(getattr(e, "response", None), "status_code", None)
             if attempt < MAX_RETRIES and _retryable(e, status):
                 b = _backoff(attempt)
-                logger.warning("retry_sync_exc", url=url, attempt=attempt, backoff=b, error=str(e))
+                logger.warning(
+                    "retry_sync_exc url=%s attempt=%s backoff=%s error=%s",
+                    url,
+                    attempt,
+                    b,
+                    str(e),
+                )
                 attempt += 1
-                try:
+                from contextlib import suppress
+                with suppress(Exception):  # pragma: no cover
                     time.sleep(b)
-                except Exception:  # pragma: no cover
-                    pass
                 continue
             raise
 
 
-async def aget_json(url: str, *, headers: Mapping[str, str] | None = None, params: Mapping[str, Any] | None = None) -> Any:  # pragma: no cover - legacy path
+async def aget_json(
+    url: str,
+    *,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> Any:  # pragma: no cover - legacy path
     client = get_async_client()
     attempt = 1
     while True:
@@ -97,7 +117,13 @@ async def aget_json(url: str, *, headers: Mapping[str, str] | None = None, param
             r = await client.get(url, headers=headers, params=params)
             if r.status_code in RETRY_STATUS and attempt < MAX_RETRIES:
                 b = _backoff(attempt)
-                logger.warning("retry_async_status", url=url, status=r.status_code, attempt=attempt, backoff=b)
+                logger.warning(
+                    "retry_async_status url=%s status=%s attempt=%s backoff=%s",
+                    url,
+                    r.status_code,
+                    attempt,
+                    b,
+                )
                 attempt += 1
                 await asyncio.sleep(b)
                 continue
@@ -107,14 +133,14 @@ async def aget_json(url: str, *, headers: Mapping[str, str] | None = None, param
             status = getattr(getattr(e, "response", None), "status_code", None)
             if attempt < MAX_RETRIES and _retryable(e, status):
                 b = _backoff(attempt)
-                logger.warning("retry_async_exc", url=url, attempt=attempt, backoff=b, error=str(e))
+                logger.warning("retry_async_exc url=%s attempt=%s backoff=%s error=%s", url, attempt, b, str(e))
                 attempt += 1
                 await asyncio.sleep(b)
                 continue
             raise
 
 
-async def aclose():  # pragma: no cover
+async def aclose() -> None:  # pragma: no cover
     global _ASYNC_CLIENT
     if _ASYNC_CLIENT is not None:
         await _ASYNC_CLIENT.aclose()

@@ -24,9 +24,11 @@ Async:
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
-import httpx
 import os
+from collections.abc import Mapping
+from typing import Any
+
+import httpx
 
 from . import http_wrappers
 
@@ -93,12 +95,24 @@ async def async_fetch_json(
         if retries is None:
             enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
             if not enabled:
-                return await http_wrappers.async_http_get_json(client, url, timeout=timeout, headers=headers, params=params)
+                return await http_wrappers.async_http_get_json(
+                    client,
+                    url,
+                    timeout=timeout,
+                    headers=headers,
+                    params=params,
+                )
             retries = int(os.getenv("RETRY_HTTP_MAX", "3"))
         if backoff_base is None:
             backoff_base = float(os.getenv("RETRY_HTTP_BACKOFF_BASE", "0.3"))
         if retries <= 0:
-            return await http_wrappers.async_http_get_json(client, url, timeout=timeout, headers=headers, params=params)
+            return await http_wrappers.async_http_get_json(
+                client,
+                url,
+                timeout=timeout,
+                headers=headers,
+                params=params,
+            )
         return await http_wrappers.async_http_get_json_retry(
             client,
             url,
@@ -111,7 +125,6 @@ async def async_fetch_json(
         )
     finally:
         if own_client:
-            try:
+            from contextlib import suppress
+            with suppress(Exception):  # pragma: no cover
                 await client.aclose()
-            except Exception:  # pragma: no cover
-                pass

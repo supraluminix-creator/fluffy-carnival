@@ -10,14 +10,16 @@ from __future__ import annotations
 import asyncio
 import functools
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+from contextlib import suppress
 
+from pipeline.errors import classify
 from pipeline.metrics.collectors import (
-    COLLECTOR_RUNS_TOTAL,
     COLLECTOR_DURATION_SECONDS,
     COLLECTOR_ERROR_TYPES_TOTAL,
+    COLLECTOR_RUNS_TOTAL,
 )
-from pipeline.errors import classify
 
 
 def instrument_collector(name: str):
@@ -32,22 +34,20 @@ def instrument_collector(name: str):
                     result = await fn(*args, **kwargs)
                 except Exception as e:  # noqa: BLE001
                     status = "error"
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_ERROR_TYPES_TOTAL.labels(collector=name, error_type=classify(e)).inc()
-                    except Exception:  # pragma: no cover
-                        pass
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_RUNS_TOTAL.labels(collector=name, status=status).inc()
-                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(time.perf_counter()-start)
-                    except Exception:  # pragma: no cover
-                        pass
+                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(
+                            time.perf_counter() - start
+                        )
                     raise
                 else:
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_RUNS_TOTAL.labels(collector=name, status=status).inc()
-                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(time.perf_counter()-start)
-                    except Exception:  # pragma: no cover
-                        pass
+                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(
+                            time.perf_counter() - start
+                        )
                     return result
             return functools.wraps(fn)(inner)
         else:
@@ -58,22 +58,20 @@ def instrument_collector(name: str):
                     result = fn(*args, **kwargs)
                 except Exception as e:  # noqa: BLE001
                     status = "error"
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_ERROR_TYPES_TOTAL.labels(collector=name, error_type=classify(e)).inc()
-                    except Exception:  # pragma: no cover
-                        pass
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_RUNS_TOTAL.labels(collector=name, status=status).inc()
-                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(time.perf_counter()-start)
-                    except Exception:  # pragma: no cover
-                        pass
+                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(
+                            time.perf_counter() - start
+                        )
                     raise
                 else:
-                    try:
+                    with suppress(Exception):  # pragma: no cover - instrumentation best-effort
                         COLLECTOR_RUNS_TOTAL.labels(collector=name, status=status).inc()
-                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(time.perf_counter()-start)
-                    except Exception:  # pragma: no cover
-                        pass
+                        COLLECTOR_DURATION_SECONDS.labels(collector=name, status=status).observe(
+                            time.perf_counter() - start
+                        )
                     return result
             return functools.wraps(fn)(inner)
     return decorator

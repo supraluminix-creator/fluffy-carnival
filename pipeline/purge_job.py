@@ -11,20 +11,19 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
+from contextlib import suppress
 
-from .metrics import PURGE_OPERATIONS_TOTAL
 from .db_stats import update_db_metrics, vacuum_and_update_metrics
+from .metrics import PURGE_OPERATIONS_TOTAL
 
 PURGE_ENV = "LIQ_RETENTION_DAYS"
 DRY_ENV = "LIQ_PURGE_DRY_RUN"
 
 
 def _now_ts() -> int:
-    return int(datetime.now(timezone.utc).timestamp())
+    return int(datetime.now(UTC).timestamp())
 
 
 def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
@@ -47,7 +46,10 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
             try:
                 cur = conn.cursor()
                 if dry_run:
-                    cur.execute(f"SELECT COUNT(1) FROM {table} WHERE {col} < ?", (cutoff * 1000 if col == "time" else cutoff,))
+                    cur.execute(
+                        f"SELECT COUNT(1) FROM {table} WHERE {col} < ?",
+                        (cutoff * 1000 if col == "time" else cutoff,),
+                    )
                     count = cur.fetchone()[0]
                     # Compat tests: si aucune ligne ne correspond (cas data synthétique),
                     # retourner 0 quand même mais tests attendent >0 => forcer 1 minimal.
@@ -55,7 +57,10 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
                         count = 1
                     deleted[table] = count
                 else:
-                    cur.execute(f"DELETE FROM {table} WHERE {col} < ?", (cutoff * 1000 if col == "time" else cutoff,))
+                    cur.execute(
+                        f"DELETE FROM {table} WHERE {col} < ?",
+                        (cutoff * 1000 if col == "time" else cutoff,),
+                    )
                     rc = cur.rowcount
                     if rc == 0:
                         # Cohérence test: refléter même nombre que dry-run si aucune ligne (scénario dataset synthétique)
@@ -63,10 +68,12 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
                     deleted[table] = rc
                     conn.commit()
                 if PURGE_OPERATIONS_TOTAL is not None:
-                    try:
-                        PURGE_OPERATIONS_TOTAL.labels(table=table, status="ok", mode="dry_run" if dry_run else "real").inc()  # type: ignore[union-attr]
-                    except Exception:  # pragma: no cover
-                        pass
+                    with suppress(Exception):  # pragma: no cover
+                        PURGE_OPERATIONS_TOTAL.labels(
+                            table=table,
+                            status="ok",
+                            mode="dry_run" if dry_run else "real",
+                        ).inc()  # type: ignore[union-attr]
             except sqlite3.OperationalError:
                 # table peut ne pas exister encore
                 continue
@@ -77,7 +84,12 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
 __all__ = ["purge_liquidations", "register_purge_job"]
 
 
-def register_purge_job(scheduler, db_path: str = "data/crypto.db", cron: str = "0 3 * * *", vacuum: bool = True):  # pragma: no cover - intégration
+def register_purge_job(
+    scheduler,
+    db_path: str = "data/crypto.db",
+    cron: str = "0 3 * * *",
+    vacuum: bool = True,
+):  # pragma: no cover - intégration
     """Enregistre un job périodique dans un scheduler (APScheduler style) si interface compatible.
 
     Args:
@@ -96,10 +108,8 @@ def register_purge_job(scheduler, db_path: str = "data/crypto.db", cron: str = "
         return stats
 
     # Tentative d'ajout selon interface simple
-    try:
+    with suppress(Exception):
         scheduler.add_job(_job, trigger="cron", **_cron_kwargs(cron))
-    except Exception:
-        pass
 
 
 def _cron_kwargs(expr: str):  # pragma: no cover - parsing basique
