@@ -1,11 +1,11 @@
-import asyncio
-import os
 from types import SimpleNamespace
-import pytest
+
 import httpx
+import pytest
 
 import pipeline.collectors.derivatives as dmod
 from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
+
 
 # --- Helpers ---
 class DummyResp:
@@ -16,7 +16,11 @@ class DummyResp:
         return self._data
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError("err", request=SimpleNamespace(url='u'), response=SimpleNamespace(status_code=self.status_code))
+            raise httpx.HTTPStatusError(
+                "err",
+                request=SimpleNamespace(url='u'),
+                response=SimpleNamespace(status_code=self.status_code),
+            )
 
 class FakeAsyncClient:
     def __init__(self, script):
@@ -46,7 +50,11 @@ async def test_deriv_oi_primary_success(monkeypatch):
 @pytest.mark.asyncio
 async def test_deriv_oi_primary_upstream_fallback_binance(monkeypatch):
     # Primary raises upstream (502) then fallback binance hist success
-    bybit_exc = httpx.HTTPStatusError("bad", request=SimpleNamespace(url='u'), response=SimpleNamespace(status_code=502))
+    bybit_exc = httpx.HTTPStatusError(
+        "bad",
+        request=SimpleNamespace(url='u'),
+        response=SimpleNamespace(status_code=502),
+    )
     binance_hist = [ {"sumOpenInterest": "222.2", "timestamp": 1700000001111} ]
     script1 = [("open-interest", bybit_exc)]
     script2 = [("openInterestHist", DummyResp(binance_hist))]
@@ -60,13 +68,22 @@ async def test_deriv_oi_primary_upstream_fallback_binance(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_deriv_oi_primary_rate_limit_metric(monkeypatch):
-    # Primary returns 429 -> classification rate_limit -> no fallback invoked due to early exception then fallback attempts
-    rate_exc = httpx.HTTPStatusError("rl", request=SimpleNamespace(url='u'), response=SimpleNamespace(status_code=429))
+    # Primary returns 429 -> classification rate_limit -> no fallback invoked
+    # due to early exception then fallback attempts
+    rate_exc = httpx.HTTPStatusError(
+        "rl",
+        request=SimpleNamespace(url='u'),
+        response=SimpleNamespace(status_code=429),
+    )
     script1 = [("open-interest", rate_exc)]
     script2 = [("openInterestHist", DummyResp([]))]  # fallback returns empty -> error path
     clients = [FakeAsyncClient(script1), FakeAsyncClient(script2)]
     monkeypatch.setattr(dmod, 'httpx', SimpleNamespace(AsyncClient=lambda: clients.pop(0)))
-    before = COLLECTOR_ERROR_TYPES_TOTAL.labels(collector='deriv_oi', error_type='rate_limit')._value.get() if ('deriv_oi','rate_limit') in COLLECTOR_ERROR_TYPES_TOTAL._metrics else 0
+    before = (
+        COLLECTOR_ERROR_TYPES_TOTAL.labels(collector='deriv_oi', error_type='rate_limit')._value.get()
+        if ('deriv_oi', 'rate_limit') in COLLECTOR_ERROR_TYPES_TOTAL._metrics
+        else 0
+    )
     rec = await dmod.fetch_bybit_oi('XRPUSDT')
     assert rec is None
     after = COLLECTOR_ERROR_TYPES_TOTAL.labels(collector='deriv_oi', error_type='rate_limit')._value.get()
@@ -75,13 +92,25 @@ async def test_deriv_oi_primary_rate_limit_metric(monkeypatch):
 @pytest.mark.asyncio
 async def test_deriv_funding_fallback_binance(monkeypatch):
     # Primary funding fails -> fallback uses fetch_binance_funding
-    funding_exc = httpx.HTTPStatusError("fund", request=SimpleNamespace(url='u'), response=SimpleNamespace(status_code=500))
+    funding_exc = httpx.HTTPStatusError(
+        "fund",
+        request=SimpleNamespace(url='u'),
+        response=SimpleNamespace(status_code=500),
+    )
     script = [("funding/history", funding_exc)]
     monkeypatch.setattr(dmod, 'httpx', SimpleNamespace(AsyncClient=lambda: FakeAsyncClient(script)))
     # Monkeypatch fallback function from binance collectors
     import pipeline.collectors.binance as bbin
     def fake_binance_funding(symbol):
-        return {"timestamp": 1700, "asset": symbol[:-4], "symbol": symbol, "metric_name": "funding_rate", "value": 0.0002, "source": "binance", "confidence_score": 0.8}
+        return {
+            "timestamp": 1700,
+            "asset": symbol[:-4],
+            "symbol": symbol,
+            "metric_name": "funding_rate",
+            "value": 0.0002,
+            "source": "binance",
+            "confidence_score": 0.8,
+        }
     monkeypatch.setattr(bbin, 'fetch_binance_funding', fake_binance_funding)
     monkeypatch.setattr(dmod, 'fetch_binance_funding', fake_binance_funding)
     rec = await dmod.fetch_bybit_funding('BTCUSDT')

@@ -1,7 +1,7 @@
 import asyncio
-import json
 import sys
 import types
+
 import httpx
 import pytest
 

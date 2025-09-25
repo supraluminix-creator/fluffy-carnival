@@ -1,6 +1,8 @@
-import sqlite3
 import os
+import sqlite3
 import time
+from contextlib import suppress
+
 
 def wait_for_db_and_check(db_path, timeout=10):
     """
@@ -24,8 +26,11 @@ def wait_for_db_and_check(db_path, timeout=10):
                 for row in rows:
                     print(row)
                 return True
-        except Exception as e:
+        except Exception:
             pass
+        finally:
+            with suppress(Exception):
+                conn.close()
         time.sleep(0.5)
     print("No liquidation rows found in DB after waiting.")
     return False

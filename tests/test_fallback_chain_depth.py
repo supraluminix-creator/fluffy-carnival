@@ -1,6 +1,6 @@
-import os
 import pytest
 from prometheus_client import REGISTRY
+
 from pipeline.collectors import market as market_mod
 
 

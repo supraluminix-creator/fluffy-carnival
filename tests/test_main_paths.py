@@ -1,9 +1,9 @@
-from pipeline.logging_config import setup_logging, _reset_logging_for_tests
 import os
-import asyncio
+
 import pytest
 
 import main as app_main
+from pipeline.logging_config import _reset_logging_for_tests
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_main_scheduler_quick_exit(monkeypatch):
         await app_main.main()
     except BaseException as e:  # CancelledError inherits BaseException in 3.11+
         import asyncio
-        if not isinstance(e, (KeyboardInterrupt, asyncio.CancelledError)):
+        if not isinstance(e, KeyboardInterrupt | asyncio.CancelledError):
             raise
     assert call_state['called'] is True
 

@@ -6,11 +6,9 @@ le flush job retournera False proprement.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from .collectors.bybit_liquidations import BybitLiquidationsWriter
 
-_writer: Optional[BybitLiquidationsWriter] = None
+_writer: BybitLiquidationsWriter | None = None
 
 
 def set_writer(writer: BybitLiquidationsWriter) -> None:
@@ -19,7 +17,7 @@ def set_writer(writer: BybitLiquidationsWriter) -> None:
     _writer = writer
 
 
-def get_writer() -> Optional[BybitLiquidationsWriter]:  # pragma: no cover - trivial
+def get_writer() -> BybitLiquidationsWriter | None:  # pragma: no cover - trivial
     return _writer
 
 

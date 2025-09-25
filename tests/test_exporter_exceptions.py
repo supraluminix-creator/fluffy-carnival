@@ -1,6 +1,8 @@
+from datetime import UTC, datetime
+
 import pytest
+
 from pipeline.exporter import Exporter
-from datetime import datetime, UTC
 
 
 def test_exporter_no_rows(tmp_path):

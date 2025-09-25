@@ -1,13 +1,7 @@
-import time
 import pytest
 from prometheus_client import generate_latest
-from pipeline.circuit_breaker import record_failure, record_success, should_skip, reset
-from pipeline.metrics import (
-    CIRCUIT_BREAKER_OPEN_TOTAL,
-    CIRCUIT_BREAKER_SKIPS_TOTAL,
-    CIRCUIT_BREAKER_STATE,
-    CIRCUIT_BREAKER_OPEN_SECONDS,
-)
+
+from pipeline.circuit_breaker import record_failure, record_success, reset, should_skip
 
 
 def _metric_text():
@@ -58,7 +52,6 @@ def test_breaker_open_seconds_progress(monkeypatch):
     txt = _metric_text()
     # value should be >=5 seconds now
     import re
-    import math
     m = re.search(rf'circuit_breaker_open_seconds{{breaker="{name}"}} (\d+\.\d+)', txt)
     assert m, txt
     val = float(m.group(1))
@@ -72,6 +65,7 @@ def test_readiness_blocked_by_breaker(monkeypatch, grace, expect_ready):
     monkeypatch.setenv("BREAKER_OPEN_GRACE_SECONDS", str(grace))
     # Force fresh import of readiness helpers
     import importlib
+
     from pipeline import circuit_breaker as cb
     cb.reset()
     from pipeline.circuit_breaker import _get
@@ -83,8 +77,7 @@ def test_readiness_blocked_by_breaker(monkeypatch, grace, expect_ready):
     from scheduler import runner
     importlib.reload(runner)
     # Simulate first task success attempt triggering readiness logic
-    # Use direct access to internal function if exists else mimic scenario by calling task_wrapper on dummy
-    ready_metric = runner.CRYPTO_READY
+    # Access readiness metric indirectly via policy check
     # readiness only set if not blocked
     # call internal private function if available else simulate event by calling _breaker_blocks_readiness
     blocked = runner._breaker_blocks_readiness()

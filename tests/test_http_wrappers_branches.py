@@ -1,7 +1,19 @@
-import pytest, httpx
 from types import SimpleNamespace
+
+import httpx
+import pytest
+
 import pipeline.http_wrappers as hw
-from pipeline.errors import RateLimitError, UpstreamError, NotFoundError, EmptyDataError, NetworkError, TimeoutError_, SchemaError
+from pipeline.errors import (
+    EmptyDataError,
+    NetworkError,
+    NotFoundError,
+    RateLimitError,
+    SchemaError,
+    TimeoutError_,
+    UpstreamError,
+)
+
 
 # Helpers
 class DummyResp:

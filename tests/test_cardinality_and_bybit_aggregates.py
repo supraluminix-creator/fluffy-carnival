@@ -1,11 +1,9 @@
-import os
-import sqlite3
-import glob
-from pipeline.http_wrappers import endpoint_label
-from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 import asyncio
-import tempfile
-import pandas as pd
+import glob
+import sqlite3
+
+from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
+from pipeline.http_wrappers import endpoint_label
 
 
 def test_endpoint_label_cardinality():
@@ -23,8 +21,10 @@ def test_endpoint_label_cardinality():
         "https://api.coinmarketcap.com/v3/cryptocurrency/quotes/latest?id=1",
     ]
     # Ajouter variations synthétiques
-    for i in range(40):
-        base_urls.append(f"https://api.coingecko.com/api/v3/coins/randomtoken{i}?foo=bar&v={i}")
+    base_urls += [
+        f"https://api.coingecko.com/api/v3/coins/randomtoken{i}?foo=bar&v={i}"
+        for i in range(40)
+    ]
     labels = {endpoint_label(u) for u in base_urls}
     # On s'attend à une forte déduplication: coingecko/coins, coingecko/simple, binance/depth, binance/ticker, llama/protocols, coingecko/ping, coinmarketcap/cryptocurrency => ~7-8
     assert len(labels) < 15, f"Cardinalité trop élevée: {len(labels)} labels = {labels}"  # seuil large pour robustesse

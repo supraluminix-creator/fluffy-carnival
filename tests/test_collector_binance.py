@@ -1,5 +1,6 @@
+
 import httpx
-import types
+
 from pipeline.collectors.binance import fetch_binance_price
 
 

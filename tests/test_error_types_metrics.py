@@ -1,5 +1,3 @@
-import os
-import re
 from prometheus_client import REGISTRY
 
 # Tests ciblés sur métrique collector_error_types_total
@@ -10,8 +8,7 @@ def _find_metric_samples(name: str):
         return []
     samples = []
     for fam in m.collect():
-        for s in fam.samples:
-            samples.append(s)
+        samples += list(fam.samples)
     return samples
 
 
@@ -33,9 +30,9 @@ def test_error_type_counter_market(monkeypatch):
     assert res is None
     samples = _find_metric_samples("collector_error_types_total")
     # Cherche au moins les 2 catégories rate_limit & network
-    labels = [dict(s.labels) for s in samples if s.name=="collector_error_types_total"]
-    assert any(l.get("error_type") == "rate_limit" and l.get("collector")=="market" for l in labels)
-    assert any(l.get("error_type") == "network" and l.get("collector")=="market" for l in labels)
+    labels = [dict(s.labels) for s in samples if s.name == "collector_error_types_total"]
+    assert any(lbl.get("error_type") == "rate_limit" and lbl.get("collector") == "market" for lbl in labels)
+    assert any(lbl.get("error_type") == "network" and lbl.get("collector") == "market" for lbl in labels)
 
 
 def test_error_type_counter_deriv_oi(monkeypatch):
@@ -64,7 +61,7 @@ def test_error_type_counter_deriv_oi(monkeypatch):
     res2 = asyncio.run(deriv.fetch_bybit_oi("BTCUSDT"))
     assert res2 is None
     samples = _find_metric_samples("collector_error_types_total")
-    labels = [dict(s.labels) for s in samples if s.name=="collector_error_types_total"]
+    labels = [dict(s.labels) for s in samples if s.name == "collector_error_types_total"]
     # On attend timeout + (schema OU upstream) selon implémentation (façade HTTP convertit 500 en upstream)
-    assert any(l.get("error_type") == "timeout" and l.get("collector")=="deriv_oi" for l in labels)
-    assert any(l.get("error_type") in ("schema", "upstream") and l.get("collector")=="deriv_oi" for l in labels)
+    assert any(lbl.get("error_type") == "timeout" and lbl.get("collector") == "deriv_oi" for lbl in labels)
+    assert any(lbl.get("error_type") in ("schema", "upstream") and lbl.get("collector") == "deriv_oi" for lbl in labels)

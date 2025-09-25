@@ -2,18 +2,21 @@
 Collector transaction count (on-chain)
 Prod-safe, modulaire, testable
 """
+import asyncio
+from contextlib import suppress
 from typing import Any, TypedDict, cast
 
 import diskcache
 import httpx
 import requests
 import structlog
-from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
-from pipeline.instrumentation import instrument_collector
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
-from pipeline.flags import is_forced_facade, is_dry_run_facade
-from pipeline.http import async_fetch_json, fetch_json
-from pipeline.metrics import FACADE_FORCED, FACADE_FORCED_LEAK
+
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json
+from pipeline.instrumentation import instrument_collector
 from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 # Legacy counter idempotent
@@ -21,10 +24,8 @@ try:
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:  # déjà défini
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover
     LEGACY_HTTP_USAGE.labels(collector='onchain_txcount')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 _LEGACY_LOGGED = False
 
 log = structlog.get_logger()
@@ -51,10 +52,8 @@ class TxCountCollector:
             return cast(dict[str, Any], cached)
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
-        try:
+        with suppress(Exception):  # pragma: no cover
             set_facade_mode("onchain_txcount", force_facade, dry_run)
-        except Exception:  # pragma: no cover
-            pass
         params = {"timespan": "1days", "format": "json"}
         if force_facade:
             try:
@@ -86,10 +85,8 @@ class TxCountCollector:
         """
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
-        try:
+        with suppress(Exception):  # pragma: no cover
             set_facade_mode("onchain_txcount", force_facade, dry_run)
-        except Exception:  # pragma: no cover
-            pass
         if force_facade:
             # On réutilise le chemin async (déjà façadé) pour cohérence métriques; si erreur -> None
             try:

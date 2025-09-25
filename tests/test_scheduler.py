@@ -1,5 +1,5 @@
-import os
 from scheduler.runner import build_scheduler
+
 
 def test_build_scheduler_default_fallback(monkeypatch, tmp_path):
     # No YAML available -> defaults
@@ -7,7 +7,17 @@ def test_build_scheduler_default_fallback(monkeypatch, tmp_path):
     sched = build_scheduler()
     try:
         job_ids = {j.id for j in sched.get_jobs()}
-        assert {"macro","onchain","derivatives","defi","stablecoins","sentiment","tokenmetrics","heavy_history"}.issubset(job_ids)
+        expected = {
+            "macro",
+            "onchain",
+            "derivatives",
+            "defi",
+            "stablecoins",
+            "sentiment",
+            "tokenmetrics",
+            "heavy_history",
+        }
+        assert expected.issubset(job_ids)
     finally:
         pass
 

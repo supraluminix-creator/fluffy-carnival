@@ -1,15 +1,16 @@
-import os
 import httpx
 import pytest
+
 from pipeline import http_wrappers
-from pipeline.http_wrappers import http_get_json_retry, RateLimitError, endpoint_label
+from pipeline.http_wrappers import RateLimitError, endpoint_label, http_get_json_retry
 from pipeline.metrics import (
+    HTTP_BREAKER_OPEN_SECONDS,
     HTTP_BREAKER_OPENS_TOTAL,
-    HTTP_RETRIES_TOTAL,
     HTTP_BREAKER_SKIPS_TOTAL,
     HTTP_BREAKER_STATE,
-    HTTP_BREAKER_OPEN_SECONDS,
+    HTTP_RETRIES_TOTAL,
 )
+
 
 class DummyResp:
     def __init__(self, status_code:int, payload):
@@ -65,7 +66,8 @@ def test_breaker_opens_and_short_circuits(monkeypatch):
 
 
 def test_empty_payload_raises(monkeypatch):
-    # Une 200 avec payload vide doit générer EmptyDataError et ne pas être retriable (pas d'incrément http_retries_total)
+    # Une 200 avec payload vide doit générer EmptyDataError et ne pas être retriable
+    # (pas d'incrément http_retries_total)
     from pipeline.http_wrappers import EmptyDataError
     def fake_get(url, headers=None, params=None, timeout=None):
         return DummyResp(200, {})  # empty dict

@@ -1,40 +1,41 @@
 import asyncio
-from typing import Union, List, Dict, Any
 import os
 from datetime import datetime
-from tabulate import tabulate  # type: ignore[import-untyped]
-from prometheus_client import start_http_server
-import structlog
+from typing import Any
 
-from pipeline.collectors.market import fetch_macro, MacroRecord
-from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
+import structlog
+from prometheus_client import start_http_server
+from tabulate import tabulate  # type: ignore[import-untyped]
+
+from pipeline.collectors.defi import DefiTVLRecord, fetch_defillama_tvl
+from pipeline.collectors.derivatives import (
+    LongShortRatioRecord,
+    OpenInterestRecord,
+    fetch_bybit_long_short_ratio,
+    fetch_bybit_oi,
+)
+from pipeline.collectors.market import MacroRecord, fetch_macro
 from pipeline.collectors.onchain import (
-    fetch_txcount,
+    HashrateRecord,
+    SoprRecord,
+    TxCountRecord,
     fetch_hashrate,
     fetch_sopr,
-    TxCountRecord,
-    HashrateRecord,
-    SoprRecord,
+    fetch_txcount,
 )
-from pipeline.collectors.derivatives import (
-    fetch_bybit_oi,
-    fetch_bybit_long_short_ratio,
-    OpenInterestRecord,
-    LongShortRatioRecord,
-)
-from pipeline.collectors.sentiment import fetch_fear_greed, SentimentRecord
+from pipeline.collectors.sentiment import SentimentRecord, fetch_fear_greed
 
-CollectorRecord = Union[
-    MacroRecord,
-    DefiTVLRecord,
-    TxCountRecord,
-    HashrateRecord,
-    SoprRecord,
-    OpenInterestRecord,
-    LongShortRatioRecord,
-    SentimentRecord,
-    Dict[str, Any],
-]
+CollectorRecord = (
+    MacroRecord |
+    DefiTVLRecord |
+    TxCountRecord |
+    HashrateRecord |
+    SoprRecord |
+    OpenInterestRecord |
+    LongShortRatioRecord |
+    SentimentRecord |
+    dict[str, Any]
+)
 
 EXPORT_DIR = "exports"
 os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -75,7 +76,7 @@ async def collect_all():
     cmc_api_key = os.getenv("CMC_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
 
-    results: List[CollectorRecord] = []
+    results: list[CollectorRecord] = []
 
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)

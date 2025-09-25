@@ -1,7 +1,6 @@
-import pytest
-import pipeline.protocols as pmod
 from types import SimpleNamespace
-import httpx
+
+import pipeline.protocols as pmod
 
 
 class DummyClient:

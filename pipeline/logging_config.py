@@ -52,7 +52,7 @@ def mask_secrets_processor(logger: Any, method_name: str, event_dict: dict) -> d
       - Clé exacte ou contenant un nom sensible (case-insensitive)
       - Valeur str > 4 chars -> garde 2 premiers + 2 derniers
     """
-    lowered = {k.lower(): k for k in event_dict.keys()}
+    lowered = {k.lower(): k for k in event_dict}
     for lk, original_key in lowered.items():
         for sk in SENSITIVE_KEYS:
             if sk in lk:
@@ -153,10 +153,9 @@ def _reset_logging_for_tests():  # pragma: no cover - utilisé uniquement par te
     # Purger handlers root pour éviter duplications
     root = logging.getLogger()
     for h in list(root.handlers):
-        try:
+        from contextlib import suppress
+        with suppress(Exception):
             root.removeHandler(h)
-        except Exception:
-            pass
     # Ne pas supprimer RUN_ID ici: laissé au test s'il veut simuler absence
 
 

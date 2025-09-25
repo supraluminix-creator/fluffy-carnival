@@ -1,5 +1,5 @@
-import os
 import pytest
+
 from pipeline.collectors import derivatives as deriv_mod
 
 

@@ -1,22 +1,24 @@
 """Utilitaires d'export CSV centralisés."""
 from __future__ import annotations
 
-from datetime import datetime
-import json
-import hashlib
-import os
-from typing import Iterable, Mapping, Sequence, Any, List
 import csv
+import hashlib
+import json
+import os
+from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime
+from typing import Any
+
 import structlog
 
 # Metrics import lazy-friendly: si prometheus indisponible ou non souhaité,
 # les compteurs restent no-op (nous capturons exceptions d'importation).
 try:  # pragma: no cover - chemin d'erreur improbable
     from pipeline.metrics import (
-        EXPORTS_TOTAL,
-        EXPORT_ROWS_TOTAL,
         EXPORT_ROW_REJECTIONS_TOTAL,
+        EXPORT_ROWS_TOTAL,
         EXPORT_VALUE_NEGATIVE_TOTAL,
+        EXPORTS_TOTAL,
     )
 except Exception:  # pragma: no cover
     EXPORTS_TOTAL = None  # type: ignore
@@ -56,7 +58,7 @@ class ExportRecord(BaseModel):  # type: ignore[misc]
 
     # Normalisation légère possible ici (ex: upper asset) si besoin futur.
 
-def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> List[ExportRecord]:
+def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
     """Valide et normalise des enregistrements d'export.
 
     Stratégie de rétrocompat:
@@ -69,12 +71,12 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> List[ExportRecord]:
       - value négative (compteurs dédiés)
       - schéma invalide malgré normalisation
     """
-    validated: List[ExportRecord] = []
+    validated: list[ExportRecord] = []
     for r_in in rows:
         r = dict(r_in)  # copie modifiable
         # Normalisation légère avant validation
         ts = r.get("timestamp")
-        if isinstance(ts, (int, float)):
+        if isinstance(ts, int | float):
             # convertir epoch numérique en str (non ISO pour ne pas changer logique aval)
             r["timestamp"] = str(ts)
         # Fallback asset<-symbol (legacy tests fournissent seulement symbol)

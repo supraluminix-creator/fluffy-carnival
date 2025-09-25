@@ -3,9 +3,10 @@ DeFi collectors: DefiLlama.
 Gère TVL, revenus, fees, utilisateurs actifs.
 """
 
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import requests
+
 from pipeline.utils import to_float
 
 

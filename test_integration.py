@@ -4,15 +4,18 @@ Integration test: test the complete data flow from WebSocket to database
 """
 import asyncio
 import json
-import sys
 import os
+import sys
 from datetime import datetime
 
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(__file__))
 
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
+
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
-from typing import Any, Mapping, Sequence, cast
+
 
 async def test_integration() -> None:
     print("🧪 Integration Test: WebSocket Message -> Database")
@@ -46,7 +49,7 @@ async def test_integration() -> None:
         }
     }
     
-    print(f"📨 Simulating WebSocket message:")
+    print("📨 Simulating WebSocket message:")
     print(f"   Raw message: {json.dumps(bybit_message)}")
     
     # Extract the data part (this is what the collector sends to the writer)

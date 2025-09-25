@@ -1,5 +1,6 @@
 from pipeline.utils import to_float
 
+
 def test_to_float_success():
     assert to_float('1.25') == 1.25
 

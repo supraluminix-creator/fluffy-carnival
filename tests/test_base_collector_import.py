@@ -8,10 +8,6 @@ def test_base_collector_not_implemented():
         pass
     with pytest.raises(NotImplementedError):
         C().collect(None)
-from pipeline.base_collector import BaseCollector
-import pytest
-
-def test_base_collector_not_implemented():
     class Dummy(BaseCollector):
         pass
     with pytest.raises(NotImplementedError):

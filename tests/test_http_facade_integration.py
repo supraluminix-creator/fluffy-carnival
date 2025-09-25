@@ -1,6 +1,5 @@
-import os
 import asyncio
-import pytest
+import os
 
 # Test ciblé: vérifier que la façade (http_get_json_retry interne) est appelée via fetch_macro_orchestrated (tier_coingecko)
 

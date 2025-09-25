@@ -6,15 +6,16 @@ Prod-safe, async, retry/backoff, cache TTL, fallback
 import csv
 import io
 import time
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import httpx
 import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from pipeline.instrumentation import instrument_collector
 from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
@@ -93,8 +94,8 @@ async def fetch_txcount(
                 resp.raise_for_status()
                 try:
                     blockcount = int(resp.text)
-                except (TypeError, ValueError):
-                    raise ValueError("Invalid blockcount text")
+                except (TypeError, ValueError) as err:
+                    raise ValueError("Invalid blockcount text") from err
                 tx_result_blockchain: TxCountRecord = {
                     "timestamp": None,
                     "asset": symbol,
@@ -158,12 +159,25 @@ async def fetch_txcount(
                     cache.set(key, tx_result_fb, expire=cache_ttl)
                     ONCHAIN_SUCCESS.inc()
                     FALLBACK_INVOCATIONS_TOTAL.labels(collector="onchain_txcount", status="success").inc()
-                    log.info("onchain_fallback_success", symbol=symbol, source="etherscan", fallback=1, primary_error=type(e).__name__)
+                    log.info(
+                        "onchain_fallback_success",
+                        symbol=symbol,
+                        source="etherscan",
+                        fallback=1,
+                        primary_error=type(e).__name__,
+                    )
                     return tx_result_fb
             except Exception as e2:
                 ONCHAIN_ERRORS.inc()
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="onchain_txcount", status="error").inc()
-                log.error("onchain_fallback_error", symbol=symbol, error=str(e2), fallback=1, primary_error=type(e).__name__, fallback_error=type(e2).__name__)
+                log.error(
+                    "onchain_fallback_error",
+                    symbol=symbol,
+                    error=str(e2),
+                    fallback=1,
+                    primary_error=type(e).__name__,
+                    fallback_error=type(e2).__name__,
+                )
                 return None
         ONCHAIN_ERRORS.inc()
         log.error("onchain_final_error", symbol=symbol, error=str(e), primary_error=type(e).__name__)
@@ -215,8 +229,8 @@ async def fetch_hashrate(
                 raise
             try:
                 hashrate = float(resp.text)
-            except (TypeError, ValueError):
-                raise ValueError("Invalid hashrate text")
+            except (TypeError, ValueError) as err:
+                raise ValueError("Invalid hashrate text") from err
             hashrate_result: HashrateRecord = {
                 "timestamp": None,
                 "asset": symbol,

@@ -1,8 +1,11 @@
 import asyncio
 import os
+
 import pytest
 from prometheus_client import CollectorRegistry, Counter, Histogram
+
 from pipeline.orchestrator import ParallelOrchestrator
+
 
 class DummyCollector:
     def __init__(self, name: str, value: int):
@@ -14,7 +17,10 @@ class DummyCollector:
         return {"value": self._value}
 
 
-@pytest.mark.skipif(os.environ.get("STRICT_COVERAGE") == "1", reason="Test isolé non conçu pour satisfaire seuil global seul")
+@pytest.mark.skipif(
+    os.environ.get("STRICT_COVERAGE") == "1",
+    reason="Test isolé non conçu pour satisfaire seuil global seul",
+)
 def test_orchestrator_metrics_idempotence(monkeypatch):
     """Le fait d'exécuter deux fois l'orchestrateur ne doit pas dupliquer des compteurs hors exécutions incrémentées.
 

@@ -1,8 +1,10 @@
-import pytest
-import httpx
 from typing import Any
 
-from pipeline.collectors.onchain import fetch_txcount, fetch_hashrate, fetch_sopr, TxCountRecord, HashrateRecord, SoprRecord
+import httpx
+import pytest
+
+from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcount
+
 
 class DummyResp:
     def __init__(self, text: str | None = None, json_payload: Any | None = None, error: Exception | None = None):

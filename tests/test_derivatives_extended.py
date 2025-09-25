@@ -1,7 +1,10 @@
 import os
-import pytest
+
 import httpx
-from pipeline.collectors.derivatives import fetch_bybit_oi, fetch_bybit_funding
+import pytest
+
+from pipeline.collectors.derivatives import fetch_bybit_funding, fetch_bybit_oi
+
 
 class DummyResp:
     def __init__(self, json_data, status_code=200):
@@ -35,8 +38,6 @@ async def test_deriv_oi_third_fallback_function(monkeypatch):
     os.environ['ENABLE_BINANCE_OI_FALLBACK'] = '1'
 
     # Provide fake function fallback
-    from pipeline.collectors.derivatives import fetch_binance_futures_oi as real_func
-    async_called = {}
     def fake_func(sym):
         return {
             "timestamp": 1234567890,
@@ -90,7 +91,6 @@ async def test_deriv_funding_primary_fail_fallback_success(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, 'get', fail_funding)
 
     # Provide binance funding fallback function import patch
-    from pipeline.collectors.binance import fetch_binance_funding as real
     def fake_binance_funding(symbol):
         return {
             "timestamp": 111111,

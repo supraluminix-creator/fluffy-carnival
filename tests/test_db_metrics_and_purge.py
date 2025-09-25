@@ -3,11 +3,9 @@ import sqlite3
 import time
 from pathlib import Path
 
-import pytest
-
 from pipeline.db_stats import update_db_metrics
-from pipeline.purge_job import purge_liquidations
 from pipeline.metrics import DB_FILE_SIZE_BYTES, DB_LIQUIDATIONS_ROWS
+from pipeline.purge_job import purge_liquidations
 
 
 def _create_db(path: Path):

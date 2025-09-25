@@ -1,5 +1,7 @@
 import pytest
+
 from pipeline.base_collector import BaseCollector
+
 
 class DummyCollector(BaseCollector):
     def collect(self, conn):

@@ -1,4 +1,5 @@
 import os
+
 import prometheus_client
 
 COLLECTORS = [
@@ -8,7 +9,7 @@ COLLECTORS = [
 
 
 def _invoke_all():
-    from pipeline.collectors import market, defillama, binance, derivatives
+    from pipeline.collectors import binance, defillama, derivatives, market
     market.fetch_market('bitcoin', cache_ttl=1)
     import asyncio
     async def _run_defi():
@@ -24,7 +25,9 @@ def _invoke_all():
         await derivatives.fetch_bybit_long_short_ratio('BTCUSDT')
     asyncio.run(_run_deriv())
     # Onchain collectors
-    from pipeline.collectors import txcount as txc, hashrate as hrc, sopr as sopr_mod
+    from pipeline.collectors import hashrate as hrc
+    from pipeline.collectors import sopr as sopr_mod
+    from pipeline.collectors import txcount as txc
     # Utilise chemins sync pour simplicité
     txc.TxCountCollector().fetch_txcount('BTC')
     hrc.HashrateCollector().fetch_hashrate('BTC')

@@ -8,7 +8,8 @@ Provides:
 """
 from __future__ import annotations
 
-from typing import Any, Generic, Protocol, TypeVar, TypedDict, runtime_checkable
+from typing import Any, Generic, Protocol, TypedDict, TypeVar, runtime_checkable
+
 import httpx
 import structlog
 

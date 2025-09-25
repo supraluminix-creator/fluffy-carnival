@@ -18,14 +18,14 @@ Usage:
 """
 from __future__ import annotations
 
+import datetime as dt
+import hashlib
 import json
 import os
 import sys
-import datetime as dt
-from pathlib import Path
 from importlib import metadata
-from typing import Any, Dict
-import hashlib
+from pathlib import Path
+from typing import Any
 
 SPEC_VERSION = "1.5"
 
@@ -34,15 +34,15 @@ def _now_iso():
     return dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
-def build_components() -> list[Dict[str, Any]]:
-    comps: list[Dict[str, Any]] = []
+def build_components() -> list[dict[str, Any]]:
+    comps: list[dict[str, Any]] = []
     for dist in metadata.distributions():  # type: ignore[attr-defined]
         name = dist.metadata.get("Name") or dist.metadata.get("name")
         if not name:
             continue
         version = dist.version
         purl = f"pkg:pypi/{name}@{version}".replace(" ", "-")
-        comp: Dict[str, Any] = {
+        comp: dict[str, Any] = {
             "type": "library",
             "name": name,
             "version": version,
@@ -54,10 +54,9 @@ def build_components() -> list[Dict[str, Any]]:
             h_sha = hashlib.sha256()
             if dist_path.exists():
                 for f in dist_path.rglob("*.py"):
-                    try:
+                    from contextlib import suppress
+                    with suppress(Exception):
                         h_sha.update(f.read_bytes())
-                    except Exception:
-                        pass
                 comp["hashes"] = [{"alg": "SHA-256", "content": h_sha.hexdigest()}]
         except Exception:  # pragma: no cover
             pass
@@ -76,7 +75,7 @@ def build_components() -> list[Dict[str, Any]]:
     return comps
 
 
-def build_bom() -> Dict[str, Any]:
+def build_bom() -> dict[str, Any]:
     return {
         "bomFormat": "CycloneDX",
         "specVersion": SPEC_VERSION,
@@ -89,11 +88,11 @@ def build_bom() -> Dict[str, Any]:
     }
 
 
-def write_json(path: Path, data: Dict[str, Any]):
+def write_json(path: Path, data: dict[str, Any]):
     path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def maybe_write_xml(path: Path, data: Dict[str, Any]):  # pragma: no cover - xml optionnel
+def maybe_write_xml(path: Path, data: dict[str, Any]):  # pragma: no cover - xml optionnel
     try:
         from xml.etree.ElementTree import Element, SubElement, tostring
     except Exception:

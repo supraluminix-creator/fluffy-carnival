@@ -1,6 +1,4 @@
-import types
 import sys
-import json
 from typing import Any
 
 import pytest
@@ -102,19 +100,21 @@ def test_reporter_branches_missing(monkeypatch, capsys):
 
 def test_technical_indicators_compute(monkeypatch):
     import pandas as pd
+
     from pipeline import technical_indicators as ti
 
     # Construire un petit DataFrame synthétique
-    rows = []
-    for i in range(50):
-        rows.append({
+    rows = [
+        {
             "timestamp": pd.Timestamp.utcnow() + pd.Timedelta(minutes=i),
             "open": 100 + i,
             "high": 101 + i,
-            "low":  99 + i,
+            "low": 99 + i,
             "close": 100 + i,
             "volume": 10 + i,
-        })
+        }
+        for i in range(50)
+    ]
     df = pd.DataFrame(rows).set_index("timestamp")
 
     # Monkeypatch pandas_ta functions to simple deterministic outputs
@@ -129,8 +129,8 @@ def test_technical_indicators_compute(monkeypatch):
     monkeypatch.setattr(module.ta, "macd", lambda s: pd.DataFrame({"MACD_12_26_9": [1]*len(s)}, index=s.index))
     monkeypatch.setattr(module.ta, "bbands", lambda s: pd.DataFrame({"BB_MAVG": [2]*len(s)}, index=s.index))
     monkeypatch.setattr(module.ta, "ema", lambda s, length=21: pd.Series([3]*len(s), index=s.index))
-    monkeypatch.setattr(module.ta, "vwap", lambda h,l,c,v: pd.Series([4]*len(c), index=c.index))
-    monkeypatch.setattr(module.ta, "ichimoku", lambda h,l,c: (pd.DataFrame({"ISA_9": [5]*len(c)}, index=c.index), None))
+    monkeypatch.setattr(module.ta, "vwap", lambda h, low, c, v: pd.Series([4]*len(c), index=c.index))
+    monkeypatch.setattr(module.ta, "ichimoku", lambda h, low, c: (pd.DataFrame({"ISA_9": [5]*len(c)}, index=c.index), None))
 
     out = ti.compute_indicators(df.copy())
     assert {"RSI", "MACD_12_26_9", "BB_MAVG", "EMA", "VWAP", "ISA_9"}.issubset(out.columns)
@@ -152,6 +152,7 @@ def test_fetch_binance_ohlc_error(monkeypatch):
 
 def test_technical_indicators_empty_df(monkeypatch):
     import pandas as pd
+
     from pipeline import technical_indicators as ti
     # DataFrame vide avec colonnes requises
     df = pd.DataFrame(columns=["open","high","low","close","volume"]).astype(float)
@@ -160,15 +161,14 @@ def test_technical_indicators_empty_df(monkeypatch):
     monkeypatch.setattr(ti.ta, "macd", lambda s: pd.DataFrame())
     monkeypatch.setattr(ti.ta, "bbands", lambda s: pd.DataFrame())
     monkeypatch.setattr(ti.ta, "ema", lambda s, length=21: pd.Series(dtype=float))
-    monkeypatch.setattr(ti.ta, "vwap", lambda h,l,c,v: pd.Series(dtype=float))
-    monkeypatch.setattr(ti.ta, "ichimoku", lambda h,l,c: (pd.DataFrame(), None))
+    monkeypatch.setattr(ti.ta, "vwap", lambda h, low, c, v: pd.Series(dtype=float))
+    monkeypatch.setattr(ti.ta, "ichimoku", lambda h, low, c: (pd.DataFrame(), None))
     out = ti.compute_indicators(df)
     # Doit retourner un DataFrame (potentiellement vide) sans lever
     assert isinstance(out, pd.DataFrame)
 
 
 def test_fetch_binance_ohlc_success(monkeypatch):
-    import pandas as pd
     from pipeline import technical_indicators as ti
 
     class DummyResp:
@@ -189,7 +189,6 @@ def test_fetch_binance_ohlc_success(monkeypatch):
 
 
 def test_reporter_module_import_and_init():
-    from pipeline import reporter
     from pipeline.reporter import Reporter
     # Forcer simple instanciation pour couvrir top-level si non couvert
     r = Reporter()
@@ -197,8 +196,9 @@ def test_reporter_module_import_and_init():
 
 
 def test_hashrate_collector_cache_and_invalid(monkeypatch):
-    from pipeline.collectors.hashrate import HashrateCollector
     import httpx
+
+    from pipeline.collectors.hashrate import HashrateCollector
 
     hc = HashrateCollector()
     # Insérer manu une valeur invalide (non dict) dans le cache -> fetch doit l'ignorer et aller réseau mock

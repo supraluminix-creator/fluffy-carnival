@@ -1,4 +1,5 @@
 import os
+
 import prometheus_client
 
 # Ce test force un appel legacy volontaire en patchant mark_legacy_http pour simuler un chemin legacy atteint

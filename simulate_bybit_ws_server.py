@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # mypy: ignore-errors
 import asyncio
-import websockets
 import json
-from typing import Any
+
+import websockets
+
 
 async def fake_bybit_ws(websocket, path: str) -> None:  # type: ignore[no-untyped-def]
     # Simulate a Bybit liquidation event stream

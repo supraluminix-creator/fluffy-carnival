@@ -1,7 +1,8 @@
+import httpx
 import pytest
+
 from pipeline.collectors import defillama as defillama_mod
 from pipeline.collectors import market as market_mod
-import httpx
 
 
 @pytest.mark.asyncio

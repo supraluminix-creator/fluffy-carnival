@@ -1,5 +1,7 @@
 import asyncio
+
 from pipeline.collectors.bybit_ws import BybitWSService
+
 
 async def main():
     svc = BybitWSService(['BTCUSDT'], flush_size=1, flush_interval=2)

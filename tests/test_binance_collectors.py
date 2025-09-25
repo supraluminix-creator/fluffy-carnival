@@ -1,14 +1,12 @@
-import pytest
 import httpx
+from prometheus_client import REGISTRY
 
 from pipeline.collectors.binance import (
-    fetch_binance_spot_price,
-    fetch_binance_futures_oi,
     fetch_binance_funding,
+    fetch_binance_futures_oi,
+    fetch_binance_spot_price,
 )
 
-from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
-from prometheus_client import REGISTRY
 
 class DummyResp:
     def __init__(self, data, status=200):

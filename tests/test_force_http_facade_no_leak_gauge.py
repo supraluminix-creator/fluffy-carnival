@@ -1,4 +1,5 @@
 import os
+
 import prometheus_client
 
 COLLECTORS = [
@@ -7,7 +8,7 @@ COLLECTORS = [
 ]
 
 def _invoke_all():
-    from pipeline.collectors import market, defillama, binance, derivatives, sentiment
+    from pipeline.collectors import binance, defillama, derivatives, market, sentiment
     market.fetch_market('bitcoin', cache_ttl=1)
     import asyncio
     async def run_async():
@@ -20,7 +21,9 @@ def _invoke_all():
     binance.fetch_binance_spot_price('BTCUSDT')
     binance.fetch_binance_futures_oi('BTCUSDT')
     binance.fetch_binance_funding('BTCUSDT')
-    from pipeline.collectors import txcount as txc, hashrate as hrc, sopr as sopr_mod
+    from pipeline.collectors import hashrate as hrc
+    from pipeline.collectors import sopr as sopr_mod
+    from pipeline.collectors import txcount as txc
     txc.TxCountCollector().fetch_txcount('BTC')
     hrc.HashrateCollector().fetch_hashrate('BTC')
     sopr_mod.fetch_sopr(symbol='BTC')

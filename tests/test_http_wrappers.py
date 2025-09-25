@@ -1,7 +1,9 @@
-import pytest
 import httpx
+import pytest
+
 from pipeline import http_wrappers as hw
-from pipeline.errors import RateLimitError, NotFoundError, UpstreamError, EmptyDataError, SchemaError
+from pipeline.errors import EmptyDataError, NotFoundError, RateLimitError, SchemaError, UpstreamError
+
 
 class DummyResp:
     def __init__(self, status_code=200, json_data=None):
@@ -10,7 +12,11 @@ class DummyResp:
         self.request = httpx.Request('GET','http://dummy')
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError('err', request=self.request, response=httpx.Response(self.status_code, request=self.request))
+            raise httpx.HTTPStatusError(
+                'err',
+                request=self.request,
+                response=httpx.Response(self.status_code, request=self.request),
+            )
     def json(self):
         if self._json == 'INVALID':
             raise ValueError('bad json')
@@ -40,7 +46,6 @@ def test_http_get_json_invalid_json(monkeypatch):
         hw.http_get_json('http://x')
 
 # Async tests
-import asyncio
 
 class DummyAsyncClient:
     def __init__(self, resp: DummyResp):

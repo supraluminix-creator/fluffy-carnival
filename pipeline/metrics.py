@@ -10,8 +10,8 @@ du package (ex: pipeline/metrics/export.py, db.py, collectors.py, etc.).
 
 # Imports requis uniquement pour les helpers de compat ci‑dessous
 import os
-
 from contextlib import suppress
+
 from prometheus_client import start_http_server
 
 from .metrics.__init__ import *  # type: ignore  # noqa: F401,F403

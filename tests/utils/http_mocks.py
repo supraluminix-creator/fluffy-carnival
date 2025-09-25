@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Any, List
+
+from typing import Any
+
 
 class DummyResp:
     def __init__(self, payload: Any, raise_error: Exception | None = None):
@@ -15,7 +17,7 @@ class DummyResp:
 
 
 class DummyAsyncClient:
-    def __init__(self, responses: List[Any]):
+    def __init__(self, responses: list[Any]):
         self._responses = list(responses)
 
     async def __aenter__(self):  # pragma: no cover - trivial

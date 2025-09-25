@@ -5,26 +5,26 @@ Return type is `SOPRRecord | None`.
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from enum import Enum
-from typing import TypedDict, Any, Final
+from typing import Any, Final, TypedDict
 
 import requests
 import structlog
-from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
-from pipeline.instrumentation import instrument_collector
-from pipeline.flags import is_forced_facade, is_dry_run_facade
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter, Summary
+
+from pipeline.flags import is_dry_run_facade, is_forced_facade
 from pipeline.http import fetch_json
-from pipeline.metrics import FACADE_FORCED, FACADE_FORCED_LEAK
+from pipeline.instrumentation import instrument_collector
 from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 try:  # idempotent legacy counter
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover
     LEGACY_HTTP_USAGE.labels(collector='onchain_sopr')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 _LEGACY_LOGGED = False
 
 log = structlog.get_logger()
@@ -56,14 +56,14 @@ def _extract_sopr_payload(data: Any) -> tuple[float, int | None] | None:
     if not isinstance(data, dict):
         return None
     # Direct form
-    if "sopr" in data and isinstance(data["sopr"], (int, float, str)):
+    if "sopr" in data and isinstance(data["sopr"], (int | float | str)):
         try:
             val = float(data["sopr"])
         except (TypeError, ValueError):
             return None
         ts_raw = data.get("timestamp")
         ts: int | None = None
-        if isinstance(ts_raw, (int, float)):
+        if isinstance(ts_raw, (int | float)):
             ts = int(ts_raw)
         return (val, ts)
     # Nested form
@@ -75,7 +75,7 @@ def _extract_sopr_payload(data: Any) -> tuple[float, int | None] | None:
             return None
         ts_raw = nested.get("timestamp")
         ts_val: int | None = None
-        if isinstance(ts_raw, (int, float)):
+        if isinstance(ts_raw, (int | float)):
             ts_val = int(ts_raw)
         return (val, ts_val)
     return None
@@ -83,7 +83,11 @@ def _extract_sopr_payload(data: Any) -> tuple[float, int | None] | None:
 
 @instrument_collector("sopr_fetch")
 @_SOPR_LATENCY.time()
-def fetch_sopr(symbol: str = "BTC", source: SOPRSource = SOPRSource.BGEOMETRICS, api_key: str | None = None) -> SOPRRecord | None:
+def fetch_sopr(
+    symbol: str = "BTC",
+    source: SOPRSource = SOPRSource.BGEOMETRICS,
+    api_key: str | None = None,
+) -> SOPRRecord | None:
     """Fetch SOPR metric from chosen source.
 
     Parameters
@@ -104,7 +108,8 @@ def fetch_sopr(symbol: str = "BTC", source: SOPRSource = SOPRSource.BGEOMETRICS,
 
     force_facade = is_forced_facade()
     dry_run = is_dry_run_facade() and not force_facade
-    # Si requests.get est monkeypatché depuis un module de tests, rétrograde forced pour permettre l'injection de payload
+    # Si requests.get est monkeypatché depuis un module de tests, rétrograde forced
+    # pour permettre l'injection de payload
     if force_facade:
         try:
             if getattr(requests.get, '__module__', '').startswith('tests.'):
@@ -112,10 +117,8 @@ def fetch_sopr(symbol: str = "BTC", source: SOPRSource = SOPRSource.BGEOMETRICS,
                 dry_run = is_dry_run_facade() and not force_facade
         except Exception:  # pragma: no cover
             pass
-    try:
+    with suppress(Exception):  # pragma: no cover
         set_facade_mode('onchain_sopr', force_facade, dry_run)
-    except Exception:  # pragma: no cover
-        pass
     try:
         if force_facade:
             try:

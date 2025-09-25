@@ -1,11 +1,10 @@
-import asyncio
 import json
 from typing import Any
 
 import pytest
 
-from pipeline.collectors.bybit_ws import BybitWSService
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
+from pipeline.collectors.bybit_ws import BybitWSService
 
 
 class DummyWriter:
@@ -75,7 +74,12 @@ async def test_bybit_ws_service_basic_flow(monkeypatch):
     assert symbols == {"BTCUSDT", "ETHUSDT"}
 
     # Tester chemins _handle_message supplémentaires (bytes + objet non str)
-    await svc._handle_message(b'{"topic":"liquidation.BTCUSDT","data":{"symbol":"BTCUSDT","side":"Sell","price":1,"size":1,"updatedTime":444}}')
+    await svc._handle_message(
+        
+            b'{"topic":"liquidation.BTCUSDT","data":'
+            b'{"symbol":"BTCUSDT","side":"Sell","price":1,"size":1,"updatedTime":444}}'
+        
+    )
     # Objet non str ignoré
     await svc._handle_message({"foo": "bar"})  # type: ignore[arg-type]
 
@@ -122,5 +126,6 @@ async def test_bybit_liquidations_writer_flush_and_skips(monkeypatch, tmp_path):
     await writer.flush()
     await writer.close()
     # Vérifie que la connexion est fermée via opération provoquant une exception
-    with pytest.raises(Exception):  # sqlite ProgrammingError attendu
+    import sqlite3
+    with pytest.raises(sqlite3.ProgrammingError):
         writer.conn.execute("SELECT 1")

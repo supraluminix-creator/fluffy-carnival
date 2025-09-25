@@ -33,6 +33,15 @@ jobs:
       - name: "Ruff (lint minimal on core packages: import sorting only)"
         run: ruff check --select I api pipeline
 
+      - name: "Ruff (tests/tools/typings targets)"
+        run: ruff check tools tests typings verify_liquidation_db.py
+
+      - name: "Ruff (quick wins on scripts/analysis/mains)"
+        run: |
+          ruff check --select F,B,SIM,UP,PERF,I \
+            main.py main_backup.py \
+            scripts analysis
+
       - name: Mypy
         run: |
           mypy --cache-dir .mypy_cache .

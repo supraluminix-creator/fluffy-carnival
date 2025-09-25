@@ -28,10 +28,9 @@ def test_health_server_basic():
         assert "run_id" in data
 
     # Endpoint inconnu
-    try:
+    from contextlib import suppress
+    with suppress(Exception):  # HTTPError attendu
         urllib.request.urlopen(f"http://{host}:{port}/nope")
-    except Exception:  # HTTPError attendu
-        pass
 
     server.shutdown()
     server.server_close()

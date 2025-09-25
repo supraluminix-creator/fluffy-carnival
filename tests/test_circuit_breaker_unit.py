@@ -1,5 +1,5 @@
 import time
-import types
+
 import pytest
 
 from pipeline import circuit_breaker as cb
@@ -27,10 +27,7 @@ def test_circuit_breaker_threshold_and_cooldown(monkeypatch):
     cb.record_success(name)
     assert cb.should_skip(name) is False
 
-import time
-import pytest
 
-from pipeline import circuit_breaker as cb
 
 def test_circuit_breaker_sequence(monkeypatch):
     cb.reset()
@@ -40,7 +37,8 @@ def test_circuit_breaker_sequence(monkeypatch):
 
     assert cb.should_skip('svc') is False
 
-    cb.record_failure('svc'); cb.record_failure('svc')
+    cb.record_failure('svc')
+    cb.record_failure('svc')
     assert cb.should_skip('svc') is False  # pas encore ouvert
 
     cb.record_failure('svc')  # 3ème -> ouvre
@@ -55,7 +53,8 @@ def test_circuit_breaker_sequence(monkeypatch):
     assert cb.should_skip('svc') is False
 
     # Succès doit reset immédiatement
-    cb.record_failure('svc'); cb.record_failure('svc')
+    cb.record_failure('svc')
+    cb.record_failure('svc')
     cb.record_success('svc')
     assert cb.should_skip('svc') is False
 

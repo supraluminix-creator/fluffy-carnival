@@ -1,6 +1,6 @@
-import os
 import pytest
-from pipeline.config import get_config, refresh_config_cache, get_env_bool, get_env_int, get_env_list, get_env_str
+
+from pipeline.config import get_config, get_env_bool, get_env_int, get_env_list, get_env_str, refresh_config_cache
 
 
 def test_get_env_bool(monkeypatch):

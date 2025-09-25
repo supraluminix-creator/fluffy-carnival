@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from fastapi.testclient import TestClient
+
+from pipeline import db_adapter
 from pipeline.api import app
 from pipeline.schemas import (
+    FundamentalSection,
+    QuantSection,
     Report,
     ReportMeta,
-    QuantSection,
     TechnicalSection,
-    FundamentalSection,
 )
-from pipeline import db_adapter
 
 
 def _seed_one_report():
-    run_id = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    run_id = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     r = Report(meta=ReportMeta(asset="BTC", run_id=run_id))
     db_adapter.write_report(r)
     return r
@@ -57,7 +58,7 @@ def test_quant_404_then_ok():
     # now seed with quant section
     db_adapter._REPORTS.clear()
     run_id = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -84,7 +85,7 @@ def test_onchain_404_then_ok():
     # now seed with technical section
     db_adapter._REPORTS.clear()
     run_id = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -111,7 +112,7 @@ def test_fundamental_404_then_ok():
     # now seed with fundamental section
     db_adapter._REPORTS.clear()
     run_id = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")

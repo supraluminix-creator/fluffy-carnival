@@ -1,4 +1,3 @@
-import time
 from pipeline import circuit_breaker as cb
 
 

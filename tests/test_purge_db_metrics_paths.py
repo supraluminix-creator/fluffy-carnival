@@ -1,9 +1,15 @@
-import os, sqlite3, tempfile, pathlib, time
+import sqlite3
+import time
+
 import pytest
 
-from pipeline.purge_job import purge_liquidations, PURGE_ENV, DRY_ENV
 from pipeline.db_stats import update_db_metrics, vacuum_and_update_metrics
-from pipeline.metrics import PURGE_OPERATIONS_TOTAL, DB_FILE_SIZE_BYTES, DB_LIQUIDATIONS_ROWS, DB_VACUUM_DURATION_SECONDS
+from pipeline.metrics import (
+    DB_FILE_SIZE_BYTES,
+    DB_VACUUM_DURATION_SECONDS,
+    PURGE_OPERATIONS_TOTAL,
+)
+from pipeline.purge_job import DRY_ENV, PURGE_ENV, purge_liquidations
 
 SCHEMA = [
     "CREATE TABLE bybit_liquidations(time INTEGER, symbol TEXT, amount REAL)",

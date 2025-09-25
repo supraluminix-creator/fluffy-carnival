@@ -1,4 +1,3 @@
-import types
 import pytest
 
 from pipeline.flush_jobs import flush_bybit_liquidations

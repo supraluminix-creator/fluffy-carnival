@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from time import time
-from typing import Callable, Dict, List, Any, Tuple
+from typing import Any
 
 try:
     # métriques optionnelles (ne doit pas casser si non disponibles au test)
@@ -23,7 +24,7 @@ except Exception:  # pragma: no cover
     LLM_FALLBACKS_TOTAL = None  # type: ignore
 
 
-GenFn = Callable[[str, Dict[str, Any]], str]
+GenFn = Callable[[str, dict[str, Any]], str]
 
 
 @dataclass
@@ -36,7 +37,7 @@ class ModelConfig:
 
 class QuotaState:
     def __init__(self) -> None:
-        self.usage: Dict[Tuple[int, str], int] = {}
+        self.usage: dict[tuple[int, str], int] = {}
 
     def increment(self, model: str) -> None:
         key = (int(time() // 86400), model)
@@ -48,13 +49,14 @@ class QuotaState:
 
 
 class ClientLLM:
-    def __init__(self, models: List[ModelConfig], quota: QuotaState) -> None:
+    def __init__(self, models: list[ModelConfig], quota: QuotaState) -> None:
         # tri par priorité, le plus faible d'abord
         self.models = sorted(models, key=lambda m: m.priority)
         self.quota = quota
+        self.last_used_model: str | None = None
 
     def generate(self, prompt: str, **opts: Any) -> str:
-        errors: List[Tuple[str, str]] = []
+        errors: list[tuple[str, str]] = []
         last_model: str | None = None
         for m in self.models:
             if self.quota.remaining(m) <= 0:
@@ -64,6 +66,7 @@ class ClientLLM:
                     LLM_REQUESTS_TOTAL.labels(model=m.name).inc()
                 out = m.fn(prompt, opts)
                 self.quota.increment(m.name)
+                self.last_used_model = m.name
                 if last_model and last_model != m.name and LLM_FALLBACKS_TOTAL:
                     LLM_FALLBACKS_TOTAL.labels(from_model=last_model, to_model=m.name).inc()
                 return out

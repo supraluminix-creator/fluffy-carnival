@@ -1,6 +1,7 @@
-import pytest
 import httpx
+import pytest
 from prometheus_client import REGISTRY
+
 
 # Utilise un fake client async pour CG succès
 @pytest.mark.asyncio
@@ -30,7 +31,13 @@ async def test_macro_latency_primary(monkeypatch):
     found = False
     for metric in coll.collect():
         for s in metric.samples:
-            if s.name.endswith('_bucket') and s.labels.get('collector')=='macro' and s.labels.get('tier')=='1' and s.labels.get('status')=='success' and s.value>0:
+            if (
+                s.name.endswith('_bucket')
+                and s.labels.get('collector') == 'macro'
+                and s.labels.get('tier') == '1'
+                and s.labels.get('status') == 'success'
+                and s.value > 0
+            ):
                 found = True
     assert found, 'Expected latency bucket sample for macro tier=1 success'
 
@@ -42,10 +49,20 @@ async def test_deriv_funding_latency_primary(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb): return False
         async def get(self, url, params=None, timeout=10):
             assert 'funding/history' in url
-            return type('R', (), {
-                'raise_for_status': lambda self: None,
-                'json': lambda self: { 'result': { 'list': [ { 'fundingRate': '0.0001', 'fundingRateTimestamp': '1700000000000' } ] } }
-            })()
+            return type(
+                'R',
+                (),
+                {
+                    'raise_for_status': lambda self: None,
+                    'json': lambda self: {
+                        'result': {
+                            'list': [
+                                {'fundingRate': '0.0001', 'fundingRateTimestamp': '1700000000000'}
+                            ]
+                        }
+                    },
+                },
+            )()
     monkeypatch.setattr(httpx, 'AsyncClient', lambda *a, **k: BybitClient())
     from pipeline.collectors.derivatives import fetch_bybit_funding
     rec = await fetch_bybit_funding('BTCUSDT')
@@ -55,7 +72,13 @@ async def test_deriv_funding_latency_primary(monkeypatch):
     found = False
     for metric in coll.collect():
         for s in metric.samples:
-            if s.name.endswith('_bucket') and s.labels.get('collector')=='deriv_funding' and s.labels.get('tier')=='1' and s.labels.get('status')=='success' and s.value>0:
+            if (
+                s.name.endswith('_bucket')
+                and s.labels.get('collector') == 'deriv_funding'
+                and s.labels.get('tier') == '1'
+                and s.labels.get('status') == 'success'
+                and s.value > 0
+            ):
                 found = True
     assert found, 'Expected latency bucket sample for deriv_funding tier=1 success'
 
@@ -85,14 +108,22 @@ async def test_deriv_funding_latency_fallback(monkeypatch):
     assert rec and rec['source'] == 'binance'
     coll = getattr(REGISTRY, '_names_to_collectors', {}).get('fallback_tier_latency_seconds')
     assert coll is not None
-    found_tier1_error = False
     found_tier2_success = False
     for metric in coll.collect():
         for s in metric.samples:
-            if s.name.endswith('_bucket') and s.labels.get('collector')=='deriv_funding':
-                if s.labels.get('tier')=='1' and s.labels.get('status')=='error' and s.value>0:
-                    found_tier1_error = True
-                if s.labels.get('tier')=='2' and s.labels.get('status')=='success' and s.value>0:
+            if s.name.endswith('_bucket') and s.labels.get('collector') == 'deriv_funding':
+                if (
+                    s.labels.get('tier') == '1'
+                    and s.labels.get('status') == 'error'
+                    and s.value > 0
+                ):
+                    pass  # bucket error tier1 may or may not increment
+                if (
+                    s.labels.get('tier') == '2'
+                    and s.labels.get('status') == 'success'
+                    and s.value > 0
+                ):
                     found_tier2_success = True
     assert found_tier2_success, 'Expected latency bucket sample for deriv_funding tier=2 success'
-    # tier1 error bucket may or may not increment (depending on which bucket latency fell into); we just ensure fallback success.
+    # Note: tier1 error bucket may or may not increment depending on
+    # the latency bucket chosen; we only assert the fallback success.

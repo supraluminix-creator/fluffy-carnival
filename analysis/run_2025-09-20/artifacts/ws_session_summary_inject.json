@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-09-23T23:11:06.879801+00:00",
+  "timestamp": "2025-09-25T19:16:03.000755+00:00",
   "mode": "inject",
   "symbols": [
     "BTCUSDT",
     "ETHUSDT"
   ],
-  "duration_seconds": 0.0,
+  "duration_seconds": 0.001,
   "connections_total": 1,
   "errors_total": 0,
   "events_per_symbol": {

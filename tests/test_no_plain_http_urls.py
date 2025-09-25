@@ -19,12 +19,16 @@ def iter_string_literals_excluding_docstrings(py_path: pathlib.Path):
     def mark_docstring(node):
         if getattr(node, "body", None):
             first = node.body[0]
-            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
                 docstring_nodes.add(first.value)
 
     mark_docstring(tree)
     for n in ast.walk(tree):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
             mark_docstring(n)
 
     for n in ast.walk(tree):

@@ -1,9 +1,9 @@
-import pytest
 import httpx
+import pytest
 from prometheus_client import REGISTRY
-import pipeline.metrics  # ensure metrics module imported/registered
-from pipeline.collectors.market import fetch_market
+
 from pipeline.collectors.derivatives import fetch_bybit_oi
+
 
 class DummyResp:
     def __init__(self, data, status=200):

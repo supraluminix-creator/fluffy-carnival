@@ -1,6 +1,4 @@
-import types
 import httpx
-import pytest
 
 from pipeline import protocols
 

@@ -1,10 +1,10 @@
-import os
 from pathlib import Path
+
 import pytest
 
 import pipeline.export_job as export_job
 import pipeline.export_utils as export_utils
-from pipeline.metrics import EXPORTS_TOTAL, EXPORT_ROWS_TOTAL
+from pipeline.metrics import EXPORT_ROWS_TOTAL, EXPORTS_TOTAL
 
 
 def _std_record(metric: str, val: float = 1.0):

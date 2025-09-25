@@ -9,60 +9,58 @@ Cette version intègre:
 
 import asyncio
 import contextlib
-import logging
 import os
 import sys
-import uuid
-from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler
+from typing import TYPE_CHECKING, Any
 
 import structlog
-import structlog.contextvars as structlog_ctx  # legacy imports kept for compatibility; will rely on logging_config
 from dotenv import load_dotenv
-from typing import TYPE_CHECKING, Callable, Any
 
 if TYPE_CHECKING:  # Only imported for type checking; avoids runtime stub dependency
     from tabulate import tabulate  # type: ignore
 else:  # pragma: no cover
     from tabulate import tabulate  # type: ignore
 
-from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
-from pipeline.collectors.derivatives import fetch_bybit_long_short_ratio, fetch_bybit_oi
+
+from pipeline.collectors.defi import DefiTVLRecord, fetch_defillama_tvl
+from pipeline.collectors.derivatives import (
+    LongShortRatioRecord,
+    OpenInterestRecord,
+    fetch_bybit_long_short_ratio,
+    fetch_bybit_oi,
+)
 
 # Import collectors (existants)
-from pipeline.collectors.market import fetch_macro, MacroRecord
+from pipeline.collectors.market import MacroRecord, fetch_macro
 from pipeline.collectors.onchain import (
+    HashrateRecord,
+    SoprRecord,
+    TxCountRecord,
     fetch_hashrate,
     fetch_sopr,
     fetch_txcount,
-    TxCountRecord,
-    HashrateRecord,
-    SoprRecord,
 )
-from pipeline.collectors.sentiment import fetch_fear_greed, SentimentRecord
-from pipeline.collectors.derivatives import (
-    OpenInterestRecord,
-    LongShortRatioRecord,
-)
-from typing import Union, List, Dict, Any
+from pipeline.collectors.sentiment import SentimentRecord, fetch_fear_greed
 
-CollectorRecord = Union[
-    MacroRecord,
-    DefiTVLRecord,
-    TxCountRecord,
-    HashrateRecord,
-    SoprRecord,
-    OpenInterestRecord,
-    LongShortRatioRecord,
-    SentimentRecord,
-    Dict[str, Any],  # legacy/unknown
-]
+CollectorRecord = (
+    MacroRecord |
+    DefiTVLRecord |
+    TxCountRecord |
+    HashrateRecord |
+    SoprRecord |
+    OpenInterestRecord |
+    LongShortRatioRecord |
+    SentimentRecord |
+    dict[str, Any]  # legacy/unknown
+)
 
 # Import components Sprint 1
+from collections.abc import Callable as _Callable
+from typing import Any as _Any
+
 from pipeline.orchestrator import ParallelOrchestrator
 from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
-from typing import Callable as _Callable, Any as _Any
 try:
     from scheduler.runner import build_scheduler as _imported_build_scheduler
 except Exception:  # pragma: no cover - optional path
@@ -145,7 +143,7 @@ async def run_legacy_collection():
     cmc_api_key = os.getenv("CMC_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
     
-    results: List[CollectorRecord] = []
+    results: list[CollectorRecord] = []
 
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)

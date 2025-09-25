@@ -3,10 +3,10 @@
 Data verification script for Bybit liquidations collector
 Check what data was collected overnight
 """
-import sqlite3
 import os
-import pandas as pd
+import sqlite3
 from datetime import datetime
+
 
 def check_database():
     """Check SQLite database for liquidation data"""
@@ -49,7 +49,10 @@ def check_database():
                     symbol, side, price, qty, ts = row
                     dt = datetime.fromtimestamp(ts/1000)
                     usd_value = price * qty
-                    print(f"  {dt.strftime('%H:%M:%S')} | {symbol} | {side:4} | ${price:8,.2f} | {qty:8.3f} | ${usd_value:10,.2f}")
+                    print(
+                        f"  {dt.strftime('%H:%M:%S')} | {symbol} | {side:4} | "
+                        f"${price:8,.2f} | {qty:8.3f} | ${usd_value:10,.2f}"
+                    )
                 
                 # Summary by symbol
                 cursor.execute("""
@@ -93,7 +96,7 @@ def check_parquet_files():
     
     files = [f for f in os.listdir(parquet_dir) if f.endswith('.parquet')]
     if not files:
-        print(f"\n📁 Parquet directory exists but no files found")
+        print("\n📁 Parquet directory exists but no files found")
         return
     
     print(f"\n📦 Parquet files found: {len(files)}")

@@ -1,6 +1,3 @@
-import os
-import csv
-import tempfile
 
 from pipeline import metrics
 from pipeline.export_utils import export_csv_rows

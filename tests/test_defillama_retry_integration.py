@@ -1,11 +1,9 @@
-import asyncio
-import json
-import types
 import pytest
 
-from pipeline.collectors.defillama import get_chain_data
 from pipeline import http_wrappers
+from pipeline.collectors.defillama import get_chain_data
 from pipeline.metrics import HTTP_RETRIES_TOTAL
+
 
 class DummyResp:
     def __init__(self, status_code, data):

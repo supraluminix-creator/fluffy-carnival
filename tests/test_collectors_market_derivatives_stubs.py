@@ -1,9 +1,8 @@
-import types
-import pytest
 import httpx
+import pytest
 
-from pipeline.collectors import market, derivatives
 from pipeline import circuit_breaker as cb
+from pipeline.collectors import derivatives, market
 
 
 class DummyResp:

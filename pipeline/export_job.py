@@ -16,18 +16,20 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 import structlog
 
-from pipeline.export_utils import export_latest_and_timestamped
-from pipeline.collectors.market import fetch_macro
-from pipeline.collectors.onchain import fetch_txcount, fetch_hashrate, fetch_sopr
-from pipeline.collectors.derivatives import (
-    fetch_bybit_oi,
-    fetch_bybit_long_short_ratio,
-)
 from pipeline.collectors.defillama import fetch_defillama_tvl
+from pipeline.collectors.derivatives import (
+    fetch_bybit_long_short_ratio,
+    fetch_bybit_oi,
+)
+from pipeline.collectors.market import fetch_macro
+from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcount
 from pipeline.collectors.sentiment import fetch_fear_greed
+from pipeline.export_utils import export_latest_and_timestamped
 
 log = structlog.get_logger(__name__)
 

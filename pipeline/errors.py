@@ -15,6 +15,7 @@ dashboards analytiques stables (faible cardinalité):
 """
 from __future__ import annotations
 
+
 class CollectorError(Exception):
     category = "unknown"
 

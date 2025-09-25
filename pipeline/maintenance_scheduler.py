@@ -17,9 +17,7 @@ Fallback: si APScheduler non dispo, la fonction renvoie False.
 """
 from __future__ import annotations
 
-from typing import Optional
 import time
-import os
 
 try:
     from apscheduler.schedulers.base import BaseScheduler  # type: ignore
@@ -28,9 +26,9 @@ except Exception:  # pragma: no cover
 
 import structlog
 
+from .logging_config import setup_logging
 from .maintenance import run_maintenance
 from .metrics import MAINTENANCE_CYCLES_TOTAL
-from .logging_config import setup_logging
 
 logger = structlog.get_logger(__name__)
 
@@ -61,7 +59,14 @@ def _job_wrapper(db_path: str):  # pragma: no cover - exécuté en scheduler ré
         raise
 
 
-def register_maintenance(scheduler: BaseScheduler, *, db_path: str = "data/crypto.db", trigger: str = "cron", cron: str = "0 4 * * *", interval_seconds: int = 86400) -> bool:
+def register_maintenance(
+    scheduler: BaseScheduler,
+    *,
+    db_path: str = "data/crypto.db",
+    trigger: str = "cron",
+    cron: str = "0 4 * * *",
+    interval_seconds: int = 86400,
+) -> bool:
     """Enregistre un job maintenance dans un scheduler APScheduler.
 
     Args:
@@ -80,8 +85,18 @@ def register_maintenance(scheduler: BaseScheduler, *, db_path: str = "data/crypt
             kwargs = _cron_kwargs(cron)
             scheduler.add_job(lambda: _job_wrapper(db_path), trigger="cron", **kwargs, id="maintenance")
         else:
-            scheduler.add_job(lambda: _job_wrapper(db_path), trigger="interval", seconds=interval_seconds, id="maintenance")
-        logger.info("maintenance_job_registered", trigger=trigger, cron=cron if trigger=="cron" else None, interval_seconds=None if trigger=="cron" else interval_seconds)
+            scheduler.add_job(
+                lambda: _job_wrapper(db_path),
+                trigger="interval",
+                seconds=interval_seconds,
+                id="maintenance",
+            )
+        logger.info(
+            "maintenance_job_registered",
+            trigger=trigger,
+            cron=cron if trigger == "cron" else None,
+            interval_seconds=None if trigger == "cron" else interval_seconds,
+        )
         return True
     except Exception as exc:  # pragma: no cover
         logger.warning("maintenance_job_register_failed", error=str(exc.__class__.__name__), msg=str(exc))

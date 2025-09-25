@@ -1,4 +1,7 @@
-import os, glob, ast, json, argparse
+import argparse
+import glob
+import json
+import os
 
 BASE = 'pipeline'
 
@@ -14,7 +17,7 @@ def map_usage(files):
     sources = {}
     for f in files:
         try:
-            with open(f, 'r', encoding='utf-8') as fh:
+            with open(f, encoding='utf-8') as fh:
                 sources[f] = fh.read()
         except Exception:
             sources[f] = ''

@@ -1,5 +1,7 @@
 import asyncio
+
 from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
+
 
 class DummyCollector:
     def __init__(self, name: str):

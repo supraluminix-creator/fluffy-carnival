@@ -1,4 +1,5 @@
 import importlib
+
 from pipeline import metrics
 
 
@@ -10,8 +11,6 @@ def test_metrics_objects_exist():
     # Reload pour idempotence et couvrir code top-level potentiellement protégé
     importlib.reload(metrics)
     assert hasattr(metrics, 'HEARTBEAT_TICKS_TOTAL')
-import os
-import os
 
 
 def test_metrics_init_disabled(monkeypatch):

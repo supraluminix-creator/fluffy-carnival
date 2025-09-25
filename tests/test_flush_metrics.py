@@ -1,14 +1,12 @@
-import asyncio
 import pytest
 
 
 @pytest.mark.asyncio
 async def test_flush_metrics_updates(monkeypatch):
-    from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
-    from pipeline.metrics import BUFFER_LENGTH, LAST_FLUSH_TIMESTAMP, FLUSH_OPERATIONS_TOTAL
     from pipeline import liquidations_registry
+    from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 
-    db_path = monkeypatch.chdir(monkeypatch.tmpdir if hasattr(monkeypatch, 'tmpdir') else '.')  # noop
+    _ = monkeypatch.chdir(monkeypatch.tmpdir if hasattr(monkeypatch, 'tmpdir') else '.')  # noop
     # Utilise un fichier explicite dans un répertoire temporaire pytest
     writer = BybitLiquidationsWriter(db="data/test_liq.db", parquet_enabled=False, flush_size=10, flush_interval=60)
     liquidations_registry.set_writer(writer)  # type: ignore[arg-type]

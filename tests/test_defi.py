@@ -1,8 +1,9 @@
 from typing import Any
-import pytest
+
 import requests
 
-from pipeline.collectors.defi import fetch_defillama_tvl, DefiTVLRecord
+from pipeline.collectors.defi import fetch_defillama_tvl
+
 
 class DummyResp:
     def __init__(self, payload: Any, error: Exception | None = None):

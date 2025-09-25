@@ -1,6 +1,7 @@
+from typing import Any
+
 import httpx
 import pytest
-from typing import Any
 
 from pipeline.collectors import derivatives as deriv_mod
 

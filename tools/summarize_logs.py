@@ -1,24 +1,26 @@
-import sys
-import re
-import json
 import argparse
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+import json
+import re
+from collections import Counter
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-LEVELS = ["DEBUG","INFO","WARNING","ERROR","CRITICAL"]
+LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # Patterns to detect scheduler and collector events
-PATTERN_STD = re.compile(r"^(?P<ts>\d{4}-\d{2}-\d{2}[^|]+)\s*\|\s*(?P<level>[A-Z]+)\s*\|\s*(?P<logger>[^|]+)\s*\|\s*(?P<msg>.*)$")
-PATTERN_SCHED = re.compile(r"\[SCHEDULER\]\s*(?P<kind>Running collector|Collector .+ failed|Generating report|Exporting latest data)")
+PATTERN_STD = re.compile(
+    r"^(?P<ts>\d{4}-\d{2}-\d{2}[^|]+)\s*\|\s*(?P<level>[A-Z]+)\s*\|\s*(?P<logger>[^|]+)\s*\|\s*(?P<msg>.*)$"
+)
+PATTERN_SCHED = re.compile(
+    r"\[SCHEDULER\]\s*(?P<kind>Running collector|Collector .+ failed|Generating report|Exporting latest data)"
+)
 PATTERN_COLLECTOR_START = re.compile(r"\[SCHEDULER\]\s*Running collector:\s*(?P<name>\w+)")
 PATTERN_COLLECTOR_FAIL = re.compile(r"\[SCHEDULER\]\s*Collector\s+(?P<name>\w+)\s+failed:\s*(?P<err>.*)")
 
 # Optional: parse structlog JSON lines if present
 
-from typing import Any, Optional, Dict
 
-
-def try_parse_structlog(line: str) -> Optional[dict[str, Any]]:
+def try_parse_structlog(line: str) -> dict[str, Any] | None:
     try:
         obj = json.loads(line)
         if isinstance(obj, dict) and obj.get("event"):
@@ -118,12 +120,12 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Output JSON summary")
     args = parser.parse_args()
 
-    with open(args.logfile, "r", encoding="utf-8", errors="ignore") as f:
+    with open(args.logfile, encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
     # Optional windowing by time (best-effort): filter by timestamps near file end
     if args.since_min is not None and args.since_min > 0:
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=args.since_min)
+        cutoff = datetime.now(UTC) - timedelta(minutes=args.since_min)
         filtered = []
         for line in lines[::-1]:  # scan backwards until before cutoff
             line_stripped = line.strip()
@@ -135,7 +137,7 @@ def main() -> None:
                 raw = parsed_obj.get("timestamp") or parsed_obj.get("time") or parsed_obj.get("ts")
                 if raw:
                     try:
-                        ts = datetime.fromisoformat(str(raw).replace("Z","+00:00"))
+                        ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
                     except Exception:
                         ts = None
             if ts is None:
@@ -144,7 +146,7 @@ def main() -> None:
                     ts_raw = m.group("ts").split("|")[0].strip()
                     for fmt in ("%Y-%m-%d %H:%M:%S,%f", "%Y-%m-%d %H:%M:%S"):
                         try:
-                            ts = datetime.strptime(ts_raw, fmt).replace(tzinfo=timezone.utc)
+                            ts = datetime.strptime(ts_raw, fmt).replace(tzinfo=UTC)
                             break
                         except Exception:
                             continue

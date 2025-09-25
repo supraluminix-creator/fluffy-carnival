@@ -1,5 +1,3 @@
-import os
-import sqlite3
 from pipeline.storage.sqlite_adapter import get_connection
 
 

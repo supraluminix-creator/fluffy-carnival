@@ -1,19 +1,17 @@
 import os
-import sqlite3
 import time
-from pathlib import Path
 
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 from pipeline.db_stats import update_db_metrics, vacuum_and_update_metrics
-from pipeline.purge_job import purge_liquidations
 from pipeline.metrics import (
     DB_FILE_SIZE_BYTES,
-    DB_PAGE_COUNT,
-    DB_FREELIST_PAGES,
     DB_FRAGMENTATION_RATIO,
+    DB_FREELIST_PAGES,
+    DB_PAGE_COUNT,
     DB_VACUUM_DURATION_SECONDS,
     PURGE_OPERATIONS_TOTAL,
 )
+from pipeline.purge_job import purge_liquidations
 
 
 def _fetch_metric_value(metric):  # helper tolérant
@@ -46,7 +44,7 @@ def test_purge_and_vacuum_flow(tmp_path):
 
     # Mise à jour métriques initiales
     update_db_metrics(db_path)
-    size_before = _fetch_metric_value(DB_FILE_SIZE_BYTES)
+    _ = _fetch_metric_value(DB_FILE_SIZE_BYTES)
     page_before = _fetch_metric_value(DB_PAGE_COUNT)
 
     # Dry-run purge (30 jours)
@@ -62,7 +60,7 @@ def test_purge_and_vacuum_flow(tmp_path):
 
     # VACUUM + métriques
     vacuum_and_update_metrics(db_path)
-    size_after = _fetch_metric_value(DB_FILE_SIZE_BYTES)
+    _ = _fetch_metric_value(DB_FILE_SIZE_BYTES)
     page_after = _fetch_metric_value(DB_PAGE_COUNT)
     freelist_after = _fetch_metric_value(DB_FREELIST_PAGES)
     frag_after = _fetch_metric_value(DB_FRAGMENTATION_RATIO)

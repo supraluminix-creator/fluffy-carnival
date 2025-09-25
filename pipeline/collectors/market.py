@@ -3,39 +3,43 @@ Market collectors: CoinGecko, CoinMarketCap, CryptoCompare.
 Gère prix, marketcap, dominance, stablecoins.
 """
 
-from .binance import fetch_binance_spot_price
+import os
+from contextlib import suppress
+from typing import Any, TypedDict
+
+import httpx
+import structlog
+from diskcache import Cache
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter, Summary
+
+from pipeline.circuit_breaker import record_failure, record_success, should_skip
+from pipeline.errors import SchemaError, classify
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json, fetch_json  # façade unifiée (migration progressive)
+from pipeline.http_wrappers import async_http_get_json  # legacy path (sync market)
+from pipeline.instrumentation import instrument_collector
 from pipeline.metrics import (
+    COLLECTOR_ERROR_TYPES_TOTAL,
+    FACADE_FORCED,
     FALLBACK_CHAIN_DEPTH,
     FALLBACK_INVOCATIONS_TOTAL,
     FALLBACK_TIER_INVOCATIONS_TOTAL,
+    fallback_tier_timing,
 )
-from typing import Any, TypedDict, Dict, Union
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.orchestrator import run_fallback_chain
+from pipeline.utils import to_float
 
-import httpx
-import asyncio  # ajout pour tier_coingecko (utilisation de asyncio.to_thread)
-from pipeline.http_wrappers import async_http_get_json  # legacy path (sync market)
-from pipeline.http import async_fetch_json, fetch_json  # façade unifiée (migration progressive)
+from .binance import fetch_binance_spot_price
 
 # Capture de la fonction httpx.get originale pour détecter un monkeypatch de tests
 try:  # pragma: no cover - simple garde
-    # Ensure the environment variable is checked for forced facade
-    if os.getenv("FORCE_HTTP_FACADE", "0") == "1":
-        log.info("Forced HTTP facade mode enabled")
     ORIGINAL_HTTPX_GET = httpx.get
 except Exception:  # pragma: no cover
     ORIGINAL_HTTPX_GET = None
-import structlog
-from diskcache import Cache
-from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
-from pipeline.circuit_breaker import should_skip, record_failure, record_success
-from pipeline.utils import to_float
-from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL, FACADE_FORCED
-from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
-from pipeline.instrumentation import instrument_collector
-from pipeline.errors import classify, EmptyDataError, SchemaError, NetworkError
-from pipeline.orchestrator import run_fallback_chain
-import os
-from pipeline.flags import is_forced_facade, is_dry_run_facade
+
+ 
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
@@ -59,7 +63,7 @@ class MacroRecord(TypedDict, total=False):
     timestamp: Any
     asset: str
     metric_name: str
-    value: Dict[str, Any]
+    value: dict[str, Any]
     source: str
     confidence_score: float
 
@@ -69,7 +73,9 @@ MACRO_SUCCESS = Counter('macro_success_total', 'Macro collector successes')
 MACRO_ERRORS = Counter('macro_errors_total', 'Macro collector errors')
 MARKET_CACHE_HIT = Counter('market_cache_hit_total', 'Market cache hits (macro naming fix)')
 MARKET_CACHE_MISS = Counter('market_cache_miss_total', 'Market cache misses (macro naming fix)')
-MARKET_BREAKER_SKIPS = Counter('macro_breaker_skip_total', 'Macro breaker skips')  # legacy name retained for compatibility
+MARKET_BREAKER_SKIPS = Counter(
+    'macro_breaker_skip_total', 'Macro breaker skips'
+)  # legacy name retained for compatibility
 MACRO_LATENCY = Summary('macro_latency_seconds', 'Macro collector latency (s)')
 
 # Market (prix spot + marketcap) counters
@@ -96,16 +102,14 @@ try:
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:  # déjà enregistré (rechargement tests)
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover
     # Initialise l'échantillon (valeur 0) pour figer la famille dans le snapshot même sans utilisation.
     LEGACY_HTTP_USAGE.labels(collector='market')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 
 
 @MARKET_LATENCY.time()  # type: ignore[arg-type]
 @instrument_collector("market")
-def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
+def fetch_market(symbol: str, cache_ttl: int = 300) -> dict[str, Any] | None:
     """Collecte market (CoinGecko primary -> CoinMarketCap fallback).
 
     Retour shape:
@@ -176,23 +180,17 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
             }
             cache.set(key, result, expire=cache_ttl)
             MARKET_SUCCESS.inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="1", status="success").inc()
-            except Exception:  # pragma: no cover
-                pass
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="market").set(1)
-            except Exception:  # pragma: no cover
-                pass
             return result
         except Exception as e:
             if isinstance(e, KeyError):
                 e = SchemaError(str(e))
             et = classify(e)
-            try:
+            with suppress(Exception):  # pragma: no cover
                 COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et).inc()
-            except Exception:  # pragma: no cover
-                pass
             log.error("market_main_error", symbol=symbol, error=str(e), error_type=et, facade=1)
         # Fallback CMC via façade
         try:
@@ -217,15 +215,17 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
             cache.set(key, result, expire=cache_ttl)
             MARKET_SUCCESS.inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="success").inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="success").inc()
-            except Exception:  # pragma: no cover
-                pass
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="market").set(2)
-            except Exception:  # pragma: no cover
-                pass
-            log.info("market_fallback_success", symbol=symbol, fallback=1, primary_error="CoinGeckoError", facade=1)
+            log.info(
+                "market_fallback_success",
+                symbol=symbol,
+                fallback=1,
+                primary_error="CoinGeckoError",
+                facade=1,
+            )
             return result
         except Exception as e2:
             if isinstance(e2, KeyError):
@@ -233,23 +233,25 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
             et2 = classify(e2)
             MARKET_ERRORS.inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="error").inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="error").inc()
-            except Exception:  # pragma: no cover
-                pass
-            try:
+            with suppress(Exception):  # pragma: no cover
                 COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et2).inc()
-            except Exception:  # pragma: no cover
-                pass
-            log.error("market_fallback_error", symbol=symbol, fallback=1, primary_error="CoinGeckoError", error=str(e2), error_type=et2, facade=1)
+            log.error(
+                "market_fallback_error",
+                symbol=symbol,
+                fallback=1,
+                primary_error="CoinGeckoError",
+                error=str(e2),
+                error_type=et2,
+                facade=1,
+            )
             return None
 
     # Primary CoinGecko (legacy direct httpx.get) - seulement si non forcé façade
     if not force_facade and not market_facade_flag and not dry_run:
-        try:
+        with suppress(Exception):  # pragma: no cover
             FACADE_FORCED.labels(collector="market").set(0)  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            pass
         try:
             mark_legacy_http("market")
             if not _LEGACY_MARKET_LOGGED:
@@ -281,14 +283,10 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
         }
         cache.set(key, result, expire=cache_ttl)
         MARKET_SUCCESS.inc()
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="1", status="success").inc()
-        except Exception:  # pragma: no cover
-            pass
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_CHAIN_DEPTH.labels(collector="market").set(1)
-        except Exception:  # pragma: no cover
-            pass
         log.info("market_success", symbol=symbol)
         return result
     except Exception as e:
@@ -296,10 +294,8 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
         if isinstance(e, KeyError):
             e = SchemaError(str(e))
         et = classify(e)
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
         log.error("market_main_error", symbol=symbol, error=str(e), error_type=et)
 
     # Fallback CoinMarketCap (legacy) uniquement si pas de façade forcée
@@ -328,15 +324,16 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
         cache.set(key, result, expire=cache_ttl)
         MARKET_SUCCESS.inc()
         FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="success").inc()
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="success").inc()
-        except Exception:  # pragma: no cover
-            pass
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_CHAIN_DEPTH.labels(collector="market").set(2)
-        except Exception:  # pragma: no cover
-            pass
-        log.info("market_fallback_success", symbol=symbol, fallback=1, primary_error="CoinGeckoError")
+        log.info(
+            "market_fallback_success",
+            symbol=symbol,
+            fallback=1,
+            primary_error="CoinGeckoError",
+        )
         return result
     except Exception as e2:
         if isinstance(e2, KeyError):
@@ -344,15 +341,19 @@ def fetch_market(symbol: str, cache_ttl: int = 300) -> Dict[str, Any] | None:
         et2 = classify(e2)
         MARKET_ERRORS.inc()
         FALLBACK_INVOCATIONS_TOTAL.labels(collector="market", status="error").inc()
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="market", tier="2", status="error").inc()
-        except Exception:  # pragma: no cover
-            pass
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="market", error_type=et2).inc()
-        except Exception:  # pragma: no cover
-            pass
-        log.error("market_fallback_error", symbol=symbol, fallback=1, primary_error="CoinGeckoError", error=str(e2), error_type=et2, facade=0)
+        log.error(
+            "market_fallback_error",
+            symbol=symbol,
+            fallback=1,
+            primary_error="CoinGeckoError",
+            error=str(e2),
+            error_type=et2,
+            facade=0,
+        )
         return None
 
 
@@ -362,7 +363,7 @@ async def fetch_macro(
     symbol: str = "bitcoin",
     cmc_api_key: str | None = None,
     cache_ttl: int = 300,
-) -> Union[MacroRecord, Dict[str, float], None]:
+) -> MacroRecord | dict[str, float] | None:
     """Collecte macro multi-fallback (simplifiée pour lisibilité & tests).
 
         Ordre:
@@ -398,15 +399,11 @@ async def fetch_macro(
         nonlocal success_marked
         if not success_marked:
             MACRO_SUCCESS.inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(depth), status="success").inc()
-            except Exception:  # pragma: no cover
-                pass
             record_success("macro")
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="macro").set(depth)
-            except Exception:  # pragma: no cover
-                pass
             success_marked = True
 
     # 1) CoinGecko
@@ -449,10 +446,8 @@ async def fetch_macro(
         if isinstance(e, KeyError):
             e = SchemaError(str(e))
         et = classify(e)
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
         log.error("macro_cg_error", symbol=symbol, error=str(e), error_type=et)
 
     # 2) Binance spot (flag)
@@ -475,10 +470,8 @@ async def fetch_macro(
                         }
                         cache.set(key, rec, expire=cache_ttl)
                         FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="success").inc()
-                        try:
+                        with suppress(Exception):  # pragma: no cover
                             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier="2", status="success").inc()
-                        except Exception:  # pragma: no cover
-                            pass
                         mark_success(2)
                         log.info("macro_fallback_success", symbol=symbol, source="binance_spot", fallback=1)
                         return rec
@@ -486,10 +479,8 @@ async def fetch_macro(
                 if isinstance(e_sp, KeyError):
                     e_sp = SchemaError(str(e_sp))
                 et_sp = classify(e_sp)
-                try:
+                with suppress(Exception):
                     COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et_sp).inc()
-                except Exception:
-                    pass
                 log.error("macro_spot_error", symbol=symbol, error=str(e_sp), error_type=et_sp)
 
     # 3) CMC : tentative sync prioritaire (support monkeypatch tests), fallback async si échec
@@ -525,14 +516,10 @@ async def fetch_macro(
                 e_async = SchemaError(str(e_async))
             et_async = classify(e_async)
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="error").inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(depth), status="error").inc()
-            except Exception:  # pragma: no cover
-                pass
-            try:
+            with suppress(Exception):  # pragma: no cover
                 COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et_async).inc()
-            except Exception:  # pragma: no cover
-                pass
             log.error("macro_cmc_error", symbol=symbol, error=str(e_async), error_type=et_async)
             cmc_data = None
 
@@ -562,12 +549,15 @@ async def fetch_macro(
         }
         cache.set(key, rec, expire=cache_ttl)
         FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="success").inc()
-        try:
+        with suppress(Exception):  # pragma: no cover
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(depth), status="success").inc()
-        except Exception:  # pragma: no cover
-            pass
         mark_success(depth)
-        log.info("macro_fallback_success", symbol=symbol, source="coinmarketcap", fallback=1 if not spot_attempted else 2)
+        log.info(
+            "macro_fallback_success",
+            symbol=symbol,
+            source="coinmarketcap",
+            fallback=1 if not spot_attempted else 2,
+        )
         return rec
 
         # 4) Binance macro price simple (flag) -> dict simple pour test
@@ -580,10 +570,12 @@ async def fetch_macro(
                     data_b = await _async_http_get_json(client, url_bm, timeout=5)
             if isinstance(data_b, dict) and "price" in data_b:
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="macro", status="success").inc()
-                try:
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="macro", tier=str(depth_binance_macro), status="success").inc()
-                except Exception:  # pragma: no cover
-                    pass
+                with suppress(Exception):  # pragma: no cover
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                        collector="macro",
+                        tier=str(depth_binance_macro),
+                        status="success",
+                    ).inc()
                 mark_success(depth_binance_macro)
                 simple = {"macro_price_usd": float(data_b["price"])}
                 log.info("macro_fallback_success", symbol=symbol, source="binance_macro_simple", legacy_simple=1)
@@ -592,10 +584,8 @@ async def fetch_macro(
             if isinstance(e_bm, KeyError):
                 e_bm = SchemaError(str(e_bm))
             et_bm = classify(e_bm)
-            try:
+            with suppress(Exception):
                 COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="macro", error_type=et_bm).inc()
-            except Exception:
-                pass
             log.error("macro_binance_macro_error", symbol=symbol, error=str(e_bm), error_type=et_bm)
 
     if not success_marked:
@@ -699,9 +689,7 @@ async def fetch_macro_orchestrated(symbol: str = "bitcoin", cmc_api_key: str | N
         cache.set(key, result, expire=cache_ttl)
     return result
 
-try:
-    __all__  # type: ignore[name-defined]
-except NameError:  # pragma: no cover
+if "__all__" not in globals():  # pragma: no cover
     __all__ = []  # type: ignore
 if "fetch_macro_orchestrated" not in __all__:
     __all__.append("fetch_macro_orchestrated")  # type: ignore

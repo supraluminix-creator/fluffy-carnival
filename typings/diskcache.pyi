@@ -1,4 +1,4 @@
-from typing import Protocol, TypeVar, Generic, Iterator, Any, Optional
+from typing import Generic, TypeVar
 
 K = TypeVar("K")
 V = TypeVar("V")

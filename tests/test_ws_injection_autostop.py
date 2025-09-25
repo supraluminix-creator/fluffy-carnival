@@ -1,4 +1,9 @@
-import os, json, sys, importlib, pathlib
+import importlib
+import importlib.util
+import json
+import os
+import pathlib
+
 import pytest
 
 # Le dossier "analysis/run_2025-09-20" contient un tiret qui empêche l'import direct classique.
@@ -9,12 +14,11 @@ if not WS_SESSION_PATH.exists():
     raise RuntimeError(f"run_ws_session.py introuvable: {WS_SESSION_PATH}")
 
 spec_name = "analysis.run_2025_09_20.run_ws_session"
-import importlib.util
 spec = importlib.util.spec_from_file_location(spec_name, WS_SESSION_PATH)
 module = importlib.util.module_from_spec(spec)  # type: ignore
 assert spec and spec.loader
 spec.loader.exec_module(module)  # type: ignore
-run_ws_session = getattr(module, "run_ws_session")
+run_ws_session = module.run_ws_session  # type: ignore[attr-defined]
 
 FIXTURE_FILE = "analysis/run_2025-09-20/fixtures/ws_inject.jsonl"
 ARTIFACT_DIR = "analysis/run_2025-09-20/artifacts"
@@ -34,6 +38,6 @@ async def test_ws_injection_autostop():
     # Artifact presence
     artifact_path = os.path.join(ARTIFACT_DIR, "ws_session_summary_inject.json")
     assert os.path.exists(artifact_path)
-    with open(artifact_path, "r", encoding="utf-8") as f:
+    with open(artifact_path, encoding="utf-8") as f:
         persisted = json.load(f)
     assert persisted["events_per_symbol"] == summary["events_per_symbol"]

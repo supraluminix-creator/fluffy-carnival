@@ -23,7 +23,7 @@ from prometheus_client import start_http_server
 from .breakers import *  # noqa: F401,F403
 from .collectors import *  # noqa: F401,F403
 from .db import *  # noqa: F401,F403
-from .errors import *  # noqa: F401,F403
+from .errors import COLLECTOR_ERROR_TYPES_TOTAL  # re-export explicite (évite F405)
 from .export import *  # noqa: F401,F403
 from .system import *  # noqa: F401,F403
 

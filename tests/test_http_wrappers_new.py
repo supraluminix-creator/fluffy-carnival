@@ -1,9 +1,10 @@
-import pytest
-import httpx
 from types import SimpleNamespace
 
+import httpx
+import pytest
+
 import pipeline.http_wrappers as hw
-from pipeline.errors import TimeoutError_, NetworkError, EmptyDataError
+from pipeline.errors import EmptyDataError, NetworkError, TimeoutError_
 
 
 def test_http_get_json_timeout(monkeypatch):

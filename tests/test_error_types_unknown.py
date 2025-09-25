@@ -1,6 +1,4 @@
-import httpx
 from prometheus_client import REGISTRY
-from pipeline.collectors import binance
 
 # Test dédié à la couverture de la catégorie d'erreur 'unknown'
 # On force une exception générique dans _http_get pour vérifier l'incrément du compteur.

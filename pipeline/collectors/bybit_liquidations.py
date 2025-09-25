@@ -9,15 +9,26 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime, UTC
-from typing import Any, Mapping, List, TypedDict
+from collections.abc import Mapping
+from contextlib import suppress
+from datetime import UTC, datetime
+from typing import Any, TypedDict
 
 import pandas as pd
 
 try:  # pragma: no cover - si metrics indisponible
-    from pipeline.metrics import BUFFER_LENGTH, LAST_FLUSH_TIMESTAMP, FLUSH_OPERATIONS_TOTAL, FLUSH_FAILURES_TOTAL, WRITER_FLUSH_LATENCY_SECONDS, LAST_FLUSH_DURATION_SECONDS
+    from pipeline.metrics import (
+        BUFFER_LENGTH,
+        FLUSH_FAILURES_TOTAL,
+        FLUSH_OPERATIONS_TOTAL,
+        LAST_FLUSH_DURATION_SECONDS,
+        LAST_FLUSH_TIMESTAMP,
+        WRITER_FLUSH_LATENCY_SECONDS,
+    )
 except Exception:  # pragma: no cover
-    BUFFER_LENGTH = LAST_FLUSH_TIMESTAMP = FLUSH_OPERATIONS_TOTAL = FLUSH_FAILURES_TOTAL = WRITER_FLUSH_LATENCY_SECONDS = LAST_FLUSH_DURATION_SECONDS = None  # type: ignore
+    BUFFER_LENGTH = LAST_FLUSH_TIMESTAMP = FLUSH_OPERATIONS_TOTAL = (
+        FLUSH_FAILURES_TOTAL
+    ) = WRITER_FLUSH_LATENCY_SECONDS = LAST_FLUSH_DURATION_SECONDS = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +63,7 @@ class BybitLiquidationsWriter:
         self.conn = get_connection(self.db)
         self._create_tables()
 
-        self.buffer: List[LiquidationRecord] = []
+        self.buffer: list[LiquidationRecord] = []
         # Utilise datetime.now(UTC) pour éviter DeprecationWarning
         self.last_flush: float = datetime.now(UTC).timestamp()
         self.lock: asyncio.Lock = asyncio.Lock()
@@ -137,15 +148,16 @@ class BybitLiquidationsWriter:
                 }
                 self.buffer.append(rec)
                 if BUFFER_LENGTH is not None:
-                    try:
+                    with suppress(Exception):  # pragma: no cover - defensive
                         BUFFER_LENGTH.labels(writer="bybit_liq").set(len(self.buffer))
-                    except Exception:  # pragma: no cover - defensive
-                        pass
 
                 logger.debug("Buffered liquidation: %s %s %.3f @ $%.2f", symbol, side, size, price)
 
                 now = datetime.now(UTC).timestamp()
-                if len(self.buffer) >= self.flush_size or (now - self.last_flush) >= self.flush_interval:  # pragma: no cover - timing précis non déterministe test
+                if (
+                    len(self.buffer) >= self.flush_size
+                    or (now - self.last_flush) >= self.flush_interval
+                ):  # pragma: no cover - timing précis non déterministe test
                     await self.flush()
 
             except Exception as e:
@@ -157,10 +169,8 @@ class BybitLiquidationsWriter:
     async def flush(self) -> None:
         if not self.buffer:
             if FLUSH_OPERATIONS_TOTAL is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     FLUSH_OPERATIONS_TOTAL.labels(writer="bybit_liq", status="noop").inc()
-                except Exception:  # pragma: no cover
-                    pass
             return
         start_time = datetime.now(UTC).timestamp()
         buf = self.buffer
@@ -192,12 +202,10 @@ class BybitLiquidationsWriter:
             self.conn.commit()
             logger.info("Successfully flushed %d events to database", len(buf))
             if FLUSH_OPERATIONS_TOTAL is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     FLUSH_OPERATIONS_TOTAL.labels(writer="bybit_liq", status="success").inc()
                     LAST_FLUSH_TIMESTAMP.labels(writer="bybit_liq").set(self.last_flush)
                     BUFFER_LENGTH.labels(writer="bybit_liq").set(0)
-                except Exception:  # pragma: no cover
-                    pass
 
             if self.parquet_enabled:  # pragma: no cover
                 last_ts_ms = int(df.iloc[-1]["time"]) if not df.empty else int(datetime.now(UTC).timestamp() * 1000)
@@ -216,34 +224,24 @@ class BybitLiquidationsWriter:
 
             duration = datetime.now(UTC).timestamp() - start_time
             if WRITER_FLUSH_LATENCY_SECONDS is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="success").observe(duration)
-                except Exception:  # pragma: no cover
-                    pass
             if LAST_FLUSH_DURATION_SECONDS is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     LAST_FLUSH_DURATION_SECONDS.labels(writer="bybit_liq").set(duration)
-                except Exception:  # pragma: no cover
-                    pass
 
         except Exception as e:  # pragma: no cover - erreur flush
             logger.error("Error during flush: %s", e, exc_info=True)
             if FLUSH_FAILURES_TOTAL is not None:
-                try:
+                with suppress(Exception):
                     FLUSH_FAILURES_TOTAL.labels(writer="bybit_liq", phase="write").inc()
-                except Exception:
-                    pass
             duration = datetime.now(UTC).timestamp() - start_time
             if WRITER_FLUSH_LATENCY_SECONDS is not None:
-                try:
+                with suppress(Exception):
                     WRITER_FLUSH_LATENCY_SECONDS.labels(writer="bybit_liq", status="error").observe(duration)
-                except Exception:
-                    pass
             if LAST_FLUSH_DURATION_SECONDS is not None:
-                try:
+                with suppress(Exception):  # pragma: no cover
                     LAST_FLUSH_DURATION_SECONDS.labels(writer="bybit_liq").set(duration)
-                except Exception:  # pragma: no cover
-                    pass
 
     async def close(self) -> None:
         await self.flush()  # pragma: no cover - flush final

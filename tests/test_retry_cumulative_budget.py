@@ -1,8 +1,9 @@
-import os
 import httpx
 import pytest
-from pipeline.http_wrappers import http_get_json_retry
+
 from pipeline.errors import TimeoutError_
+from pipeline.http_wrappers import http_get_json_retry
+
 
 class DummyResp:
     def __init__(self, status=429):

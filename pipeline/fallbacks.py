@@ -5,20 +5,21 @@ Chaque étape est une coroutine ou fonction sync retournant un résultat vérit�
 """
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Iterable, Any
-from contextlib import AbstractAsyncContextManager
+import asyncio
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any
 
-from pipeline.metrics import (
-    FALLBACK_TIER_INVOCATIONS_TOTAL,
-    FALLBACK_INVOCATIONS_TOTAL,
-    FALLBACK_CHAIN_DEPTH,
-    fallback_tier_timing,
-    COLLECTOR_ERROR_TYPES_TOTAL,
-)
+import structlog
+
 from pipeline.circuit_breaker import record_failure, record_success, should_skip
 from pipeline.errors import classify
-import structlog
-import asyncio
+from pipeline.metrics import (
+    COLLECTOR_ERROR_TYPES_TOTAL,
+    FALLBACK_CHAIN_DEPTH,
+    FALLBACK_INVOCATIONS_TOTAL,
+    FALLBACK_TIER_INVOCATIONS_TOTAL,
+    fallback_tier_timing,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -54,11 +55,14 @@ async def execute_fallback_chain(
             try:
                 result = await _maybe_await(fn())
                 if result:
-                    try:
-                        FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector=collector, tier=str(depth), status="success").inc()
+                    from contextlib import suppress
+                    with suppress(Exception):  # pragma: no cover
+                        FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                            collector=collector,
+                            tier=str(depth),
+                            status="success",
+                        ).inc()
                         FALLBACK_CHAIN_DEPTH.labels(collector=collector).set(depth)
-                    except Exception:  # pragma: no cover
-                        pass
                     record_success(br_name)
                     if depth > 1:
                         FALLBACK_INVOCATIONS_TOTAL.labels(collector=collector, status="success").inc()
@@ -66,17 +70,37 @@ async def execute_fallback_chain(
                     return result
                 else:
                     # Considéré comme erreur fonctionnelle
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector=collector, tier=str(depth), status="error").inc()
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                        collector=collector,
+                        tier=str(depth),
+                        status="error",
+                    ).inc()
             except Exception as e:  # capture erreur
                 etype = classify(e)
-                try:
-                    COLLECTOR_ERROR_TYPES_TOTAL.labels(collector=collector, error_type=etype).inc()
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector=collector, tier=str(depth), status="error").inc()
+                from contextlib import suppress
+                with suppress(Exception):  # pragma: no cover
+                    COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                        collector=collector,
+                        error_type=etype,
+                    ).inc()
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                        collector=collector,
+                        tier=str(depth),
+                        status="error",
+                    ).inc()
                     if depth > 1:
-                        FALLBACK_INVOCATIONS_TOTAL.labels(collector=collector, status="error").inc()
-                except Exception:  # pragma: no cover
-                    pass
-                log.error("collector_step_error", collector=collector, tier=depth, step=name, error=str(e), error_type=etype)
+                        FALLBACK_INVOCATIONS_TOTAL.labels(
+                            collector=collector,
+                            status="error",
+                        ).inc()
+                log.error(
+                    "collector_step_error",
+                    collector=collector,
+                    tier=depth,
+                    step=name,
+                    error=str(e),
+                    error_type=etype,
+                )
                 record_failure(br_name)
                 continue
     # Aucun succès

@@ -9,6 +9,7 @@ Ne plus importer directement ce module; utiliser:
 from __future__ import annotations
 
 import warnings
+
 from .collectors.base_collector import BaseCollector  # noqa: F401
 
 warnings.warn(

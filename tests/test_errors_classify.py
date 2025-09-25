@@ -1,5 +1,16 @@
 import pytest
-from pipeline.errors import classify, RateLimitError, NotFoundError, UpstreamError, SchemaError, EmptyDataError, TimeoutError_, NetworkError
+
+from pipeline.errors import (
+    EmptyDataError,
+    NetworkError,
+    NotFoundError,
+    RateLimitError,
+    SchemaError,
+    TimeoutError_,
+    UpstreamError,
+    classify,
+)
+
 
 class DummyTimeout(Exception):
     pass
@@ -21,9 +32,11 @@ def test_network_detection():
     assert classify(NetworkError('boom')) == 'network'
 
 def test_rate_limit_text():
-    class Generic(Exception): pass
+    class Generic(Exception):
+        pass
     assert classify(Generic('Too Many Requests')) == 'rate_limit'
 
 def test_unknown():
-    class X(Exception): pass
+    class X(Exception):
+        pass
     assert classify(X('weird')) == 'unknown'

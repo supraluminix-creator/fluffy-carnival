@@ -16,7 +16,7 @@ We keep the schema flexible (non-total) to tolerate additional fields.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, TypedDict, cast
+from typing import TypedDict, cast
 
 import diskcache
 import httpx

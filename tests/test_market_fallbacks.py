@@ -1,6 +1,7 @@
-import pytest
+
 import httpx
-from typing import Any
+import pytest
+
 from pipeline.collectors import market as market_mod
 
 

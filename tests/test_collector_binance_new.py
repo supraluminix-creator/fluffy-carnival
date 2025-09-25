@@ -1,10 +1,11 @@
-import pytest
-import httpx
 from types import SimpleNamespace
 
+import httpx
+import pytest
+
 import pipeline.collectors.binance as bmod
-from pipeline.errors import SchemaError, UpstreamError, EmptyDataError
 from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
+
 
 class DummyResponse:
     def __init__(self, status_code=200, json_data=None):
@@ -15,7 +16,7 @@ class DummyResponse:
             raise self._json
         return self._json
     def raise_for_status(self):
-        if 400 <= self.status_code:
+        if self.status_code >= 400:
             raise httpx.HTTPStatusError("err", request=SimpleNamespace(url='u'), response=SimpleNamespace(status_code=self.status_code))
 
 @pytest.fixture(autouse=True)

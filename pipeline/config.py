@@ -8,13 +8,12 @@ Utilisation:
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
-import os
-from typing import List, Optional
 
 
-def get_env_str(name: str, default: Optional[str] = None, *, required: bool = False) -> Optional[str]:
+def get_env_str(name: str, default: str | None = None, *, required: bool = False) -> str | None:
     value = os.getenv(name, default)
     if required and (value is None or value == ""):
         raise ValueError(f"Environment variable '{name}' is required but missing")
@@ -43,7 +42,7 @@ def get_env_int(name: str, default: int, *, min_value: int | None = None, max_va
     return val
 
 
-def get_env_list(name: str, default: Optional[List[str]] = None, sep: str = ",") -> List[str]:
+def get_env_list(name: str, default: list[str] | None = None, sep: str = ",") -> list[str]:
     raw = os.getenv(name)
     if raw is None:
         return default or []
@@ -63,7 +62,7 @@ class AppConfig:
     enable_health: bool
     health_port: int
     scheduler_jitter_percent: int
-    run_id: Optional[str]
+    run_id: str | None
     cb_threshold: int
     cb_cooldown_seconds: int
 

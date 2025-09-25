@@ -1,9 +1,10 @@
-import types
 import httpx
 import pytest
-from pipeline.http_wrappers import http_get_json_retry, RateLimitError
+
 from pipeline import http_wrappers
+from pipeline.http_wrappers import RateLimitError, http_get_json_retry
 from pipeline.metrics import HTTP_RETRIES_TOTAL, HTTP_RETRY_ATTEMPT_LATENCY_SECONDS
+
 
 class DummyResp:
     def __init__(self, status_code, json_data):

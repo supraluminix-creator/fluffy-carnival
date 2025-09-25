@@ -8,22 +8,24 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from random import uniform
+from time import time as _time
 from typing import Any, cast
 
+# Third-party
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
-from pipeline.circuit_breaker import _STATES as _CB_STATES  # type: ignore
-from time import time as _time
 
 try:  # pragma: no cover - optional dependency
     import yaml
 except Exception:  # pragma: no cover
-    import types as _types
     class _YamlFallback:
         def safe_load(self, *_a: Any, **_kw: Any) -> dict[str, Any]:
             return {}
     yaml = _YamlFallback()  # type: ignore[assignment]
+
+# First-party
+from pipeline.circuit_breaker import _STATES as _CB_STATES  # type: ignore
 
 log = structlog.get_logger(__name__)
 
@@ -137,12 +139,14 @@ _BREAKER_GRACE_SECONDS = float(os.getenv("BREAKER_OPEN_GRACE_SECONDS", "120"))
 def _breaker_blocks_readiness() -> bool:
     now = _time()
     for name, st in _CB_STATES.items():  # type: ignore[attr-defined]
-        if name not in _CRITICAL_BREAKERS:
-            continue
-        if st.opened_at is not None:
-            # si encore dans fenêtre active (is_open True) ET dépasse grace -> bloque
-            if st.is_open() and (now - st.opened_at) >= _BREAKER_GRACE_SECONDS:
-                return True
+        # si encore dans fenêtre active (is_open True) ET dépasse grace -> bloque
+        if (
+            name in _CRITICAL_BREAKERS
+            and st.opened_at is not None
+            and st.is_open()
+            and (now - st.opened_at) >= _BREAKER_GRACE_SECONDS
+        ):
+            return True
     return False
 
 # Build/runtime info
@@ -222,9 +226,8 @@ async def task_wrapper(
         if (CRYPTO_READY is not None) or (CRYPTO_READY_TS is not None):
             with contextlib.suppress(Exception):
                 # readiness condition étendue: aucune condition bloquante de breakers critiques
-                if not _breaker_blocks_readiness():
-                    if CRYPTO_READY is not None:
-                        CRYPTO_READY.set(1)
+                if (CRYPTO_READY is not None) and (not _breaker_blocks_readiness()):
+                    CRYPTO_READY.set(1)
                 global _READY_TS
                 if _READY_TS is None:
                     _READY_TS = datetime.now(UTC).timestamp()
@@ -362,7 +365,7 @@ def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
 
 
 def _to_seconds(every: Any) -> float:
-    if isinstance(every, (int, float)):
+    if isinstance(every, int | float):
         return float(every)
     if isinstance(every, str):
         s = every.strip().lower()

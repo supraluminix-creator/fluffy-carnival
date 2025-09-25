@@ -1,8 +1,9 @@
-import pytest
-import httpx
 from typing import Any
 
-from pipeline.collectors.market import fetch_market, fetch_macro
+import httpx
+import pytest
+
+from pipeline.collectors.market import fetch_macro, fetch_market
 
 
 class DummyResp:

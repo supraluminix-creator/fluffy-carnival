@@ -1,6 +1,6 @@
-import json
 import structlog
-from pipeline.logging_config import setup_logging, mask_secrets_processor, _reset_logging_for_tests
+
+from pipeline.logging_config import _reset_logging_for_tests, mask_secrets_processor, setup_logging
 
 
 def test_secret_masking(tmp_path, monkeypatch):
@@ -15,7 +15,6 @@ def test_secret_masking(tmp_path, monkeypatch):
         return event_dict
     # Reconfigure avec capture + masking
     _reset_logging_for_tests()
-    import logging
     import structlog as sl
     sl.configure(
         processors=[mask_secrets_processor, capture, sl.processors.JSONRenderer()],

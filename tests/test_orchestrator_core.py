@@ -1,12 +1,15 @@
 import asyncio
+
 import pytest
+
 from pipeline.orchestrator import (
     ParallelOrchestrator,
-    collector_success_total,
     collector_error_total,
-    orchestrator_timeouts_total,
+    collector_success_total,
     last_orchestrator_run_ts,
+    orchestrator_timeouts_total,
 )
+
 
 class OkCollector:
     def __init__(self, name: str, delay: float = 0.01):
@@ -34,8 +37,14 @@ class SlowCollector:
 async def test_orchestrator_success():
     orch = ParallelOrchestrator([OkCollector("a"), OkCollector("b")])
     # Valeurs initiales métriques
-    a_before = collector_success_total.labels(collector="a")._value.get() if ('a',) in collector_success_total._metrics else 0
-    b_before = collector_success_total.labels(collector="b")._value.get() if ('b',) in collector_success_total._metrics else 0
+    a_before = (
+        collector_success_total.labels(collector="a")._value.get()
+        if ('a',) in collector_success_total._metrics else 0
+    )
+    b_before = (
+        collector_success_total.labels(collector="b")._value.get()
+        if ('b',) in collector_success_total._metrics else 0
+    )
     result = await orch.run_all_collectors()
     assert result['status'] == 'completed'
     assert result['successful_count'] == 2
@@ -52,9 +61,18 @@ async def test_orchestrator_success():
 @pytest.mark.asyncio
 async def test_orchestrator_error():
     orch = ParallelOrchestrator([OkCollector("a"), ErrorCollector("bad")])
-    a_before = collector_success_total.labels(collector="a")._value.get() if ('a',) in collector_success_total._metrics else 0
-    bad_success_before = collector_success_total.labels(collector="bad")._value.get() if ('bad',) in collector_success_total._metrics else 0
-    bad_error_before = collector_error_total.labels(collector="bad")._value.get() if ('bad',) in collector_error_total._metrics else 0
+    a_before = (
+        collector_success_total.labels(collector="a")._value.get()
+        if ('a',) in collector_success_total._metrics else 0
+    )
+    bad_success_before = (
+        collector_success_total.labels(collector="bad")._value.get()
+        if ('bad',) in collector_success_total._metrics else 0
+    )
+    bad_error_before = (
+        collector_error_total.labels(collector="bad")._value.get()
+        if ('bad',) in collector_error_total._metrics else 0
+    )
     result = await orch.run_all_collectors()
     assert result['status'] == 'completed'
     assert result['successful_count'] == 1
@@ -114,10 +132,10 @@ def test_orchestrator_internal_summarize_and_analyze():
     orch = ParallelOrchestrator()
     # _summarize_result branches
     assert orch._summarize_result(None)['type'] == 'none'
-    d = orch._summarize_result({'a':1,'b':2})
+    d = orch._summarize_result({'a': 1, 'b': 2})
     assert d['type'] == 'dict' and d['keys_count'] == 2
-    l = orch._summarize_result([1,2,3])
-    assert l['type'] == 'list' and l['length'] == 3
+    list_summary = orch._summarize_result([1, 2, 3])
+    assert list_summary['type'] == 'list' and list_summary['length'] == 3
     s = orch._summarize_result('abc')
     assert s['type'] == 'string' and s['length'] == 3
     o = orch._summarize_result(123)

@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
+
 from jsonschema import validate
-from scripts.snapshot_runtime import build_snapshot, _serialize  # type: ignore
+
+from scripts.snapshot_runtime import _serialize, build_snapshot  # type: ignore
 
 SCHEMA_PATH = Path('schema/runtime_snapshot.schema.json')
 
@@ -16,4 +18,4 @@ def test_runtime_snapshot_schema_validation(monkeypatch):
     try:
         validate(instance=serialized, schema=schema)
     except Exception as e:  # pragma: no cover - debug assist
-        raise AssertionError(f"Schema validation failed: {e}")
+        raise AssertionError(f"Schema validation failed: {e}") from e

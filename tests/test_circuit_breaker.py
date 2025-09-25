@@ -1,8 +1,10 @@
-import pytest
-import httpx
 from typing import Any
-from pipeline.collectors import derivatives as deriv_mod
+
+import httpx
+import pytest
+
 from pipeline import circuit_breaker as cb
+from pipeline.collectors import derivatives as deriv_mod
 
 
 @pytest.mark.asyncio

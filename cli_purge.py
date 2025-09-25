@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 
-from pipeline.purge_job import purge_liquidations
 from pipeline.db_stats import update_db_metrics, vacuum_and_update_metrics
+from pipeline.purge_job import purge_liquidations
 
 
 def main() -> int:

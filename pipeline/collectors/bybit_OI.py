@@ -5,7 +5,7 @@ Prod-safe, asynchrone, testable
 import asyncio
 import json
 from collections.abc import Callable
-from typing import Any, TypedDict, cast
+from typing import TypedDict
 
 import requests
 import structlog

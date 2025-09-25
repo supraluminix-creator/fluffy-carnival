@@ -1,7 +1,8 @@
-import os
 import httpx
 import pytest
+
 from pipeline.collectors.market import fetch_macro
+
 
 class DummyResp:
     def __init__(self, status_code=200, json_data=None):

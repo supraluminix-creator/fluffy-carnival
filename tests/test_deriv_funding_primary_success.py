@@ -1,6 +1,8 @@
-import pytest
 import httpx
+import pytest
+
 from pipeline.collectors.derivatives import fetch_bybit_funding
+
 
 class DummyResp:
     def __init__(self, json_data, status_code=200):

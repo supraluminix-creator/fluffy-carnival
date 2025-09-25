@@ -1,11 +1,13 @@
-import os, csv, io, time, tempfile, pathlib
+import os
+import pathlib
+import tempfile
+from contextlib import suppress
+
 import pytest
-from types import SimpleNamespace
 
 import pipeline.export_job as ej
 import pipeline.export_utils as eu
-from pipeline.metrics import EXPORTS_TOTAL, EXPORT_ROWS_TOTAL
-import asyncio
+from pipeline.metrics import EXPORT_ROWS_TOTAL, EXPORTS_TOTAL
 
 # Monkeypatch open & csv writer for deterministic writes
 
@@ -18,10 +20,8 @@ def tmpdir_fs(monkeypatch):
         try:
             yield dpath
         finally:
-            try:
+            with suppress(Exception):
                 os.chdir(orig)
-            except Exception:
-                pass
 
 @pytest.mark.asyncio
 async def test_perform_export_batch_success(monkeypatch, tmpdir_fs):

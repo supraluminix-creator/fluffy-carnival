@@ -1,7 +1,9 @@
-import pytest
 import httpx
-from pipeline.http_wrappers import http_get_json, async_http_get_json
+import pytest
+
 from pipeline.errors import SchemaError
+from pipeline.http_wrappers import async_http_get_json, http_get_json
+
 
 class DummyResp:
     def __init__(self, status_code=200):

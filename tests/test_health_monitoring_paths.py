@@ -1,9 +1,14 @@
-import asyncio, json, socket, time
-import pytest
+import asyncio
+import json
+import socket
+import time
 from contextlib import closing
 
+import pytest
+
 from pipeline.health import heartbeat, start_health_server
-from pipeline.metrics import HEARTBEAT_TICKS_TOTAL, HEALTH_REQUESTS_TOTAL
+from pipeline.metrics import HEALTH_REQUESTS_TOTAL, HEARTBEAT_TICKS_TOTAL
+
 
 def _free_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
@@ -44,11 +49,12 @@ async def test_health_server_ok(monkeypatch):
     # Fake scheduler snapshot provider
     class FakeSched:
         def get_jobs(self):
-            class J: id='job1'
+            class J:
+                id = 'job1'
             return [J()]
     # Monkeypatch scheduler.runner.get_status_snapshot
-    import types
     import sys
+    import types
     snap_mod = types.ModuleType('scheduler.runner')
     def get_status_snapshot():
         return {'ready': True, 'ready_ts': int(time.time())}

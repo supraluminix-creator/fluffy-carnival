@@ -1,10 +1,10 @@
-import os
-import pytest
 import httpx
-from types import SimpleNamespace
-from pipeline.collectors import market as market_mod
-from pipeline.collectors.market import fetch_market, fetch_macro, fetch_macro_orchestrated
+import pytest
+
 from pipeline.circuit_breaker import _STATES as BREAKER_STATE  # correct internal mapping
+from pipeline.collectors import market as market_mod
+from pipeline.collectors.market import fetch_macro, fetch_macro_orchestrated, fetch_market
+
 
 # Helpers
 class DummyResp:

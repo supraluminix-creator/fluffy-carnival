@@ -1,11 +1,17 @@
-import asyncio, json, os, time, contextlib
-from datetime import datetime, timezone
+import asyncio
+import contextlib
+import json
+import os
+import time
+from datetime import UTC, datetime
+
 from prometheus_client import start_http_server
+
 from pipeline.collectors.bybit_ws import (
-    BybitWSService,
     BYBIT_WS_CONNECTIONS,
     BYBIT_WS_ERRORS,
     BYBIT_WS_EVENTS,
+    BybitWSService,
 )
 
 ARTIFACT_DIR = "analysis/run_2025-09-20/artifacts"
@@ -27,7 +33,7 @@ async def run_ws_until_event(symbols=None, max_duration=180, min_events=1):
             await asyncio.sleep(2)
             events_total = 0
             try:
-                for labels, metric in getattr(BYBIT_WS_EVENTS, "_metrics", {}).items():  # type: ignore[attr-defined]
+                for metric in getattr(BYBIT_WS_EVENTS, "_metrics", {}).values():  # type: ignore[attr-defined]
                     events_total += int(getattr(metric, "_value", 0))
             except Exception:
                 pass
@@ -61,7 +67,7 @@ async def run_ws_until_event(symbols=None, max_duration=180, min_events=1):
             except Exception: return 0
 
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "elapsed_seconds": round(elapsed, 2),
         "connections_total": _extract_val(BYBIT_WS_CONNECTIONS),
         "errors_total": _extract_val(BYBIT_WS_ERRORS),

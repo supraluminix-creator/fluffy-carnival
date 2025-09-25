@@ -23,23 +23,22 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Callable, Tuple, Optional
 
 from . import purge_job
 from .db_stats import update_db_metrics, vacuum_and_update_metrics
 from .metrics import MAINTENANCE_NEXT_RUN_TIMESTAMP
 
 # Type alias
-FragmentFn = Callable[[str], Tuple[int, int, float]]
+FragmentFn = Callable[[str], tuple[int, int, float]]
 
-try:  # import facultatif si factorisation future
-    from .db_stats import sqlite3, Path  # type: ignore
-except Exception:  # pragma: no cover
-    pass
+with suppress(Exception):  # import facultatif si factorisation future
+    pass  # type: ignore
 
 
-def compute_fragmentation(db_path: str) -> Tuple[int, int, float]:  # pragma: no cover - utilisé indirectement
+def compute_fragmentation(db_path: str) -> tuple[int, int, float]:  # pragma: no cover - utilisé indirectement
     import sqlite3
     from pathlib import Path
     p = Path(db_path)
@@ -59,14 +58,14 @@ def compute_fragmentation(db_path: str) -> Tuple[int, int, float]:  # pragma: no
 
 @dataclass
 class MaintenanceResult:
-    purged: Optional[dict]
+    purged: dict | None
     vacuum_performed: bool
     fragmentation_ratio: float
     next_run_ts: int
 
 
 def run_maintenance(db_path: str = "data/crypto.db", *,
-                    fragmentation_threshold: Optional[float] = None,
+                    fragmentation_threshold: float | None = None,
                     fragment_fn: FragmentFn = compute_fragmentation,
                     purge: bool = True) -> MaintenanceResult:
     """Exécute un cycle de maintenance.

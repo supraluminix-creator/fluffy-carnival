@@ -8,22 +8,30 @@ Deux modes:
 La fonction renvoie aussi le summary (utile dans les tests) et l'écrit dans un artifact JSON.
 """
 
-import asyncio, json, os, contextlib, time, enum
-from datetime import datetime, timezone
-from typing import Iterable, Dict, Any, Optional, List
+import asyncio
+import contextlib
+import enum
+import json
+import os
+import time
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
+
 from prometheus_client import start_http_server
+
 from pipeline.collectors.bybit_ws import (
-    BybitWSService,
     BYBIT_WS_CONNECTIONS,
     BYBIT_WS_ERRORS,
     BYBIT_WS_EVENTS,
+    BybitWSService,
 )
 
 ARTIFACT_DIR = "analysis/run_2025-09-20/artifacts"
 os.makedirs(ARTIFACT_DIR, exist_ok=True)
 
 # Cache interne pour le mode injection (évite introspection fragile des métriques Prometheus)
-_INJECT_EVENT_CACHE: Dict[str, int] = {}
+_INJECT_EVENT_CACHE: dict[str, int] = {}
 
 class Mode(enum.Enum):
     LIVE = "live"
@@ -39,8 +47,8 @@ def _extract_counter_val(counter_obj) -> int:
         except Exception:
             return 0
 
-def _collect_events_samples() -> Dict[str, int]:
-    events_samples: Dict[str, int] = {}
+def _collect_events_samples() -> dict[str, int]:
+    events_samples: dict[str, int] = {}
     try:
         for labels, metric in getattr(BYBIT_WS_EVENTS, "_metrics", {}).items():  # type: ignore[attr-defined]
             if isinstance(labels, tuple) and labels:
@@ -51,7 +59,7 @@ def _collect_events_samples() -> Dict[str, int]:
         pass
     return events_samples
 
-async def _run_live(symbols: List[str], duration: int, force_close_after: int, prometheus_port: int) -> None:
+async def _run_live(symbols: list[str], duration: int, force_close_after: int, prometheus_port: int) -> None:
     with contextlib.suppress(Exception):
         start_http_server(prometheus_port)
     svc = BybitWSService(symbols, flush_interval=5, flush_size=50)
@@ -73,8 +81,8 @@ async def _run_live(symbols: List[str], duration: int, force_close_after: int, p
         return_exceptions=True,
     )
 
-def _iter_injection_events(path: str) -> Iterable[Dict[str, Any]]:
-    with open(path, "r", encoding="utf-8") as f:
+def _iter_injection_events(path: str) -> Iterable[dict[str, Any]]:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -86,7 +94,7 @@ def _iter_injection_events(path: str) -> Iterable[Dict[str, Any]]:
             if isinstance(obj, dict):
                 yield obj
 
-async def _run_inject(path: str, symbols: List[str]) -> None:
+async def _run_inject(path: str, symbols: list[str]) -> None:
     for ev in _iter_injection_events(path):
         sym = ev.get("symbol") or ev.get("symbolName") or ev.get("s")
         if not sym or sym not in symbols:
@@ -99,12 +107,12 @@ async def _run_inject(path: str, symbols: List[str]) -> None:
 
 async def run_ws_session(
     mode: str = "live",
-    symbols: Optional[List[str]] = None,
+    symbols: list[str] | None = None,
     duration: int = 10,
     force_close_after: int = 4,
     prometheus_port: int = 8020,
-    injection_file: Optional[str] = None,
-) -> Dict[str, Any]:
+    injection_file: str | None = None,
+) -> dict[str, Any]:
     symbols = symbols or ["BTCUSDT", "ETHUSDT"]
     started = time.time()
     if mode == Mode.LIVE.value:
@@ -123,7 +131,7 @@ async def run_ws_session(
         events_per_symbol.update(_INJECT_EVENT_CACHE)
 
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "mode": mode,
         "symbols": symbols,
         "duration_seconds": round(elapsed, 3),

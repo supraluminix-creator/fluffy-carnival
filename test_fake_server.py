@@ -4,10 +4,12 @@
 Quick test of the liquidation collector with fake data
 """
 import asyncio
-import websockets
-from typing import Any
 import json
 import time
+from typing import Any
+
+import websockets
+
 
 async def fake_bybit_server() -> None:
     """Simulate a Bybit WebSocket server sending liquidation events"""

@@ -11,11 +11,10 @@ Outputs a concise table & guidance for next tightening steps.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-import os
 import tomllib
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
@@ -100,7 +99,7 @@ def classify_modules() -> list[ModuleStatus]:
     return statuses
 
 
-def summarize(statuses: List[ModuleStatus]) -> None:
+def summarize(statuses: list[ModuleStatus]) -> None:
     from collections import Counter
 
     counts = Counter(s.category for s in statuses)

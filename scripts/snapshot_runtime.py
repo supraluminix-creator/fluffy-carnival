@@ -6,15 +6,16 @@ Politique:
 - Erreurs capturées avec champ error.
 """
 from __future__ import annotations
+
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Any, TypedDict
-import time
 
 from pipeline.collectors.defillama import DefillamaCollector
 from pipeline.collectors.market import fetch_market
-from pipeline.collectors.onchain import fetch_txcount, fetch_hashrate, fetch_sopr
+from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcount
 
 OUTPUT = Path("exports/runtime_snapshot.json")
 
@@ -26,11 +27,11 @@ class Entry(TypedDict, total=False):
     duration_ms: int
 
 def _serialize(obj: Any) -> Any:
-    if isinstance(obj, (int, float, str, type(None))):
+    if isinstance(obj, int | float | str | type(None)):
         return obj
     if isinstance(obj, dict):
         return {k: _serialize(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         return [_serialize(x) for x in obj]
     return str(obj)
 

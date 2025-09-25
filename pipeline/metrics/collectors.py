@@ -9,32 +9,33 @@ les timings (``collector_timing`` et ``fallback_tier_timing``).
 from __future__ import annotations
 
 import time
-from contextlib import contextmanager
-from typing import Iterator
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from typing import cast
 
-from prometheus_client import Counter, Histogram, Gauge
 from prometheus_client import REGISTRY as GLOBAL_REGISTRY
+from prometheus_client import Counter, Gauge, Histogram
 
 
-def _counter(name: str, doc: str, labelnames: list[str]):  # idempotent helper
+def _counter(name: str, doc: str, labelnames: list[str]) -> Counter:  # idempotent helper
 	try:
 		return Counter(name, doc, labelnames)
 	except ValueError:  # déjà défini
-		return GLOBAL_REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+		return cast(Counter, GLOBAL_REGISTRY._names_to_collectors.get(name))
 
 
-def _histogram(name: str, doc: str, labelnames: list[str], **kwargs):
+def _histogram(name: str, doc: str, labelnames: list[str], **kwargs) -> Histogram:
 	try:
 		return Histogram(name, doc, labelnames, **kwargs)
 	except ValueError:
-		return GLOBAL_REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+		return cast(Histogram, GLOBAL_REGISTRY._names_to_collectors.get(name))
 
 
-def _gauge(name: str, doc: str, labelnames: list[str]):
+def _gauge(name: str, doc: str, labelnames: list[str]) -> Gauge:
 	try:
 		return Gauge(name, doc, labelnames)
 	except ValueError:
-		return GLOBAL_REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+		return cast(Gauge, GLOBAL_REGISTRY._names_to_collectors.get(name))
 
 
 COLLECTOR_RUNS_TOTAL = _counter(
@@ -83,7 +84,8 @@ FACADE_FORCED = _gauge(
 # Indicateur dry-run (0/1) : DRY_RUN_FACADE activé au moment de l'appel
 FACADE_DRY_RUN = _gauge(
 	"facade_dry_run",
-	"Indique si la façade HTTP est en mode DRY-RUN (DRY_RUN_FACADE=1) pour ce collector (évaluation sans couper legacy)",
+	"Indique si la façade HTTP est en mode DRY-RUN (DRY_RUN_FACADE=1) pour ce collector "
+	"(évaluation sans couper legacy)",
 	["collector"],
 )
 
@@ -95,22 +97,28 @@ FACADE_FORCED_LEAK = _gauge(
 )
 
 # Pré-initialise les collectors connus à 0 pour stabiliser dashboards / snapshots
-for _c in ("market","defillama","binance_spot","binance_oi","binance_funding","deriv_funding","deriv_lsr","sentiment","onchain_txcount","onchain_hashrate","onchain_sopr"):
-	try:  # pragma: no cover - idempotent
-		FACADE_FORCED.labels(collector=_c).set(0)  # type: ignore[attr-defined]
-	except Exception:  # pragma: no cover
-		pass
-	try:
-		FACADE_DRY_RUN.labels(collector=_c).set(0)  # type: ignore[attr-defined]
-	except Exception:  # pragma: no cover
-		pass
-	try:  # initialise aussi leak gauge
-		FACADE_FORCED_LEAK.labels(collector=_c).set(0)  # type: ignore[attr-defined]
-	except Exception:  # pragma: no cover
-		pass
+for _c in (
+    "market",
+    "defillama",
+    "binance_spot",
+    "binance_oi",
+    "binance_funding",
+    "deriv_funding",
+    "deriv_lsr",
+    "sentiment",
+    "onchain_txcount",
+    "onchain_hashrate",
+    "onchain_sopr",
+):
+	with suppress(Exception):  # pragma: no cover - idempotent
+		FACADE_FORCED.labels(collector=_c).set(0)
+	with suppress(Exception):  # pragma: no cover
+		FACADE_DRY_RUN.labels(collector=_c).set(0)
+	with suppress(Exception):  # pragma: no cover
+		FACADE_FORCED_LEAK.labels(collector=_c).set(0)
 
 
-def mark_legacy_http(collector: str):
+def mark_legacy_http(collector: str) -> None:
 	"""Incrémente le compteur legacy et déclenche la gauge fuite si mode forced.
 
 	Utilisé par les collectors pour centraliser la logique prodsafe: si un chemin
@@ -118,39 +126,34 @@ def mark_legacy_http(collector: str):
 	"""
 	try:
 		from prometheus_client import REGISTRY as _R
-		ctr = _R._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-		if ctr is not None:  # Counter
-			ctr.labels(collector=collector).inc()  # type: ignore[call-arg]
+		ctr_raw = _R._names_to_collectors.get('legacy_http_usage_total')
+		if ctr_raw is not None:  # Counter
+			ctr = cast(Counter, ctr_raw)
+			ctr.labels(collector=collector).inc()
 		# Détection de fuite uniquement ici (et plus dans set_facade_mode)
 		try:  # import local pour éviter cycles
-			from pipeline.flags import is_forced_facade  # type: ignore
+			from pipeline.flags import is_forced_facade
 			if is_forced_facade():  # si on observe un chemin legacy alors que forced => fuite
-				FACADE_FORCED_LEAK.labels(collector=collector).set(1)  # type: ignore[attr-defined]
+				FACADE_FORCED_LEAK.labels(collector=collector).set(1)
 		except Exception:  # pragma: no cover
 			pass
 	except Exception:  # pragma: no cover
 		pass
 
 
-def set_facade_mode(collector: str, forced: bool, dry_run: bool):
+def set_facade_mode(collector: str, forced: bool, dry_run: bool) -> None:
 	"""Positionne les gauges facade_forced et facade_dry_run pour un collector.
 
 	Idempotent: toujours setter (0 ou 1) afin de figer les séries dans les snapshots.
 	"""
-	try:
-		FACADE_FORCED.labels(collector=collector).set(1 if forced else 0)  # type: ignore[attr-defined]
-	except Exception:  # pragma: no cover
-		pass
-	try:
-		FACADE_DRY_RUN.labels(collector=collector).set(1 if dry_run else 0)  # type: ignore[attr-defined]
-	except Exception:  # pragma: no cover
-		pass
+	with suppress(Exception):  # pragma: no cover
+		FACADE_FORCED.labels(collector=collector).set(1 if forced else 0)
+	with suppress(Exception):  # pragma: no cover
+		FACADE_DRY_RUN.labels(collector=collector).set(1 if dry_run else 0)
 	# Reset proactif de la gauge leak en mode forced (elle ne passe à 1 que si un chemin legacy est réellement emprunté)
 	if forced:
-		try:
-			FACADE_FORCED_LEAK.labels(collector=collector).set(0)  # type: ignore[attr-defined]
-		except Exception:  # pragma: no cover
-			pass
+		with suppress(Exception):  # pragma: no cover
+			FACADE_FORCED_LEAK.labels(collector=collector).set(0)
 
 
 @contextmanager
@@ -170,7 +173,7 @@ def collector_timing(name: str) -> Iterator[None]:
 
 
 @contextmanager
-def fallback_tier_timing(collector: str, tier: int):
+def fallback_tier_timing(collector: str, tier: int) -> Iterator[None]:
 	"""Chronométrer un appel (primaire ou fallback tier N) avec statut success/error."""
 	start = time.perf_counter()
 	status = "success"
@@ -178,10 +181,14 @@ def fallback_tier_timing(collector: str, tier: int):
 		yield
 	except Exception:
 		status = "error"
-		FALLBACK_TIER_LATENCY_SECONDS.labels(collector=collector, tier=str(tier), status=status).observe(time.perf_counter()-start)
+		FALLBACK_TIER_LATENCY_SECONDS.labels(
+			collector=collector, tier=str(tier), status=status
+		).observe(time.perf_counter() - start)
 		raise
 	else:
-		FALLBACK_TIER_LATENCY_SECONDS.labels(collector=collector, tier=str(tier), status=status).observe(time.perf_counter()-start)
+		FALLBACK_TIER_LATENCY_SECONDS.labels(
+			collector=collector, tier=str(tier), status=status
+		).observe(time.perf_counter() - start)
 
 
 __all__ = [

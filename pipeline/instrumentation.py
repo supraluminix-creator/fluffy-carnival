@@ -11,8 +11,8 @@ import asyncio
 import functools
 import time
 from collections.abc import Callable
-from typing import Any
 from contextlib import suppress
+from typing import Any
 
 from pipeline.errors import classify
 from pipeline.metrics.collectors import (

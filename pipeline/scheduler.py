@@ -15,6 +15,7 @@ import random
 import signal
 
 import structlog
+
 try:  # pragma: no cover - robust optional import
     from pipeline.metrics import collector_timing
 except Exception:  # pragma: no cover
@@ -205,7 +206,7 @@ class CryptoScheduler:
                     "id": job.id,
                     # Compat APScheduler: certaines versions peuvent ne pas exposer next_run_time publiquement
                     "next_run": (
-                        getattr(job, "next_run_time").isoformat()  # type: ignore[attr-defined]
+                        job.next_run_time.isoformat()  # type: ignore[attr-defined]
                         if getattr(job, "next_run_time", None) is not None else None
                     ),
                     "trigger": str(job.trigger)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Circuit breaker léger en mémoire.
 
 Usage:
@@ -10,18 +8,20 @@ Usage:
 Seuil: 3 échecs consécutifs -> ouvert 30s.
 """
 
+from __future__ import annotations
+
+from contextlib import suppress
 from dataclasses import dataclass
 from time import time
-from typing import Dict
+
 try:  # import défensif (tests unit peuvent isoler)
     from pipeline.metrics import (
-        CIRCUIT_BREAKER_OPEN_TOTAL,
-        CIRCUIT_BREAKER_SKIPS_TOTAL,
-        CIRCUIT_BREAKER_STATE,
-        CIRCUIT_BREAKER_OPEN_SECONDS,
         CB_LAST_OPEN_TIMESTAMP,
         CB_RESETS_TOTAL,
-        HTTP_RETRIES_TOTAL,  # non utilisé ici mais maintien compat import multi
+        CIRCUIT_BREAKER_OPEN_SECONDS,
+        CIRCUIT_BREAKER_OPEN_TOTAL,
+        CIRCUIT_BREAKER_SKIPS_TOTAL,
+        CIRCUIT_BREAKER_STATE,  # non utilisé ici mais maintien compat import multi
     )
 except Exception:  # pragma: no cover - fallback si metrics non initialisées
     CIRCUIT_BREAKER_OPEN_TOTAL = CIRCUIT_BREAKER_SKIPS_TOTAL = None  # type: ignore
@@ -50,7 +50,7 @@ class _State:
         return True
 
 
-_STATES: Dict[str, _State] = {}
+_STATES: dict[str, _State] = {}
 
 
 def _get(name: str) -> _State:
@@ -64,10 +64,8 @@ def _get(name: str) -> _State:
 def _update_open_metrics(name: str, st: _State) -> None:
     """Met à jour les métriques d'état ouvert (durée)."""
     if CIRCUIT_BREAKER_OPEN_SECONDS is not None and st.opened_at is not None:  # type: ignore[truthy-bool]
-        try:
+        with suppress(Exception):  # pragma: no cover
             CIRCUIT_BREAKER_OPEN_SECONDS.labels(breaker=name).set(time() - st.opened_at)  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            pass
 
 
 def should_skip(name: str) -> bool:
@@ -78,42 +76,32 @@ def should_skip(name: str) -> bool:
         st.fail_count = st.threshold  # conserve fail_count pour info
         # état 2 = half-open pour gauge
         if CIRCUIT_BREAKER_STATE is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_STATE.labels(breaker=name).set(2)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
     if st.half_open:
         # Autoriser exactement une tentative (probe)
         if st.half_open_attempted:
             if CIRCUIT_BREAKER_SKIPS_TOTAL is not None:  # type: ignore[truthy-bool]
-                try:
+                with suppress(Exception):  # pragma: no cover
                     CIRCUIT_BREAKER_SKIPS_TOTAL.labels(breaker=name).inc()  # type: ignore[attr-defined]
-                except Exception:  # pragma: no cover
-                    pass
             return True
         st.half_open_attempted = True
         return False
     if st.is_open():
         # métriques skip
         if CIRCUIT_BREAKER_SKIPS_TOTAL is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_SKIPS_TOTAL.labels(breaker=name).inc()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         _update_open_metrics(name, st)
         return True
     else:
         # breaker fermé -> gauge état et durée=0
         if CIRCUIT_BREAKER_STATE is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_STATE.labels(breaker=name).set(0)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         if CIRCUIT_BREAKER_OPEN_SECONDS is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_OPEN_SECONDS.labels(breaker=name).set(0)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         return False
 
 
@@ -126,30 +114,22 @@ def record_failure(name: str) -> None:
         st.half_open = False
         st.half_open_attempted = False
         if CIRCUIT_BREAKER_STATE is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_STATE.labels(breaker=name).set(1)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         return
     if st.fail_count >= st.threshold and st.opened_at is None:
         st.opened_at = time()
         st.last_checked = st.opened_at
         # ouverture breaker
         if CIRCUIT_BREAKER_OPEN_TOTAL is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_OPEN_TOTAL.labels(breaker=name).inc()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         if CIRCUIT_BREAKER_STATE is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CIRCUIT_BREAKER_STATE.labels(breaker=name).set(1)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         if CB_LAST_OPEN_TIMESTAMP is not None:  # type: ignore[truthy-bool]
-            try:
+            with suppress(Exception):  # pragma: no cover
                 CB_LAST_OPEN_TIMESTAMP.labels(breaker=name).set(st.opened_at or 0)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
         _update_open_metrics(name, st)
 
 
@@ -164,20 +144,14 @@ def record_success(name: str) -> None:
     st.half_open_attempted = False
     # fermeture -> state=0, durée=0
     if CIRCUIT_BREAKER_STATE is not None:  # type: ignore[truthy-bool]
-        try:
+        with suppress(Exception):  # pragma: no cover
             CIRCUIT_BREAKER_STATE.labels(breaker=name).set(0)  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            pass
     if CIRCUIT_BREAKER_OPEN_SECONDS is not None:  # type: ignore[truthy-bool]
-        try:
+        with suppress(Exception):  # pragma: no cover
             CIRCUIT_BREAKER_OPEN_SECONDS.labels(breaker=name).set(0)  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            pass
     if was_open and CB_RESETS_TOTAL is not None:  # type: ignore[truthy-bool]
-        try:
+        with suppress(Exception):  # pragma: no cover
             CB_RESETS_TOTAL.labels(breaker=name).inc()  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover
-            pass
 
 
 def reset(name: str | None = None) -> None:  # pragma: no cover - utilitaire debug

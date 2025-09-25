@@ -1,6 +1,8 @@
 import asyncio
-import websockets
 from typing import Any
+
+import websockets
+
 
 async def test_client() -> None:
     uri = "ws://localhost:8765"

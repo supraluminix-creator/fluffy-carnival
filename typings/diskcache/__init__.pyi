@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Any
+from typing import Any, Generic, TypeVar
 
 _K = TypeVar('_K')
 _V = TypeVar('_V')

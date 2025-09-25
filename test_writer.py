@@ -5,14 +5,15 @@ Simulates liquidation events and verifies database storage
 """
 import asyncio
 import os
-import sys
 import sqlite3
+import sys
 from datetime import datetime
 
 # Add the project root to the path so we can import the modules
 sys.path.insert(0, os.path.dirname(__file__))
 
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
+
 
 async def test_writer():
     print("🧪 Testing BybitLiquidationsWriter...")

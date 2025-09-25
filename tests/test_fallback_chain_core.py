@@ -1,7 +1,9 @@
 import asyncio
+
 import pytest
+
 from pipeline.orchestrator import run_fallback_chain
-from prometheus_client import REGISTRY
+
 
 class TierSuccess:
     def __init__(self, value, delay=0.0):

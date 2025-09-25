@@ -5,29 +5,32 @@ Ce fichier a été restauré proprement après corruption d'indentation.
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
-import httpx
 import os
+from contextlib import suppress
+from typing import Any, TypedDict
+
+import httpx
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary
 from prometheus_client import REGISTRY as PROM_REGISTRY
-from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from prometheus_client import Counter, Summary
 
-from pipeline.metrics import (
-    FALLBACK_INVOCATIONS_TOTAL,
-    FALLBACK_CHAIN_DEPTH,
-    FALLBACK_TIER_INVOCATIONS_TOTAL,
-)
-from pipeline.circuit_breaker import should_skip, record_failure, record_success
-from .binance import fetch_binance_funding
-from pipeline.utils import to_float
-from pipeline.metrics import fallback_tier_timing, COLLECTOR_ERROR_TYPES_TOTAL, FACADE_FORCED
-from pipeline.flags import is_forced_facade, is_dry_run_facade
-from pipeline.instrumentation import instrument_collector
+from pipeline.circuit_breaker import record_failure, record_success, should_skip
 from pipeline.errors import classify
-from pipeline.http_wrappers import async_http_get_json_retry  # legacy (certains tests peuvent encore patcher)
+from pipeline.flags import is_dry_run_facade, is_forced_facade
 from pipeline.http import async_fetch_json  # façade unifiée (retry/breaker/metrics)
+from pipeline.instrumentation import instrument_collector
+from pipeline.metrics import (
+    COLLECTOR_ERROR_TYPES_TOTAL,
+    FALLBACK_CHAIN_DEPTH,
+    FALLBACK_INVOCATIONS_TOTAL,
+    FALLBACK_TIER_INVOCATIONS_TOTAL,
+    fallback_tier_timing,
+)
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.utils import to_float
+
+from .binance import fetch_binance_funding
 
 log = structlog.get_logger()
 cache: Cache = Cache('.cache')
@@ -39,10 +42,8 @@ try:  # idempotent
 except ValueError:
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
 for _init_label in ("deriv_funding", "deriv_lsr"):
-    try:
+    with suppress(Exception):  # pragma: no cover
         LEGACY_HTTP_USAGE.labels(collector=_init_label)  # type: ignore[call-arg]
-    except Exception:  # pragma: no cover
-        pass
 
 
 class OpenInterestRecord(TypedDict):
@@ -129,18 +130,18 @@ async def fetch_bybit_oi(
         }
         cache.set(key, rec, expire=cache_ttl)
         DERIV_SUCCESS.inc()
-        try:
-            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="1", status="success").inc()
-        except Exception:  # pragma: no cover
-            pass
+        with suppress(Exception):  # pragma: no cover
+            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                collector="deriv_oi", tier="1", status="success"
+            ).inc()
         log.info("deriv_success", symbol=symbol, source="bybit")
         return rec
     except Exception as e:  # bybit failure -> fallback
         et = classify(e)
-        try:
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
+        with suppress(Exception):  # pragma: no cover
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                collector="deriv_oi", error_type=et
+            ).inc()
         log.error("deriv_primary_error", symbol=symbol, error=str(e), error_type=et)
 
     # 2. Binance futures OI (fallback via hist endpoint)
@@ -180,39 +181,57 @@ async def fetch_bybit_oi(
                 "confidence_score": 0.75,
             }
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
-            except Exception:  # pragma: no cover
-                pass
-            try:
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
-            except Exception:  # pragma: no cover
-                pass
-            log.info("deriv_fallback_success", symbol=symbol, path="binance_hist", fallback=1, primary_error="BybitError")
+            with suppress(Exception):  # pragma: no cover
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                    collector="deriv_oi", tier="2", status="success"
+                ).inc()
+            log.info(
+                "deriv_fallback_success",
+                symbol=symbol,
+                path="binance_hist",
+                fallback=1,
+                primary_error="BybitError",
+            )
             return rec2  # type: ignore[return-value]
         else:
             DERIV_ERRORS.inc()
-            try:
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type="schema").inc()
-            except Exception:  # pragma: no cover
-                pass
+            with suppress(Exception):  # pragma: no cover
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                    collector="deriv_oi", error_type="schema"
+                ).inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
-            try:
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
-            except Exception:  # pragma: no cover
-                pass
+            with suppress(Exception):  # pragma: no cover
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                    collector="deriv_oi", tier="2", status="error"
+                ).inc()
             record_failure("deriv_oi")
-            log.error("deriv_fallback_error", symbol=symbol, fallback=1, primary_error="BybitError", error="empty_binance_hist")
+            log.error(
+                "deriv_fallback_error",
+                symbol=symbol,
+                fallback=1,
+                primary_error="BybitError",
+                error="empty_binance_hist",
+            )
     except Exception as e2:  # pragma: no cover
         DERIV_ERRORS.inc()
         et2 = classify(e2)
-        try:
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et2).inc()
-        except Exception:  # pragma: no cover
-            pass
+        with suppress(Exception):  # pragma: no cover
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                collector="deriv_oi", error_type=et2
+            ).inc()
         FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
         record_failure("deriv_oi")
-        log.error("deriv_fallback_error", symbol=symbol, error=str(e2), error_type=et2, fallback=1, primary_error="BybitError", path="binance_hist")
+        log.error(
+            "deriv_fallback_error",
+            symbol=symbol,
+            error=str(e2),
+            error_type=et2,
+            fallback=1,
+            primary_error="BybitError",
+            path="binance_hist",
+        )
     # 3. Fallback supplémentaire tests: fonction fetch_binance_futures_oi si flag activé
     if os.getenv("ENABLE_BINANCE_OI_FALLBACK", "0") == "1":
         try:
@@ -222,29 +241,41 @@ async def fetch_bybit_oi(
                 DERIV_SUCCESS.inc()
                 record_success("deriv_oi")
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
-                try:
+                with suppress(Exception):  # pragma: no cover
                     FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
-                except Exception:  # pragma: no cover
-                    pass
-                try:
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
-                except Exception:  # pragma: no cover
-                    pass
-                log.info("deriv_fallback_success", symbol=symbol, path="binance_function", fallback=1, primary_error="BybitError")
+                with suppress(Exception):  # pragma: no cover
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                        collector="deriv_oi", tier="2", status="success"
+                    ).inc()
+                log.info(
+                    "deriv_fallback_success",
+                    symbol=symbol,
+                    path="binance_function",
+                    fallback=1,
+                    primary_error="BybitError",
+                )
                 return alt  # type: ignore[return-value]
         except Exception as e3:  # pragma: no cover
             DERIV_ERRORS.inc()
             et3 = classify(e3)
-            try:
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et3).inc()
-            except Exception:
-                pass
+            with suppress(Exception):
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                    collector="deriv_oi", error_type=et3
+                ).inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
-            try:
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
-            except Exception:  # pragma: no cover
-                pass
-            log.error("deriv_fallback_error", symbol=symbol, error=str(e3), error_type=et3, fallback=1, primary_error="BybitError", path="binance_function")
+            with suppress(Exception):  # pragma: no cover
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                    collector="deriv_oi", tier="2", status="error"
+                ).inc()
+            log.error(
+                "deriv_fallback_error",
+                symbol=symbol,
+                error=str(e3),
+                error_type=et3,
+                fallback=1,
+                primary_error="BybitError",
+                path="binance_function",
+            )
     return None
 
 
@@ -273,10 +304,8 @@ async def fetch_bybit_funding(
             with fallback_tier_timing("deriv_funding", 1):
                 force_flag = is_forced_facade()
                 dry_run = is_dry_run_facade() and not force_flag
-                try:
+                with suppress(Exception):  # pragma: no cover
                     set_facade_mode("deriv_funding", force_flag, dry_run)
-                except Exception:  # pragma: no cover
-                    pass
                 if force_flag:
                     data = await async_fetch_json(url, params=params, timeout=10, client=client)
                 else:
@@ -312,22 +341,20 @@ async def fetch_bybit_funding(
             cache.set(key, rec, expire=cache_ttl)
             DERIV_SUCCESS.inc()
             record_success("deriv_funding")
-            try:
+            with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(1)
-            except Exception:  # pragma: no cover
-                pass
-            try:
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="1", status="success").inc()
-            except Exception:  # pragma: no cover
-                pass
+            with suppress(Exception):  # pragma: no cover
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                    collector="deriv_funding", tier="1", status="success"
+                ).inc()
             return rec
     except Exception as e:  # pragma: no cover
         primary_error_name = type(e).__name__
         et = classify(e)
-        try:
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
+        with suppress(Exception):  # pragma: no cover
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                collector="deriv_funding", error_type=et
+            ).inc()
         log.error("deriv_funding_error", symbol=symbol, error=str(e), error_type=et)
     # Toujours tenter fallback funding Binance pour tests
     if True:
@@ -339,29 +366,41 @@ async def fetch_bybit_funding(
                 DERIV_SUCCESS.inc()
                 record_success("deriv_funding")  # succès via fallback
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="success").inc()
-                try:
+                with suppress(Exception):  # pragma: no cover
                     FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(2)
-                except Exception:  # pragma: no cover
-                    pass
-                try:
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="success").inc()
-                except Exception:  # pragma: no cover
-                    pass
-                log.info("deriv_fallback_success", symbol=symbol, source="binance", metric="funding", primary_error=locals().get("primary_error_name", "None"))
+                with suppress(Exception):  # pragma: no cover
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                        collector="deriv_funding", tier="2", status="success"
+                    ).inc()
+                log.info(
+                    "deriv_fallback_success",
+                    symbol=symbol,
+                    source="binance",
+                    metric="funding",
+                    primary_error=locals().get("primary_error_name", "None"),
+                )
                 return fb  # type: ignore[return-value]
         except Exception as e2:  # pragma: no cover
             DERIV_ERRORS.inc()
             et2 = classify(e2)
-            try:
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et2).inc()
-            except Exception:  # pragma: no cover
-                pass
+            with suppress(Exception):  # pragma: no cover
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                    collector="deriv_funding", error_type=et2
+                ).inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="error").inc()
-            try:
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="error").inc()
-            except Exception:  # pragma: no cover
-                pass
-            log.error("deriv_fallback_error", symbol=symbol, error=str(e2), error_type=et2, metric="funding", primary_error=locals().get("primary_error_name", "None"), fallback_error=type(e2).__name__)
+            with suppress(Exception):  # pragma: no cover
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
+                    collector="deriv_funding", tier="2", status="error"
+                ).inc()
+            log.error(
+                "deriv_fallback_error",
+                symbol=symbol,
+                error=str(e2),
+                error_type=et2,
+                metric="funding",
+                primary_error=locals().get("primary_error_name", "None"),
+                fallback_error=type(e2).__name__,
+            )
     # Échec total
     record_failure("deriv_funding")
     return None
@@ -415,10 +454,9 @@ async def fetch_bybit_long_short_ratio(
         async with httpx.AsyncClient() as client:
             force_flag = is_forced_facade()
             dry_run = is_dry_run_facade() and not force_flag
-            try:
+            from contextlib import suppress
+            with suppress(Exception):  # pragma: no cover
                 set_facade_mode("deriv_lsr", force_flag, dry_run)
-            except Exception:  # pragma: no cover
-                pass
             if force_flag:
                 data = await async_fetch_json(url, params=params, timeout=10, client=client)
             else:
@@ -467,10 +505,10 @@ async def fetch_bybit_long_short_ratio(
     except Exception as e:  # pragma: no cover - test déjà couvre un échec simple
         DERIV_ERRORS.inc()
         et = classify(e)
-        try:
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_lsr", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
+        with suppress(Exception):  # pragma: no cover
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(
+                collector="deriv_lsr", error_type=et
+            ).inc()
         record_failure("deriv_lsr")
         log.error("deriv_lsr_error", symbol=symbol, error=str(e), error_type=et)
     # Aucun fallback réussi

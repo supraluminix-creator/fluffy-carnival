@@ -1,9 +1,14 @@
-import pytest
-import httpx
 from typing import Any
 
-from pipeline.collectors.derivatives import fetch_bybit_oi, fetch_bybit_long_short_ratio, OpenInterestRecord, LongShortRatioRecord
+import httpx
+import pytest
+
 from pipeline import circuit_breaker
+from pipeline.collectors.derivatives import (
+    fetch_bybit_long_short_ratio,
+    fetch_bybit_oi,
+)
+
 
 class DummyResp:
     def __init__(self, payload: Any):

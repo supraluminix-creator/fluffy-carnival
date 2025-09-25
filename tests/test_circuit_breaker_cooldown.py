@@ -1,6 +1,4 @@
-import pytest
 from pipeline import circuit_breaker
-import time as time_mod
 
 
 def test_circuit_breaker_cooldown(monkeypatch):

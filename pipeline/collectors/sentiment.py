@@ -3,18 +3,21 @@ Collector Sentiment (Alternative.me, TokenMetrics, etc.)
 Prod-safe, async, retry/backoff, cache TTL, fallback
 """
 
-from typing import Any, TypedDict, Final
+from contextlib import suppress
+from typing import TypedDict
 
 import httpx
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
-from pipeline.instrumentation import instrument_collector
-from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL, FACADE_FORCED
-from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
-from pipeline.flags import is_forced_facade, is_dry_run_facade
-from pipeline.http import async_fetch_json
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json
+from pipeline.instrumentation import instrument_collector
+from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
@@ -42,10 +45,8 @@ try:
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover
     LEGACY_HTTP_USAGE.labels(collector='sentiment')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 _LEGACY_LOGGED = False
 
 @instrument_collector("sentiment")
@@ -81,10 +82,8 @@ async def fetch_fear_greed(
         url = "https://api.alternative.me/fng/"
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
-        try:
+        with suppress(Exception):  # pragma: no cover
             set_facade_mode("sentiment", force_facade, dry_run)
-        except Exception:  # pragma: no cover
-            pass
         async with httpx.AsyncClient() as client:
             if force_facade:
                 data = await async_fetch_json(url, timeout=10, client=client)
@@ -138,10 +137,23 @@ async def fetch_fear_greed(
             cache.set(key, fallback_result, expire=cache_ttl)
             SENTIMENT_SUCCESS.inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="sentiment", status="success").inc()
-            log.info("sentiment_fallback_success", metric="fear_greed", source="tokenmetrics (mock)", fallback=1, primary_error=type(e).__name__)
+            log.info(
+                "sentiment_fallback_success",
+                metric="fear_greed",
+                source="tokenmetrics (mock)",
+                fallback=1,
+                primary_error=type(e).__name__,
+            )
             return fallback_result
         except Exception as e2:
             SENTIMENT_ERRORS.inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="sentiment", status="error").inc()
-            log.error("sentiment_fallback_error", metric="fear_greed", error=str(e2), fallback=1, primary_error=type(e).__name__, fallback_error=type(e2).__name__)
+            log.error(
+                "sentiment_fallback_error",
+                metric="fear_greed",
+                error=str(e2),
+                fallback=1,
+                primary_error=type(e).__name__,
+                fallback_error=type(e2).__name__,
+            )
             return None

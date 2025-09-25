@@ -1,10 +1,9 @@
-import os
-import types
 import pytest
 
-from pipeline.http import fetch_json, async_fetch_json
 from pipeline import http_wrappers
+from pipeline.http import async_fetch_json, fetch_json
 from pipeline.metrics import HTTP_RETRIES_TOTAL
+
 
 class DummyResp:
     def __init__(self, status_code, payload):

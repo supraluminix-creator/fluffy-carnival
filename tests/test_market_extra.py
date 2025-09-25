@@ -1,6 +1,7 @@
+from typing import Any
+
 import httpx
 import pytest
-from typing import Any
 
 from pipeline.collectors import market as market_mod
 
@@ -74,8 +75,6 @@ class DummyAsyncClient:
 async def test_fetch_macro_fallback_error(monkeypatch):
     # Primary fails, fallback also fails -> None
     symbol = "macrofail1"
-    cg_url = f"https://api.coingecko.com/api/v3/coins/{symbol}"
-    cmc_url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
 
     def factory(*a, **k):
         return DummyAsyncClient([
@@ -91,7 +90,6 @@ async def test_fetch_macro_fallback_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_fetch_macro_cache_hit(monkeypatch):
     symbol = "macrocache1"
-    cg_url = f"https://api.coingecko.com/api/v3/coins/{symbol}"
     payload = {
         "last_updated": "2025-09-20T00:00:00Z",
         "market_data": {

@@ -4,6 +4,7 @@ Chaque exception dérive de CollectorError afin de permettre un catch unifié.
 """
 from __future__ import annotations
 
+
 class CollectorError(Exception):
     """Base pour toutes les erreurs de collecte."""
     error_type = "collector_error"

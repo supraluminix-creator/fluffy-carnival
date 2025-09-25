@@ -11,28 +11,31 @@ Fonctions exposées:
 from __future__ import annotations
 
 import os
-from pipeline.flags import is_forced_facade, is_dry_run_facade
 import time
-from typing import Optional, Dict, Any
+from collections.abc import Callable
+from contextlib import suppress
+from typing import Any, TypedDict
 
 import httpx
-from pipeline.http import fetch_json  # façade unifiée pour mode forcé
-from prometheus_client import Counter, REGISTRY as PROM_REGISTRY
-from pipeline.utils import to_float
-from pipeline.metrics import FACADE_FORCED
-from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
-from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
-from pipeline.errors import (
-    classify,
-    RateLimitError,
-    NotFoundError,
-    NetworkError,
-    TimeoutError_,
-    SchemaError,
-    UpstreamError,
-    EmptyDataError,
-)
 import structlog
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter
+
+from pipeline.errors import (
+    EmptyDataError,
+    NetworkError,
+    NotFoundError,
+    RateLimitError,
+    SchemaError,
+    TimeoutError_,
+    UpstreamError,
+    classify,
+)
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import fetch_json  # façade unifiée pour mode forcé
+from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.utils import to_float
 
 logger = structlog.get_logger(__name__)
 
@@ -47,11 +50,9 @@ try:  # idempotent pour tests
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:  # déjà enregistré
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover - idempotent
     # Initialise échantillon pour binance (spot) afin de figer la famille même sans inc
     LEGACY_HTTP_USAGE.labels(collector='binance_spot')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 
 
 def _http_get(url: str, params: dict | None = None, timeout: float | None = None) -> dict:
@@ -91,7 +92,7 @@ def _ts_ms() -> int:
     return int(time.time() * 1000)
 
 
-def fetch_binance_spot_price(symbol: str) -> Optional[Dict[str, Any]]:
+def fetch_binance_spot_price(symbol: str) -> dict[str, Any] | None:
     """Retourne le prix spot symbol ex: BTCUSDT.
 
     Mode forced façade (FORCE_HTTP_FACADE=1) : utilise fetch_json (unifié) sans incrément legacy.
@@ -129,15 +130,20 @@ def fetch_binance_spot_price(symbol: str) -> Optional[Dict[str, Any]]:
         }
     except Exception as e:
         et = classify(e)
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="binance_spot", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
-        logger.warning("binance_spot_error", symbol=symbol, error=str(e), error_type=et, symbol_pair=symbol.upper(), forced=force_facade)
+        logger.warning(
+            "binance_spot_error",
+            symbol=symbol,
+            error=str(e),
+            error_type=et,
+            symbol_pair=symbol.upper(),
+            forced=force_facade,
+        )
         return None
 
 
-def fetch_binance_futures_oi(symbol: str) -> Optional[Dict[str, Any]]:
+def fetch_binance_futures_oi(symbol: str) -> dict[str, Any] | None:
     """Open interest (USD-M futures). Support forced façade."""
     url = f"{BINANCE_FUTURES_BASE}/fapi/v1/openInterest"
     force_facade = is_forced_facade()
@@ -169,15 +175,20 @@ def fetch_binance_futures_oi(symbol: str) -> Optional[Dict[str, Any]]:
         }
     except Exception as e:
         et = classify(e)
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="binance_oi", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
-        logger.warning("binance_oi_error", symbol=symbol, error=str(e), error_type=et, symbol_pair=symbol.upper(), forced=force_facade)
+        logger.warning(
+            "binance_oi_error",
+            symbol=symbol,
+            error=str(e),
+            error_type=et,
+            symbol_pair=symbol.upper(),
+            forced=force_facade,
+        )
         return None
 
 
-def fetch_binance_funding(symbol: str) -> Optional[Dict[str, Any]]:
+def fetch_binance_funding(symbol: str) -> dict[str, Any] | None:
     """Funding rate (dernier enregistrement). Support forced façade."""
     url = f"{BINANCE_FUTURES_BASE}/fapi/v1/fundingRate"
     force_facade = is_forced_facade()
@@ -216,11 +227,16 @@ def fetch_binance_funding(symbol: str) -> Optional[Dict[str, Any]]:
         }
     except Exception as e:
         et = classify(e)
-        try:
+        with suppress(Exception):  # pragma: no cover
             COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="binance_funding", error_type=et).inc()
-        except Exception:  # pragma: no cover
-            pass
-        logger.warning("binance_funding_error", symbol=symbol, error=str(e), error_type=et, symbol_pair=symbol.upper(), forced=force_facade)
+        logger.warning(
+            "binance_funding_error",
+            symbol=symbol,
+            error=str(e),
+            error_type=et,
+            symbol_pair=symbol.upper(),
+            forced=force_facade,
+        )
         return None
 
 
@@ -232,7 +248,6 @@ __all__ = [
 ]
 
 # --- Simple price collector (utilisé par tests historiques) ---
-from typing import Callable, TypedDict
 
 
 class BinancePriceRecord(TypedDict):

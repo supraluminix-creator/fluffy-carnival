@@ -1,5 +1,4 @@
-import os
-from pipeline.maintenance import run_maintenance, MaintenanceResult
+from pipeline.maintenance import MaintenanceResult
 
 
 def test_maintenance_skip_vacuum(monkeypatch, tmp_path):

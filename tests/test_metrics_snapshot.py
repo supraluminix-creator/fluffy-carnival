@@ -1,4 +1,5 @@
 import importlib
+
 from prometheus_client import REGISTRY
 
 # Modules qui enregistrent les métriques personnalisées

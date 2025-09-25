@@ -1,10 +1,12 @@
 import pytest
+
 from pipeline import http_wrappers
 from pipeline.errors import TimeoutError_
 from pipeline.metrics import (
     RETRY_BUDGET_EXHAUSTED_TOTAL,
     RETRY_BUDGET_REMAINING_SECONDS,
 )
+
 
 class Dummy429:
     status_code = 429

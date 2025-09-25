@@ -1,11 +1,19 @@
-import asyncio, json, os, time, contextlib, sqlite3, random
-from datetime import datetime, timezone
+import asyncio
+import contextlib
+import json
+import os
+import random
+import sqlite3
+import time
+from datetime import UTC, datetime
+
 from prometheus_client import start_http_server
+
 from pipeline.collectors.bybit_ws import (
-    BybitWSService,
     BYBIT_WS_CONNECTIONS,
     BYBIT_WS_ERRORS,
     BYBIT_WS_EVENTS,
+    BybitWSService,
 )
 
 ARTIFACT_DIR = "analysis/run_2025-09-20/artifacts"
@@ -109,7 +117,7 @@ async def run_ws_until_event_dbwatch_v2(max_duration=600, min_db_rows=1, poll_in
         pass
 
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "elapsed_seconds": round(elapsed, 2),
         "connections_total": _extract_val(BYBIT_WS_CONNECTIONS),
         "errors_total": _extract_val(BYBIT_WS_ERRORS),

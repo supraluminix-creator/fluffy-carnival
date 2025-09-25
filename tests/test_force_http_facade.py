@@ -29,7 +29,7 @@ def test_force_http_facade_market(monkeypatch):
     res = market_mod.fetch_market('legacytest', cache_ttl=1)
     assert res is not None
     # coingecko primary must have been called
-    assert any('coingecko' in k for k in calls.keys())
+    assert any('coingecko' in k for k in calls)
     # legacy counter ne doit PAS s'incrémenter dans ce chemin: on vérifie qu'aucun log legacy n'a été émis via variable interne
     assert market_mod._LEGACY_MARKET_LOGGED is False
 

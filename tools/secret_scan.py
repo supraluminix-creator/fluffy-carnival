@@ -15,17 +15,18 @@ Limitations:
 from __future__ import annotations
 
 import argparse
-import os
 import re
-import sys
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
 
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("hex_64", re.compile(r"\b[0-9a-fA-F]{64}\b")),
     ("hex_48", re.compile(r"\b[0-9a-fA-F]{48}\b")),
-    ("uuid_v4", re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b")),
+    (
+        "uuid_v4",
+        re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b"),
+    ),
     ("binance_like", re.compile(r"\b[0-9A-Za-z]{32,64}\b")),
     ("coingecko_prefix", re.compile(r"CG-[0-9A-Za-z]{20,}")),
     ("token_metrics", re.compile(r"tm-[0-9a-fA-F-]{30,}")),

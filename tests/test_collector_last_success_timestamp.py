@@ -1,7 +1,9 @@
 import asyncio
 import time
-from pipeline.collectors.base_collector import BaseCollector
+
 from prometheus_client import REGISTRY
+
+from pipeline.collectors.base_collector import BaseCollector
 
 
 class _DummyCollector(BaseCollector):

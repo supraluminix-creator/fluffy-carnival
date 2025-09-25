@@ -1,9 +1,8 @@
-import os
 import logging
+import os
 from pathlib import Path
 
-from pipeline.logging_config import setup_logging
-from pipeline.logging_config import setup_logging, _reset_logging_for_tests
+from pipeline.logging_config import _reset_logging_for_tests, setup_logging
 
 
 def test_setup_logging_creates_handlers(tmp_path, monkeypatch):

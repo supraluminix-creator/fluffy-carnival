@@ -1,8 +1,10 @@
 from typing import Any
-import pytest
-import httpx
 
-from pipeline.collectors.sentiment import fetch_fear_greed, SentimentRecord
+import httpx
+import pytest
+
+from pipeline.collectors.sentiment import fetch_fear_greed
+
 
 class DummyResp:
     def __init__(self, payload: dict[str, Any]):
@@ -14,7 +16,16 @@ class DummyResp:
 
 @pytest.mark.asyncio
 async def test_sentiment_success(monkeypatch):
-    payload: dict[str, Any] = {"data": [{"timestamp": 1700000000, "value": "42", "value_classification": "Fear", "time_until_update": 3600}]}
+    payload: dict[str, Any] = {
+        "data": [
+            {
+                "timestamp": 1_700_000_000,
+                "value": "42",
+                "value_classification": "Fear",
+                "time_until_update": 3600,
+            }
+        ]
+    }
     class DummyAsyncClient:
         def __init__(self, *a, **k):
             pass

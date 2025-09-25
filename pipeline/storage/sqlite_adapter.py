@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 # On n'emploie plus de flag global; chaque connexion applique les pragmas
 # pour permettre aux tests (et au runtime) de modifier dynamiquement les

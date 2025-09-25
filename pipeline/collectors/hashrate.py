@@ -18,26 +18,27 @@ remaining resilient to extra keys (non-total).
 from __future__ import annotations
 
 import asyncio
-from typing import Any, TypedDict, cast
+from contextlib import suppress
+from typing import TypedDict, cast
 
 import diskcache
 import httpx
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter
 from tenacity import retry, stop_after_attempt, wait_exponential
-from prometheus_client import Counter, REGISTRY as PROM_REGISTRY
-from pipeline.metrics import FACADE_FORCED, FACADE_FORCED_LEAK
+
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json
+from pipeline.metrics import FACADE_FORCED_LEAK
 from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
-from pipeline.flags import is_forced_facade, is_dry_run_facade
-from pipeline.http import async_fetch_json, fetch_json
 
 # Compteur legacy (idempotent) partagé
 try:  # pragma: no cover - idempotent
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:  # déjà défini
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:  # pré-initialise sample
+with suppress(Exception):  # pragma: no cover - pré-initialise sample
     LEGACY_HTTP_USAGE.labels(collector='onchain_hashrate')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 _LEGACY_LOGGED = False
 
 
@@ -86,10 +87,8 @@ class HashrateCollector:
 
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
-        try:
+        with suppress(Exception):  # pragma: no cover
             set_facade_mode('onchain_hashrate', force_facade, dry_run)
-        except Exception:  # pragma: no cover
-            pass
         params = {"timespan": "1days", "format": "json"}
         try:
             if force_facade:
@@ -112,10 +111,8 @@ class HashrateCollector:
         except Exception:
             if force_facade:
                 # Pas de repli legacy en mode forced pour cohérence métriques
-                try:  # leak gauge set si on détecte tentative legacy (ici on ne tente pas)
+                with suppress(Exception):  # leak gauge set si on détecte tentative legacy (ici on ne tente pas)
                     FACADE_FORCED_LEAK.labels(collector='onchain_hashrate').set(0)  # type: ignore[attr-defined]
-                except Exception:
-                    pass
                 return None
             return None
 
@@ -135,10 +132,8 @@ class HashrateCollector:
         """
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
-        try:
+        with suppress(Exception):  # pragma: no cover
             set_facade_mode('onchain_hashrate', force_facade, dry_run)
-        except Exception:  # pragma: no cover
-            pass
         try:
             return asyncio.run(self.fetch_hashrate_async(symbol))
         except Exception:

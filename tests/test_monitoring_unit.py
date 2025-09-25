@@ -1,5 +1,6 @@
 from pipeline import monitoring
 
+
 def test_monitoring_metrics_basic():
     # Incrément simple pour vérifier absence d'exception
     c = monitoring.REQUEST_SUCCESS.labels(collector="x")

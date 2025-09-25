@@ -1,5 +1,5 @@
 import asyncio
-import types
+
 import pytest
 
 from pipeline.scheduler import CryptoScheduler

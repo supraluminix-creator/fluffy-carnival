@@ -1,31 +1,32 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class TechnicalSection(BaseModel):
-    patterns: Optional[List[str]] = None
-    levels: Optional[Dict[str, float]] = None
-    momentum: Optional[Dict[str, Any]] = None
+    patterns: list[str] | None = None
+    levels: dict[str, float] | None = None
+    momentum: dict[str, Any] | None = None
 
 
 class QuantSection(BaseModel):
-    volatility: Optional[Dict[str, Any]] = None
-    correlations: Optional[Dict[str, float]] = None
-    risk_ratios: Optional[Dict[str, float]] = None
+    volatility: dict[str, Any] | None = None
+    correlations: dict[str, float] | None = None
+    risk_ratios: dict[str, float] | None = None
 
 
 class FundamentalSection(BaseModel):
-    macro: Optional[str] = None
-    regulation: Optional[str] = None
-    adoption: Optional[str] = None
+    macro: str | None = None
+    regulation: str | None = None
+    adoption: str | None = None
 
 
 class SourceItem(BaseModel):
     title: str
     url: str
-    date: Optional[str] = None
+    date: str | None = None
 
 
 class ScriptItem(BaseModel):
@@ -35,10 +36,10 @@ class ScriptItem(BaseModel):
 
 
 class SynthesisSection(BaseModel):
-    summary: Optional[str] = None
-    scenarios: Optional[List[str]] = None
-    risks: Optional[List[str]] = None
-    opportunities: Optional[List[str]] = None
+    summary: str | None = None
+    scenarios: list[str] | None = None
+    risks: list[str] | None = None
+    opportunities: list[str] | None = None
 
 
 class ReportMeta(BaseModel):
@@ -48,9 +49,26 @@ class ReportMeta(BaseModel):
 
 class Report(BaseModel):
     meta: ReportMeta
-    technical: Optional[TechnicalSection] = None
-    quant: Optional[QuantSection] = None
-    fundamental: Optional[FundamentalSection] = None
-    sources: Optional[List[SourceItem]] = None
-    scripts: Optional[List[ScriptItem]] = None
-    synthesis: Optional[SynthesisSection] = None
+    technical: TechnicalSection | None = None
+    quant: QuantSection | None = None
+    fundamental: FundamentalSection | None = None
+    sources: list[SourceItem] | None = None
+    scripts: list[ScriptItem] | None = None
+    synthesis: SynthesisSection | None = None
+
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str | None = None
+    git_sha: str | None = None
+    build_date: str | None = None
+    started_at: str | None = None
+    uptime_seconds: float | None = None
+
+
+class HistoryMetaResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+    items: list[Report]

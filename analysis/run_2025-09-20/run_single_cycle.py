@@ -1,6 +1,11 @@
-import asyncio, json, os, time
+import asyncio
+import json
+import os
+import time
 from datetime import datetime
+
 from main import run_legacy_collection, setup_logging
+
 
 async def main():
     start = time.time()

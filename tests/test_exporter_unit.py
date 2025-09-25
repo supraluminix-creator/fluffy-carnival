@@ -1,7 +1,9 @@
-from pathlib import Path
-from datetime import datetime, UTC
-from pipeline.exporter import Exporter
 import csv
+from datetime import UTC, datetime
+from pathlib import Path
+
+from pipeline.exporter import Exporter
+
 
 def test_exporter_creates_files(tmp_path: Path):
     exp_dir = tmp_path / "exports"

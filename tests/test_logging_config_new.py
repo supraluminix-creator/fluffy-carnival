@@ -1,9 +1,6 @@
 import os
-import json
-import structlog
-import pytest
 
-from pipeline.logging_config import setup_logging, _reset_logging_for_tests
+from pipeline.logging_config import _reset_logging_for_tests, setup_logging
 
 
 def test_setup_logging_idempotent(monkeypatch, capsys):

@@ -1,8 +1,10 @@
-import json
 from typing import Any
-from pipeline.collectors.bybit_OI import BybitWSCollector
-import requests
+
 import pytest
+import requests
+
+from pipeline.collectors.bybit_OI import BybitWSCollector
+
 
 class DummyResp:
     def __init__(self, payload: dict[str, Any]):

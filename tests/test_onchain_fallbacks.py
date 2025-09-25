@@ -1,10 +1,8 @@
-import asyncio
-import json
-import types
 import httpx
 import pytest
 
-from pipeline.collectors.onchain import fetch_txcount, cache
+from pipeline.collectors.onchain import cache, fetch_txcount
+
 
 class DummyAsyncResponse:
     def __init__(self, status_code: int = 200, text: str | None = None, json_data=None):
@@ -58,7 +56,10 @@ async def test_txcount_btc_primary_success(monkeypatch):
 async def test_txcount_btc_primary_failure_fallback_success(monkeypatch):
     cache.clear()
     url_main = "https://api.blockchain.info/q/getblockcount"
-    etherscan = "https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=KEY"  # used as fallback for BTC if provided
+    # used as fallback for BTC if provided
+    etherscan = (
+        "https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=KEY"
+    )
     # Primary raises, fallback returns hex block number
     client = DummyAsyncClient({url_main: RuntimeError("fail"), etherscan: {"result": hex(0xABCDEF)}})
     monkeypatch.setattr(httpx, "AsyncClient", lambda: client)

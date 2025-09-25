@@ -31,11 +31,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import logging
 import os
 import signal
 import sys
-from typing import Protocol, Any, Mapping, Optional, List, Callable
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol
 
 import structlog
 import websockets
@@ -47,6 +47,7 @@ from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 # LOGGING (centralisé)
 # ---------------------------------------------------------
 from pipeline.logging_config import setup_logging  # import tardif pour éviter cycles
+
 setup_logging(simple=True)
 logger = structlog.get_logger("bybit_ws")
 
@@ -75,10 +76,10 @@ class BybitWSService:
         writer: Object with async write_record(dict) method (e.g., BybitLiquidationsWriter)
         ws_url (str): Optional custom WS endpoint
     """
-    def __init__(self, symbols: List[str], ws_url: Optional[str] = None, db_path: str = "data/crypto.db",
+    def __init__(self, symbols: list[str], ws_url: str | None = None, db_path: str = "data/crypto.db",
                  parquet_dir: str = "data/bybit_liquidations", flush_size: int = 100,
                  flush_interval: int = 5, subscribe_tpl: str = "liquidation.{}"):
-        self.symbols: List[str] = symbols
+        self.symbols: list[str] = symbols
         self.ws_url: str = ws_url or self._auto_detect_url(symbols)
         self.subscribe_tpl: str = subscribe_tpl
 
@@ -99,13 +100,13 @@ class BybitWSService:
             logger.warning("Impossible d'enregistrer le writer dans le registre global", exc_info=True)
 
         # websocket-client protocol object (runtime from websockets library)
-        self.ws: Optional[Any] = None
+        self.ws: Any | None = None
         self.stop_event: asyncio.Event = asyncio.Event()
         self._reconnect_delay: int = 1
 
         logger.info("BybitWSService created", symbols=symbols, ws_url=self.ws_url)
 
-    def _auto_detect_url(self, symbols: List[str]) -> str:
+    def _auto_detect_url(self, symbols: list[str]) -> str:
         """
         Auto-detect correct Bybit WS endpoint based on symbol suffixes.
         """
@@ -216,10 +217,9 @@ class BybitWSService:
         logger.info("Stopping BybitWSService")
         self.stop_event.set()
         if self.ws:
-            try:
+            import contextlib
+            with contextlib.suppress(Exception):
                 await self.ws.close()
-            except Exception:
-                pass
         if hasattr(self.writer, "close"):
             await self.writer.close()
 
@@ -242,7 +242,12 @@ class BybitWSCollector:
     - ws_url: optional WebSocket URL override
     """
 
-    def __init__(self, symbol: str, on_message: Optional[Callable[[str | bytes], None]] = None, ws_url: str | None = None) -> None:
+    def __init__(
+        self,
+        symbol: str,
+        on_message: Callable[[str | bytes], None] | None = None,
+        ws_url: str | None = None,
+    ) -> None:
         self.symbol: str = (symbol or "BTCUSDT").upper()
         # Ensure on_message is always a callable accepting a single str argument.
         # websockets.recv() may yield either str or bytes; we pass through transparently.
@@ -331,10 +336,9 @@ def main() -> int:
         print("[DEBUG] After asyncio.run (graceful stop)")
     except KeyboardInterrupt:
         logger.info("Interrupted; stopping service")
-        try:
+        import contextlib
+        with contextlib.suppress(Exception):
             asyncio.run(svc.stop())
-        except Exception:
-            pass
         return 0
     except Exception as e:
         print(f"[DEBUG] Exception in main(): {e}")

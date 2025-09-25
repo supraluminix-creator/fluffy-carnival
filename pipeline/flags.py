@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+
 def is_forced_facade() -> bool:
     """Retourne True si la façade HTTP est globalement forcée.
 

@@ -1,6 +1,8 @@
+from collections.abc import Iterator
+
 import pytest
 from diskcache import Cache
-from typing import Iterator
+
 
 @pytest.fixture(autouse=True)
 def clear_global_caches() -> Iterator[None]:

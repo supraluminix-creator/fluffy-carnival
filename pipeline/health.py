@@ -8,10 +8,10 @@ import asyncio
 import os
 import threading
 from collections.abc import Callable
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Lock
 from typing import Any
-from contextlib import suppress
 
 import structlog
 
@@ -28,17 +28,20 @@ def _ensure_health_labels() -> None:
     """Pré-initialise les combinaisons de labels attendues par les tests (idempotent)."""
     if HEALTH_REQUESTS_TOTAL is None:
         return
-    with _metrics_lock:
-        with suppress(Exception):  # pragma: no cover
-            # Force création des time series (valeur 0) si non existantes
-            for ep in ("/health", "/notfound"):
-                for st in ("200", "404", "500"):
-                    HEALTH_REQUESTS_TOTAL.labels(endpoint=ep, status=st)  # type: ignore[union-attr]
+    with _metrics_lock, suppress(Exception):  # pragma: no cover
+        # Force création des time series (valeur 0) si non existantes
+        for ep in ("/health", "/notfound"):
+            for st in ("200", "404", "500"):
+                HEALTH_REQUESTS_TOTAL.labels(endpoint=ep, status=st)  # type: ignore[union-attr]
 
 _ensure_health_labels()
 
 
-async def heartbeat(period_secs: int, provider: Callable[[], dict[str, Any]] | None = None, stop_event: asyncio.Event | None = None) -> None:
+async def heartbeat(
+    period_secs: int,
+    provider: Callable[[], dict[str, Any]] | None = None,
+    stop_event: asyncio.Event | None = None,
+) -> None:
     """Coroutine heartbeat générique.
 
     provider: fonction optionnelle retournant un dict de métriques supplémentaires.
@@ -51,7 +54,7 @@ async def heartbeat(period_secs: int, provider: Callable[[], dict[str, Any]] | N
         if provider:
             try:
                 extra = provider() or {}
-                payload.update({k: v for k, v in extra.items() if isinstance(v, (int, float, str, bool))})
+                payload.update({k: v for k, v in extra.items() if isinstance(v, (int | float | str | bool))})
             except Exception:  # pragma: no cover
                 pass
         logger.info("heartbeat", **payload)
@@ -61,7 +64,7 @@ async def heartbeat(period_secs: int, provider: Callable[[], dict[str, Any]] | N
         await asyncio.sleep(period_secs)
 
 
-class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests peuvent cibler via start_health_server + client http
+class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests via start_health_server + client http
     scheduler_ref = None
     def log_message(self, format, *args):  # noqa: D401
         return
@@ -88,9 +91,8 @@ class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests peuven
                 self.send_response(404)
                 self.end_headers()
                 if HEALTH_REQUESTS_TOTAL is not None:
-                    with suppress(Exception):  # pragma: no cover
-                        with _metrics_lock:
-                            HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="404").inc()  # type: ignore[union-attr]
+                    with _metrics_lock, suppress(Exception):  # pragma: no cover
+                        HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="404").inc()  # type: ignore[union-attr]
                 return
             snap["run_id"] = os.getenv("RUN_ID", "")
             if self.scheduler_ref is not None:
@@ -108,19 +110,17 @@ class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests peuven
             self.end_headers()
             self.wfile.write(payload)
             if HEALTH_REQUESTS_TOTAL is not None:
-                with suppress(Exception):  # pragma: no cover
-                    with _metrics_lock:
-                        HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="200").inc()  # type: ignore[union-attr]
+                with _metrics_lock, suppress(Exception):  # pragma: no cover
+                    HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="200").inc()  # type: ignore[union-attr]
         except Exception:
             try:
                 self.send_response(500)
                 self.end_headers()
             finally:
                 if HEALTH_REQUESTS_TOTAL is not None:
-                    with suppress(Exception):  # pragma: no cover
+                    with _metrics_lock, suppress(Exception):  # pragma: no cover
                         path = getattr(self, 'path', 'unknown')
-                        with _metrics_lock:
-                            HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="500").inc()  # type: ignore[union-attr]
+                        HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="500").inc()  # type: ignore[union-attr]
                 pass
 
 

@@ -1,6 +1,7 @@
-import pytest
 import httpx
+import pytest
 from prometheus_client import REGISTRY
+
 
 class DummyResp:
     def __init__(self, data, status=200):

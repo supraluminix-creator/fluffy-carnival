@@ -26,8 +26,8 @@ def test_defillama_uses_async_fetch_json(monkeypatch):
         if "/v2/historicalChainTvl/" in url:
             # Points: timestamp, valeur
             return [
-                [int(1_700_000_000), 900000],
-                [int(1_700_086_400), 950000],  # ~+1 jour
+                [1_700_000_000, 900000],
+                [1_700_086_400, 950000],  # ~+1 jour
             ]
         return {}
 

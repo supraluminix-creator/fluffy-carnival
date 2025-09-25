@@ -1,15 +1,16 @@
-import json
 import io
+import json
 import re
+
 import httpx
 import pytest
 import structlog
 from prometheus_client import generate_latest
 
-from pipeline.collectors.market import fetch_market
-from pipeline.collectors.sentiment import fetch_fear_greed
-from pipeline.collectors.onchain import fetch_txcount, cache
 from pipeline.collectors.derivatives import fetch_bybit_oi
+from pipeline.collectors.market import fetch_market
+from pipeline.collectors.onchain import cache, fetch_txcount
+from pipeline.collectors.sentiment import fetch_fear_greed
 
 
 @pytest.fixture
@@ -31,10 +32,10 @@ def log_buffer(monkeypatch):
     )
     # Ré-affecte les loggers déjà capturés dans les modules collectors vers le nouveau backend
     try:
-        import pipeline.collectors.market as _m
-        import pipeline.collectors.sentiment as _s
-        import pipeline.collectors.onchain as _o
         import pipeline.collectors.derivatives as _d
+        import pipeline.collectors.market as _m
+        import pipeline.collectors.onchain as _o
+        import pipeline.collectors.sentiment as _s
         new_logger = structlog.get_logger("tests_fallback")
         for mod in (_m, _s, _o, _d):
             if hasattr(mod, "log"):
@@ -47,11 +48,11 @@ def log_buffer(monkeypatch):
         structlog.reset_defaults()
 
 def _parsed_events(buf: io.StringIO):
-    lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+    lines = [line for line in buf.getvalue().splitlines() if line.strip()]
     out = []
-    for l in lines:
+    for line in lines:
         try:
-            out.append(json.loads(l))
+            out.append(json.loads(line))
         except json.JSONDecodeError:
             continue
     return out

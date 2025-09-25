@@ -1,5 +1,4 @@
 import os
-import re
 
 import prometheus_client
 
@@ -25,6 +24,7 @@ def _call_market():
 
 def _call_defillama():
     import asyncio
+
     from pipeline.collectors import defillama as d
     async def run():
         return await d.fetch_defillama_tvl('Ethereum', cache_ttl=1)

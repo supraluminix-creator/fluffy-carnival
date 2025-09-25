@@ -1,5 +1,11 @@
 from pipeline.exceptions import (
-    CollectorError, NetworkError, RateLimitError, NotFoundError, SchemaError, EmptyDataError, UpstreamError
+    CollectorError,
+    EmptyDataError,
+    NetworkError,
+    NotFoundError,
+    RateLimitError,
+    SchemaError,
+    UpstreamError,
 )
 
 

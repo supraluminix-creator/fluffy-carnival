@@ -1,7 +1,12 @@
 """Benchmark des collectors.
 
 Usage:
-  python -m tools.benchmark_collectors --collectors macro,market --iterations 15 --timeout 8 --json-out benchmark.json --table
+    python -m tools.benchmark_collectors \
+        --collectors macro,market \
+        --iterations 15 \
+        --timeout 8 \
+        --json-out benchmark.json \
+        --table
 
 Caractéristiques:
  - Exécution séquentielle (réduit bruit et corrélation) pour chaque collector.
@@ -21,8 +26,9 @@ import json
 import math
 import statistics
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Callable, Awaitable, Dict, Any, List
+from typing import Any
 
 import structlog
 
@@ -38,14 +44,15 @@ async def _lazy_import_macro():  # séparé pour éviter coût import global si 
 
 
 async def _lazy_import_market():
-    from pipeline.collectors.market import fetch_market  # sync wrapper décoré
     # Exécuter sync dans thread pour ne pas bloquer event loop
     from functools import partial
+
+    from pipeline.collectors.market import fetch_market  # sync wrapper décoré
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, partial(fetch_market, "bitcoin"))
 
 
-COLLECTOR_REGISTRY: Dict[str, CollectorFn] = {
+COLLECTOR_REGISTRY: dict[str, CollectorFn] = {
     "macro": _lazy_import_macro,
     "market": _lazy_import_market,
 }
@@ -57,12 +64,12 @@ class BenchmarkResult:
     iterations: int
     success: int
     errors: int
-    latencies: List[float]
+    latencies: list[float]
     started_at: float
     ended_at: float
     notes: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         if self.latencies:
             lat_sorted = sorted(self.latencies)
             idx_p95 = max(0, min(len(lat_sorted) - 1, math.ceil(0.95 * len(lat_sorted)) - 1))
@@ -89,7 +96,7 @@ class BenchmarkResult:
 
 
 async def run_benchmark(name: str, fn: CollectorFn, iterations: int, timeout: float) -> BenchmarkResult:
-    latencies: List[float] = []
+    latencies: list[float] = []
     success = 0
     errors = 0
     started = time.time()
@@ -112,7 +119,7 @@ async def main_async(args):
     unknown = [c for c in selected if c not in COLLECTOR_REGISTRY]
     if unknown:
         raise SystemExit(f"Unknown collectors: {unknown}. Known: {list(COLLECTOR_REGISTRY)}")
-    results: List[BenchmarkResult] = []
+    results: list[BenchmarkResult] = []
     for name in selected:
         log.info("benchmark_start_collector", collector=name, iterations=args.iterations)
         res = await run_benchmark(name, COLLECTOR_REGISTRY[name], args.iterations, args.timeout)

@@ -56,7 +56,121 @@ $env:CRYPTO_MONITOR_MODE = "scheduler"
 .\\.venv\\Scripts\\python.exe .\\main.py
 ```
 
-There is no API server in this build; everything runs headless from the scheduler.
+### 2) API FastAPI (Uvicorn)
+
+Dev (reload) — API principale:
+
+```powershell
+Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
+./scripts/run_uvicorn.ps1 -App "pipeline.api:app" -BindHost "127.0.0.1" -Port 8000 -Reload
+```
+
+Dev (reload) — API santé/metrics:
+
+```powershell
+./scripts/run_uvicorn.ps1 -App "api.health:app" -BindHost "127.0.0.1" -Port 9310 -Reload
+```
+
+Prod (workers, sans reload):
+
+```powershell
+./scripts/run_uvicorn.ps1 -App "pipeline.api:app" -BindHost "0.0.0.0" -Port 8000 -Workers 4
+```
+
+Note Windows: le mode multi-workers Uvicorn n'est pas supporté (SO_REUSEPORT manquant). Sur Windows, utilisez `-Workers 1` (valeur par défaut) et préférez un reverse proxy/process manager externe si besoin de parallélisme.
+
+Endpoints utiles:
+- API: http://127.0.0.1:8000/docs
+- Santé: http://127.0.0.1:9310/health
+- Metrics: http://127.0.0.1:9310/metrics
+- LLM status: http://127.0.0.1:8000/api/llm/status
+ - Version/build: http://127.0.0.1:8000/api/version
+  - Historique (métadonnées): http://127.0.0.1:8000/api/report/history_meta?interval=1h&page=1&page_size=50
+  - Désactiver la doc interactive/OpenAPI en prod: `API_DOCS_ENABLED=0`
+
+Nouvel endpoint LLM (optionnel, protégé par X-API-KEY):
+- POST /api/llm/generate — corps JSON: { "prompt": str, "model"?: str, "temperature"?: float, "max_tokens"?: int }
+- POST /api/llm/stream — Server-Sent Events (SSE) qui stream la sortie par fragments; mêmes champs que generate.
+- Par défaut, utilise un provider MOQUETTE (mock) déterministe, suffisant pour les tests et le développement.
+- Pour activer des providers réels, renseignez `.env` (voir `.env.example`):
+  - OpenAI: `OPENAI_API_KEY`, `OPENAI_MODEL`
+  - OpenRouter: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
+  - Ollama (local): `OLLAMA_HOST`, `OLLAMA_MODEL`
+
+Sécurité & limites:
+- Clé requise pour les POST: `API_WRITE_KEY`
+- Rate limiting par clé/min: `API_RATE_LIMIT_PER_MIN` (défaut 60)
+ - L'auth d'écriture est factorisée via une dépendance FastAPI `require_api_key`.
+ - En-têtes renvoyés par les POST réussis (report, llm generate, llm stream):
+   - `X-RateLimit-Limit`: quota par minute configuré
+   - `X-RateLimit-Remaining`: nombre de requêtes restantes dans la fenêtre courante après cette requête
+   - `X-RateLimit-Reset`: secondes restantes avant réinitialisation de la fenêtre (rolling 60s)
+ - En cas de dépassement (429): en-tête `Retry-After` (secondes à attendre)
+ - Traçabilité requêtes: support du header `X-Request-ID` (si non fourni par le client, l'API en génère un et le renvoie)
+  - Middleware sécurité (optionnel et headers par défaut):
+    - `API_ENFORCE_HTTPS=1` force HTTPS (ou `x-forwarded-proto=https`) hors localhost (127.0.0.1/localhost). En HTTP clair côté prod, la route retourne 400 `{"detail":"HTTPS required"}`.
+    - `API_GZIP_ENABLED=1` active GZip sur les réponses (taille min configurable via `API_GZIP_MIN_SIZE`, défaut 500 octets).
+  - `API_MAX_BODY_BYTES` limite la taille des corps des requêtes d'écriture (POST/PUT/PATCH). Si >0, une requête avec `Content-Length` supérieur renvoie 413. Exemple: `API_MAX_BODY_BYTES=1048576` (1 MiB).
+  - `API_READ_MAX_AGE` active un cache client léger sur les endpoints de lecture via `ETag` et `Cache-Control`. Exemple: `API_READ_MAX_AGE=60` renvoie `Cache-Control: public, max-age=60` et supporte `If-None-Match` → 304.
+  - `API_METRICS_ROUTE=1` expose une route `/metrics` directement dans l'app principale (désactivé par défaut pour éviter conflit de port avec un exporter séparé).
+    - CORS optionnel: `API_CORS_ENABLED=1` et `API_CORS_ORIGINS=...`.
+    - En-têtes sécurité ajoutés: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, et `Strict-Transport-Security` si HTTPS (hors localhost). L'en-tête `Server` est supprimé si présent.
+
+Runner pratique (prod) sur Windows avec fallback de port auto:
+
+```powershell
+./scripts/run_api_prod.ps1 -BindHost "127.0.0.1" -Port 9322 -Workers 2 -AutoPort -MaxPortAttempts 3
+```
+
+- Sur Windows, le script force `Workers=1` même si `-Workers 2` est demandé.
+- Avec `-AutoPort`, en cas de port occupé le script incrémente automatiquement le port (jusqu'à `-MaxPortAttempts`).
+
+Mode détaché (background) avec fichier PID et arrêt facile:
+
+```powershell
+# Démarrer en arrière-plan
+./scripts/run_api_prod.ps1 -BindHost "127.0.0.1" -Port 9520 -Detach -PidFile ".\run\api.pid" -ApiWriteKey "k"
+
+# Arrêter ensuite
+./scripts/stop_api.ps1 -PidFile ".\run\api.pid"
+```
+
+Smoke tests locaux (PowerShell):
+
+```powershell
+# Health, index, LLM status, POST generate et SSE (via curl.exe si présent)
+./scripts/smoke_api.ps1 -TargetHost "127.0.0.1" -Port 9520 -ApiKey "k"
+```
+
+Client SSE Python (évite les subtilités de quoting PowerShell):
+
+```powershell
+.\.venv\Scripts\python.exe .\tools\sse_client.py --host 127.0.0.1 --port 9520 --key k --prompt "hello"
+```
+
+Historique avec pagination (optionnel):
+
+- GET /api/report/history?interval=1h&page=1&page_size=50
+- Params: page>=1, page_size 1..200; si omis, renvoie tout dans la fenêtre.
+ - En-têtes utiles quand `page` et `page_size` sont fournis:
+   - `X-Total-Count`: nombre total d'éléments dans la fenêtre
+   - `X-Has-Next`: `true`/`false` selon la présence d'une page suivante
+
+Endpoint alternatif avec métadonnées dans le payload:
+
+- GET /api/report/history_meta?interval=1h&page=1&page_size=50
+- Réponse:
+  {
+    "total": int,
+    "page": int,
+    "page_size": int,
+    "has_next": bool,
+    "items": List[Report]
+  }
+
+Santé enrichie:
+
+- GET /api/health → { status, version, git_sha, build_date, started_at, uptime_seconds }
 
 ## YAML-driven jobs
 

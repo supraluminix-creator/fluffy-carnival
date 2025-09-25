@@ -1,4 +1,5 @@
 from io import StringIO
+
 from pipeline.reporter import Reporter
 
 

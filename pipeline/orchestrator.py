@@ -24,8 +24,8 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, TypeVar
 from contextlib import suppress
+from typing import Any, TypeVar
 
 import structlog
 from prometheus_client import Counter, Gauge, Histogram

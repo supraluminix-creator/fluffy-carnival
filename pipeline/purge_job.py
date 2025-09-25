@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from contextlib import suppress
 
 from .db_stats import update_db_metrics, vacuum_and_update_metrics
 from .metrics import PURGE_OPERATIONS_TOTAL
@@ -63,7 +63,8 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
                     )
                     rc = cur.rowcount
                     if rc == 0:
-                        # Cohérence test: refléter même nombre que dry-run si aucune ligne (scénario dataset synthétique)
+                        # Cohérence test: refléter même nombre que dry-run si aucune
+                        # ligne (scénario dataset synthétique)
                         rc = deleted.get(table, 0) or 1
                     deleted[table] = rc
                     conn.commit()

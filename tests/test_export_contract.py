@@ -1,6 +1,7 @@
-from pathlib import Path
-from pipeline.export_utils import EXPORT_FIELDS, export_csv_rows
 import csv
+from pathlib import Path
+
+from pipeline.export_utils import EXPORT_FIELDS, export_csv_rows
 
 SNAPSHOT_FILE = Path("tests/_snapshots/export_columns.txt")
 

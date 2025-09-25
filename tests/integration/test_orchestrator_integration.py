@@ -1,6 +1,7 @@
 import asyncio
-import pytest
 from typing import Any
+
+import pytest
 
 from pipeline.orchestrator import ParallelOrchestrator
 

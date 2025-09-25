@@ -1,32 +1,27 @@
+import asyncio
 import os
 import time
-import asyncio
 from contextlib import suppress
 
 import pytest
-from prometheus_client import CollectorRegistry, generate_latest
+from prometheus_client import generate_latest
 
+from pipeline.export_utils import export_csv_rows
 from pipeline.metrics import (
-    EXPORTS_TOTAL,
-    EXPORT_ROWS_TOTAL,
     COLLECTOR_RUNS_TOTAL,
-    COLLECTOR_DURATION_SECONDS,
     HEARTBEAT_TICKS_TOTAL,
-    HEALTH_REQUESTS_TOTAL,
     collector_timing,
 )
-from pipeline.export_utils import export_csv_rows
 
 
 def parse_metric(text: bytes, metric: str) -> int:
     lines = text.decode().splitlines()
     total = 0
-    for l in lines:
-        if l.startswith(metric):
-            try:
-                total += int(float(l.split()[-1]))
-            except Exception:
-                pass
+    for line in lines:
+        if line.startswith(metric):
+            from contextlib import suppress
+            with suppress(Exception):
+                total += int(float(line.split()[-1]))
     return total
 
 
@@ -68,9 +63,8 @@ def test_collector_timing_metrics():
     assert end_success == start_success + 1
 
     start_error = COLLECTOR_RUNS_TOTAL.labels(collector="boom", status="error")._value.get()
-    with pytest.raises(RuntimeError):
-        with collector_timing("boom"):
-            raise RuntimeError("fail")
+    with pytest.raises(RuntimeError), collector_timing("boom"):
+        raise RuntimeError("fail")
     end_error = COLLECTOR_RUNS_TOTAL.labels(collector="boom", status="error")._value.get()
     assert end_error == start_error + 1
 

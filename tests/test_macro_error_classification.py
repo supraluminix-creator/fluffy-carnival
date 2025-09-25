@@ -1,9 +1,10 @@
+
 import httpx
-import asyncio
 import pytest
+from prometheus_client import REGISTRY
 
 from pipeline.collectors.market import fetch_macro
-from prometheus_client import REGISTRY
+
 
 class DummyResp:
     def __init__(self, data, status=200):

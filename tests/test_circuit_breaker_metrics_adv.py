@@ -1,7 +1,4 @@
 import time
-from types import SimpleNamespace
-
-from prometheus_client import CollectorRegistry, Counter, Gauge
 
 from pipeline import circuit_breaker as cb
 

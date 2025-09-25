@@ -1,22 +1,24 @@
 """Métriques base de données SQLite (taille, fragmentation, purge/vacuum)."""
 from __future__ import annotations
 
-from prometheus_client import Gauge, Counter
+from typing import cast
+
 from prometheus_client import REGISTRY as GLOBAL_REGISTRY
+from prometheus_client import Counter, Gauge
 
 
-def _gauge(name: str, doc: str, labelnames: list[str]):
+def _gauge(name: str, doc: str, labelnames: list[str]) -> Gauge:
 	try:
 		return Gauge(name, doc, labelnames)
 	except ValueError:
-		return GLOBAL_REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+		return cast(Gauge, GLOBAL_REGISTRY._names_to_collectors.get(name))
 
 
-def _counter(name: str, doc: str, labelnames: list[str]):
+def _counter(name: str, doc: str, labelnames: list[str]) -> Counter:
 	try:
 		return Counter(name, doc, labelnames)
 	except ValueError:
-		return GLOBAL_REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+		return cast(Counter, GLOBAL_REGISTRY._names_to_collectors.get(name))
 
 
 DB_FILE_SIZE_BYTES = _gauge(

@@ -1,7 +1,6 @@
+import asyncio
 import json
 import types
-import asyncio
-from pathlib import Path
 
 from tools import benchmark_collectors as bc
 

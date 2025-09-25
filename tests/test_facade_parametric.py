@@ -1,7 +1,8 @@
-import os
 import asyncio
-import pytest
+import os
+
 import prometheus_client
+import pytest
 
 # Paramétrisation centralisée des collectors et de leur mode (sync/async)
 COLLECTOR_CALLS = {

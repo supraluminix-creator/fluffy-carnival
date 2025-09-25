@@ -1,12 +1,12 @@
 """
 BaseCollector for prod-safe collectors with fallback, retry/backoff, logging, Prometheus, and cache TTL.
 """
-from typing import Any, Protocol, runtime_checkable, TypedDict
+import time
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 import structlog
 from diskcache import Cache
-from prometheus_client import Counter, Summary, Gauge
-import time
+from prometheus_client import Counter, Gauge, Summary
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 log = structlog.get_logger()
@@ -33,7 +33,11 @@ class BaseCollector:
     COLLECTOR_LATENCY = Summary('collector_latency_seconds', 'Latency of collector calls', ['collector'])
     COLLECTOR_ERRORS = Counter('collector_errors_total', 'Total collector errors', ['collector'])
     COLLECTOR_SUCCESS = Counter('collector_success_total', 'Total collector successes', ['collector'])
-    COLLECTOR_LAST_SUCCESS_TS = Gauge('collector_last_success_timestamp', 'Epoch timestamp of last successful collector fetch', ['collector'])
+    COLLECTOR_LAST_SUCCESS_TS = Gauge(
+        'collector_last_success_timestamp',
+        'Epoch timestamp of last successful collector fetch',
+        ['collector'],
+    )
 
     def __init__(self, name: str = "unnamed", cache_ttl: int = 300):
         # name optionnel pour compat avec anciens tests instanciant sans paramètre
@@ -54,10 +58,9 @@ class BaseCollector:
             if result is not None:
                 self.cache.set(key, result, expire=self.cache_ttl)
                 self.COLLECTOR_SUCCESS.labels(self.name).inc()
-                try:  # ne jamais casser le flux pour une gauge
+                from contextlib import suppress
+                with suppress(Exception):  # pragma: no cover - ne jamais casser le flux pour une gauge
                     self.COLLECTOR_LAST_SUCCESS_TS.labels(self.name).set(int(time.time()))
-                except Exception:  # pragma: no cover
-                    pass
                 self.log.info("success", key=key)
             else:
                 self.COLLECTOR_ERRORS.labels(self.name).inc()

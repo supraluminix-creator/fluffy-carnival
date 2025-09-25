@@ -1,8 +1,8 @@
 
+
 import pandas as pd
 import pandas_ta as ta
 import requests
-from typing import Any, Mapping
 
 
 def fetch_binance_ohlc(symbol: str = "BTCUSDT", interval: str = "5m", limit: int = 500) -> pd.DataFrame | None:

@@ -1,5 +1,4 @@
 import sqlite3
-from pathlib import Path
 
 from pipeline.db_stats import update_db_metrics, vacuum_and_update_metrics
 

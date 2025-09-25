@@ -1,13 +1,12 @@
-
+import io
+import os
 import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import pytest
-from pipeline.reporter import Reporter
-from pipeline.exporter import Exporter
 from datetime import datetime
-import os
+
+from pipeline.exporter import Exporter
+from pipeline.reporter import Reporter
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Dummy data for reporter
 DATA = {
@@ -24,16 +23,22 @@ DATA = {
 }
 FGI_DATA = {'value': '60', 'value_classification': 'Greed'}
 ADDITIONAL_DATA = {
-    'stablecoins': {'total_supply': 120_000_000_000, 'usdt_dominance': 70.1, 'usdc_dominance': 20.2},
-    'onchain': {'BTC': {'transaction_count': 250000, 'hash_rate': 120}, 'ETH': {'transaction_count': 120000, 'hash_rate': 80}},
-    'derivatives': {'BTC': {'funding_rate': 0.0002, 'open_interest': 10000000}, 'ETH': {'funding_rate': -0.0001, 'open_interest': 5000000}}
+    'stablecoins': {
+        'total_supply': 120_000_000_000,
+        'usdt_dominance': 70.1,
+        'usdc_dominance': 20.2,
+    },
+    'onchain': {
+        'BTC': {'transaction_count': 250000, 'hash_rate': 120},
+        'ETH': {'transaction_count': 120000, 'hash_rate': 80},
+    },
+    'derivatives': {
+        'BTC': {'funding_rate': 0.0002, 'open_interest': 10_000_000},
+        'ETH': {'funding_rate': -0.0001, 'open_interest': 5_000_000},
+    },
 }
 SIGNALS = {'accumulation_signal': 1, 'leverage_signal': -1, 'liquidity_signal': 1}
 DUNE_DATA: dict[str, object] = {}
-
-
-
-import io
 
 def test_reporter_display_summary():
     reporter = Reporter()

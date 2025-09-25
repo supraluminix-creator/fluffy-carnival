@@ -1,8 +1,9 @@
-import os
 import httpx
 import pytest
 from prometheus_client import generate_latest
+
 from pipeline.collectors.market import fetch_macro_orchestrated
+
 
 class Dummy429Then200:
     def __init__(self):
@@ -47,7 +48,9 @@ async def test_coingecko_retry_integration(monkeypatch):
     # Patch ancien chemin sync (héritage) et nouveau chemin async (façade avec AsyncClient)
     monkeypatch.setattr(httpx, 'get', dummy)
     # Patch méthode AsyncClient.get pour le chemin réellement utilisé après migration
-    monkeypatch.setattr(httpx.AsyncClient, 'get', lambda self, url, headers=None, params=None, timeout=10: dummy.async_call(url, headers=headers, params=params, timeout=timeout))
+    def _async_get(self, url, headers=None, params=None, timeout=10):
+        return dummy.async_call(url, headers=headers, params=params, timeout=timeout)
+    monkeypatch.setattr(httpx.AsyncClient, 'get', _async_get)
 
     res = await fetch_macro_orchestrated('bitcoin')
     assert res and res.get('source') == 'coingecko'
@@ -56,4 +59,7 @@ async def test_coingecko_retry_integration(monkeypatch):
     exposition = generate_latest().decode()
     # Recherche de la ligne attendue.
     target = 'http_retries_total{endpoint="coingecko/coins",reason="RateLimitError"} 2.0'
-    assert target in exposition, f'Ligne métrique manquante: {target}\nExposition partielle:\n' + '\n'.join([l for l in exposition.splitlines() if 'http_retries_total' in l])
+    matching_lines = [line for line in exposition.splitlines() if 'http_retries_total' in line]
+    assert target in exposition, (
+        f"Ligne métrique manquante: {target}\nExposition partielle:\n" + "\n".join(matching_lines)
+    )

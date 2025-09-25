@@ -1,9 +1,11 @@
 import asyncio
-import os
-import types
 import builtins
+import os
 import sys
+import types
+
 import pytest
+
 import main as app_main
 
 
@@ -64,10 +66,12 @@ async def test_run_scheduler_mode_quick_exit(monkeypatch, tmp_path):
         await app_main.run_scheduler_mode()
     except BaseException as e:  # tolerate KeyboardInterrupt / CancelledError from heartbeat cancel
         import asyncio as _asyncio
-        if not isinstance(e, (KeyboardInterrupt, _asyncio.CancelledError)):
+        if not isinstance(e, KeyboardInterrupt | _asyncio.CancelledError):
             raise
     # Verify export occurred (latest_export.csv present)
-    assert any(p.name.startswith('latest_export') for p in tmp_path.iterdir()) or (tmp_path/'latest_export.csv').exists()
+    assert any(p.name.startswith('latest_export') for p in tmp_path.iterdir()) or (
+        tmp_path / 'latest_export.csv'
+    ).exists()
 
 
 def test_scheduler_disabled_path(monkeypatch):

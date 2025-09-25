@@ -8,17 +8,17 @@ Le module legacy `db_metrics.py` a été supprimé; importer désormais:
     from pipeline.db_stats import update_db_metrics
 """
 from __future__ import annotations
-from pathlib import Path
+
 import sqlite3
 import time
-from typing import Optional
+from pathlib import Path
 
 from .metrics import (
     DB_FILE_SIZE_BYTES,
+    DB_FRAGMENTATION_RATIO,
+    DB_FREELIST_PAGES,
     DB_LIQUIDATIONS_ROWS,
     DB_PAGE_COUNT,
-    DB_FREELIST_PAGES,
-    DB_FRAGMENTATION_RATIO,
     DB_VACUUM_DURATION_SECONDS,
 )
 
@@ -29,7 +29,7 @@ def get_db_path() -> Path:
     return DEFAULT_DB_PATH
 
 
-def update_db_metrics(db_path: Optional[str | Path] = None) -> None:
+def update_db_metrics(db_path: str | Path | None = None) -> None:
     p = Path(db_path) if db_path else get_db_path()
     try:
         if DB_FILE_SIZE_BYTES is not None and p.exists():  # type: ignore[truthy-function]
@@ -68,7 +68,7 @@ def update_db_metrics(db_path: Optional[str | Path] = None) -> None:
         pass
 
 
-def vacuum_and_update_metrics(db_path: Optional[str | Path] = None) -> None:
+def vacuum_and_update_metrics(db_path: str | Path | None = None) -> None:
     p = Path(db_path) if db_path else get_db_path()
     if not p.exists():
         return

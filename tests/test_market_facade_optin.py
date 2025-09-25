@@ -1,8 +1,11 @@
 import os
+
 import httpx
 import pytest
-from pipeline.collectors.market import fetch_market
+
 from pipeline import http_wrappers
+from pipeline.collectors.market import fetch_market
+
 
 class DummyResp:
     def __init__(self, payload, status_code=200):

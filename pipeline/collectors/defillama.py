@@ -4,25 +4,28 @@ Prod-safe, async, retry/backoff, cache TTL, historique TVL
 """
 import asyncio
 import os
-from pipeline.flags import is_forced_facade, is_dry_run_facade
 import time
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any, TypedDict, cast
 
 import httpx
+import structlog
+from diskcache import Cache
+from prometheus_client import REGISTRY as PROM_REGISTRY
+from prometheus_client import Counter, Summary
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+from pipeline.circuit_breaker import record_failure, record_success, should_skip
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json  # façade centralisée (retry/breaker/metrics)
+
 # Migration HTTP: on commence à utiliser la façade unifiée pour les appels JSON asynchrones
 # get_json_with_retry (sync thread) conservé pour le chemin RETRY_FORCE_THREAD
 from pipeline.http_wrappers import get_json_with_retry
-from pipeline.http import async_fetch_json  # façade centralisée (retry/breaker/metrics)
-import structlog
-from diskcache import Cache
-from prometheus_client import Counter, Summary, REGISTRY as PROM_REGISTRY
-from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
-from pipeline.circuit_breaker import should_skip, record_failure, record_success
-from pipeline.utils import to_float
-from tenacity import retry, stop_after_attempt, wait_exponential
 from pipeline.instrumentation import instrument_collector
-from pipeline.metrics import FACADE_FORCED
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+from pipeline.utils import to_float
 
 log = structlog.get_logger()
 cache: Cache = Cache(".cache")
@@ -40,10 +43,8 @@ try:  # idempotent
     LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
 except ValueError:  # déjà enregistré
     LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
-try:
+with suppress(Exception):  # pragma: no cover
     LEGACY_HTTP_USAGE.labels(collector='defillama')  # type: ignore[call-arg]
-except Exception:  # pragma: no cover
-    pass
 
 class ChainData(TypedDict, total=False):
     name: str
@@ -217,7 +218,7 @@ def calculate_historical_values(
     # For each target, find closest
     def find_closest(target: int) -> float:
         base_val = to_float(current_tvl, default=0.0)
-        closest_value: float = base_val if isinstance(base_val, (int, float)) else 0.0
+        closest_value: float = base_val if isinstance(base_val, int | float) else 0.0
         min_diff = float('inf')
         for ts, val in parsed_points:
             diff = abs(ts - target)
@@ -262,7 +263,7 @@ async def fetch_defillama_tvl(
             log.error("defillama_no_tvl_data", chain=chain)
             return None
         current_tvl_raw = chain_data.get("tvl")
-        if not isinstance(current_tvl_raw, (int, float, str)):
+        if not isinstance(current_tvl_raw, int | float | str):
             log.error("defillama_invalid_tvl_type", chain=chain, tvl_type=type(current_tvl_raw).__name__)
             return None
         current_tvl = to_float(current_tvl_raw, default=None)

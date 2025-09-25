@@ -1,9 +1,11 @@
 import os
 from types import SimpleNamespace
-import pytest
+
 import httpx
+import pytest
+
 import pipeline.collectors.market as mmod
-from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
+
 
 class DummyResp:
     def __init__(self, data, status_code=200):

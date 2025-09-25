@@ -1,8 +1,9 @@
 import asyncio
 import statistics
 import time
-from typing import List
+
 from pipeline.orchestrator import ParallelOrchestrator
+
 
 class SleepCollector:
     def __init__(self, name: str, delay: float):
@@ -23,7 +24,7 @@ def test_orchestrator_stress_latency_distribution():
     collectors = [SleepCollector(f"c{i}", d) for i, d in enumerate(delays)]
     orch = ParallelOrchestrator(collectors)
 
-    async def run_n(n: int) -> List[float]:
+    async def run_n(n: int) -> list[float]:
         return [await _run_once(orch) for _ in range(n)]
 
     durations = asyncio.run(run_n(8))  # 8 exécutions pour stats simples

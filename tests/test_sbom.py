@@ -1,6 +1,4 @@
-from pathlib import Path
 import json
-import shutil
 
 from pipeline.tools import generate_sbom
 

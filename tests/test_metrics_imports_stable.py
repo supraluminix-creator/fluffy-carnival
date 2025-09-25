@@ -35,6 +35,10 @@ def test_public_symbols_present():
 def test_prometheus_singleton_registration():
     # Vérifie qu'un nom connu n'est enregistré qu'une seule fois
     # (ex: pipeline_exports_total)
-    names = [c for c in REGISTRY._names_to_collectors.keys() if c.startswith('pipeline_') or c.endswith('_total')]
+    names = [
+        c
+        for c in REGISTRY._names_to_collectors
+        if c.startswith('pipeline_') or c.endswith('_total')
+    ]
     # Si duplication, Prometheus lèverait déjà ValueError à l'import; ce test devient essentiellement un filet.
     assert len(names) == len(set(names))

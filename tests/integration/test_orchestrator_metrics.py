@@ -1,6 +1,5 @@
 import asyncio
 import time
-from typing import Any
 
 import pytest
 from prometheus_client import CollectorRegistry, Counter, Histogram

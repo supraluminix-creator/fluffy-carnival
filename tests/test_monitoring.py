@@ -1,4 +1,5 @@
-from pipeline.monitoring import REQUEST_LATENCY, REQUEST_ERRORS, REQUEST_SUCCESS
+from pipeline.monitoring import REQUEST_ERRORS, REQUEST_LATENCY, REQUEST_SUCCESS
+
 
 def test_metrics_labels():
     REQUEST_LATENCY.labels(collector="test").observe(0.1)

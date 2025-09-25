@@ -1,4 +1,5 @@
 import pytest
+
 from pipeline.collectors import defillama as defillama_mod
 
 

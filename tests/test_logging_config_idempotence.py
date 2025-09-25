@@ -1,8 +1,5 @@
-import os
 import logging
-from pathlib import Path
-
-import structlog
+import os
 
 from pipeline import logging_config as lc
 
