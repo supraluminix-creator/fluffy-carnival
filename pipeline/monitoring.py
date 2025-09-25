@@ -10,20 +10,21 @@ Les anciennes métriques REQUEST_LATENCY / REQUEST_ERRORS / REQUEST_SUCCESS
 On expose des alias vers les nouveaux compteurs pour éviter rupture.
 """
 from __future__ import annotations
-import warnings
 
-warnings.warn(
-    "pipeline.monitoring est déprécié et sera retiré dans une future version; utilisez pipeline.metrics",
-    DeprecationWarning,
-    stacklevel=2,
-)
+import warnings
+from contextlib import suppress
 
 from prometheus_client import start_http_server  # pragma: no cover
 
 from .metrics import (
     COLLECTOR_DURATION_SECONDS,
     COLLECTOR_RUNS_TOTAL,
-    COLLECTOR_ERROR_TYPES_TOTAL,
+)
+
+warnings.warn(
+    "pipeline.monitoring est déprécié et sera retiré dans une future version; utilisez pipeline.metrics",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 # ---------------------------------------------------------------------------
@@ -83,10 +84,8 @@ REQUEST_SUCCESS = _LegacyCounterShim(COLLECTOR_RUNS_TOTAL, {"status": "success"}
 REQUEST_ERRORS = _LegacyCounterShim(COLLECTOR_RUNS_TOTAL, {"status": "error"})
 
 def start_metrics_server(port: int = 8000):  # pragma: no cover - simple wrapper
-    try:
+    with suppress(OSError):
         start_http_server(port)
-    except OSError:
-        pass
 
 __all__ = [
     "REQUEST_LATENCY",

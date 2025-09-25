@@ -21,24 +21,27 @@ Extension future: support sync callables, backoff, circuit breaker intégré.
 """
 from __future__ import annotations
 
-from typing import Awaitable, Callable, TypeVar, Sequence, Any
-from .metrics import (
-    FALLBACK_TIER_LATENCY_SECONDS,
-    FALLBACK_TIER_INVOCATIONS_TOTAL,
-    FALLBACK_CHAIN_DEPTH,
-    COLLECTOR_ERROR_TYPES_TOTAL,
-)
-from .errors import classify
-import time
-import structlog
 import asyncio
-from prometheus_client import Counter, Histogram, Gauge
+import time
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any, TypeVar
+from contextlib import suppress
+
+import structlog
+from prometheus_client import Counter, Gauge, Histogram
+
+from .errors import classify
+from .metrics import (
+    COLLECTOR_ERROR_TYPES_TOTAL,
+    FALLBACK_CHAIN_DEPTH,
+    FALLBACK_TIER_INVOCATIONS_TOTAL,
+    FALLBACK_TIER_LATENCY_SECONDS,
+)
 
 T = TypeVar("T")
 log = structlog.get_logger()
 
 async def run_fallback_chain(collector: str, tiers: Sequence[Callable[[], Awaitable[T | None]]]) -> T | None:
-    depth = 0
     for idx, tier_coro in enumerate(tiers, start=1):
         start = time.perf_counter()
         status = "success"
@@ -48,10 +51,8 @@ async def run_fallback_chain(collector: str, tiers: Sequence[Callable[[], Awaita
             if result is not None:
                 FALLBACK_TIER_LATENCY_SECONDS.labels(collector=collector, tier=str(idx), status=status).observe(elapsed)
                 FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector=collector, tier=str(idx), status=status).inc()
-                try:
+                with suppress(Exception):  # pragma: no cover
                     FALLBACK_CHAIN_DEPTH.labels(collector=collector).set(idx)
-                except Exception:  # pragma: no cover
-                    pass
                 return result
             else:
                 # Considéré comme échec logique (empty) -> status=error
@@ -64,10 +65,8 @@ async def run_fallback_chain(collector: str, tiers: Sequence[Callable[[], Awaita
             FALLBACK_TIER_LATENCY_SECONDS.labels(collector=collector, tier=str(idx), status=status).observe(elapsed)
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector=collector, tier=str(idx), status=status).inc()
             et = classify(e)
-            try:
+            with suppress(Exception):
                 COLLECTOR_ERROR_TYPES_TOTAL.labels(collector=collector, error_type=et).inc()
-            except Exception:
-                pass
             log.warning("fallback_tier_error", collector=collector, tier=idx, error=str(e), error_type=et)
     return None
 
@@ -126,16 +125,14 @@ class ParallelOrchestrator:
         start = time.time()
         exec_id = f"exec_{int(start)}"
         self.execution_stats['total_executions'] += 1
-        try:
+        with suppress(Exception):  # pragma: no cover
             _ORCH_LAST_TS.set(start)
-        except Exception:  # pragma: no cover
-            pass
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(*[self._safe(c, exec_id) for c in self.collectors], return_exceptions=True),
                 timeout=timeout
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             orchestrator_executions.labels(success='false').inc()
             _ORCH_TIMEOUTS.inc()
             return { 'status': 'timeout', 'execution_id': exec_id, 'timeout_seconds': timeout }
@@ -150,15 +147,11 @@ class ParallelOrchestrator:
         else:
             self.execution_stats['failed_executions'] += 1
             orchestrator_executions.labels(success='false').inc()
-        try:
+        with suppress(Exception):  # pragma: no cover
             orchestrator_duration_seconds.observe(dur)
-            try:
+            with suppress(Exception):  # pragma: no cover
                 # Support alias éventuellement patché dans tests (orchestrator_duration)
                 orchestrator_duration.observe(dur)  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover
-                pass
-        except Exception:  # pragma: no cover
-            pass
         return { 'status': 'completed', 'execution_id': exec_id, **summary }
 
     async def _safe(self, collector, exec_id: str):
@@ -168,16 +161,12 @@ class ParallelOrchestrator:
             if res is None and self.strict_none_error:
                 raise RuntimeError('collector_returned_none')
             # incrémente métrique legacy succès
-            try:
+            with suppress(Exception):  # pragma: no cover
                 collector_success_total.labels(collector=collector.name).inc()
-            except Exception:  # pragma: no cover
-                pass
             return { 'collector': collector.name, 'status': 'success', 'execution_time': round(time.time()-start,2), 'result': res }
         except Exception as e:  # pragma: no cover (couvert par tests partiels)
-            try:
+            with suppress(Exception):  # pragma: no cover
                 collector_error_total.labels(collector=getattr(collector,'name','unknown')).inc()
-            except Exception:  # pragma: no cover
-                pass
             return { 'collector': collector.name, 'status': 'error', 'execution_time': round(time.time()-start,2), 'error': str(e), 'error_type': type(e).__name__ }
 
     def _summarize(self, results: list[Any]) -> dict[str, Any]:

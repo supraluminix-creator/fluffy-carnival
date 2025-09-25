@@ -8,12 +8,13 @@ NE PAS réintroduire ici de nouvelles définitions : ajouter dans un sous-module
 du package (ex: pipeline/metrics/export.py, db.py, collectors.py, etc.).
 """
 
-from .metrics.__init__ import *  # type: ignore  # noqa: F401,F403
-
 # Imports requis uniquement pour les helpers de compat ci‑dessous
 import os
-import time
+
+from contextlib import suppress
 from prometheus_client import start_http_server
+
+from .metrics.__init__ import *  # type: ignore  # noqa: F401,F403
 
 
 def init_metrics_if_enabled() -> bool:
@@ -21,10 +22,8 @@ def init_metrics_if_enabled() -> bool:
         return False
     port = int(os.getenv("METRICS_PORT", "9300"))
     # Idempotent best-effort: si déjà lancé, ne relance pas
-    try:
+    with suppress(OSError):
         start_http_server(port)
-    except OSError:
-        pass
     return True
 
 
@@ -38,7 +37,7 @@ def ensure_metrics() -> None:
     return None
 
 
-__all__ = [
+__all__ = [  # noqa: F405 - ces symboles proviennent du import * ci-dessus
     "init_metrics_if_enabled",
     "ensure_metrics",
     "EXPORTS_TOTAL",

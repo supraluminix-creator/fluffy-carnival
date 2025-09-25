@@ -16,24 +16,25 @@ les symboles restent accessibles via ``from pipeline import metrics`` comme avan
 from __future__ import annotations
 
 import os
+from contextlib import suppress
+
 from prometheus_client import start_http_server
 
+from .breakers import *  # noqa: F401,F403
 from .collectors import *  # noqa: F401,F403
-from .export import *      # noqa: F401,F403
-from .db import *          # noqa: F401,F403
-from .system import *      # noqa: F401,F403
-from .breakers import *    # noqa: F401,F403
-from .errors import *      # noqa: F401,F403
+from .db import *  # noqa: F401,F403
+from .errors import *  # noqa: F401,F403
+from .export import *  # noqa: F401,F403
+from .system import *  # noqa: F401,F403
+
 
 # Fonctions utilitaires héritées de l'ancien module
 def init_metrics_if_enabled() -> bool:
 	if os.getenv("ENABLE_METRICS", "0") != "1":
 		return False
 	port = int(os.getenv("METRICS_PORT", "9300"))
-	try:
+	with suppress(OSError):
 		start_http_server(port)
-	except OSError:
-		pass
 	return True
 
 
