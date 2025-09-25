@@ -41,12 +41,14 @@ async def run_ws_until_event_dbwatch_v2(max_duration=600, min_db_rows=1, poll_in
     synthetic_used = False
 
     def _extract_val(counter_obj):
-        val = getattr(counter_obj, '_value', 0)
+        val = getattr(counter_obj, "_value", 0)
         try:
             return int(val.get())  # type: ignore[attr-defined]
         except Exception:
-            try: return int(val)
-            except Exception: return 0
+            try:
+                return int(val)
+            except Exception:
+                return 0
 
     async def db_poll():
         nonlocal synthetic_used

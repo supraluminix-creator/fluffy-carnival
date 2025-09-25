@@ -34,12 +34,14 @@ async def run_ws_until_event_dbwatch(symbols=None, max_duration=900, min_db_rows
     start_time = time.time()
 
     def _extract_val(counter_obj):
-        val = getattr(counter_obj, '_value', 0)
+        val = getattr(counter_obj, "_value", 0)
         try:
             return int(val.get())  # type: ignore[attr-defined]
         except Exception:
-            try: return int(val)
-            except Exception: return 0
+            try:
+                return int(val)
+            except Exception:
+                return 0
 
     async def db_poll():
         # Wait for writer flushes; table may not exist initially
@@ -52,7 +54,9 @@ async def run_ws_until_event_dbwatch(symbols=None, max_duration=900, min_db_rows
                     with sqlite3.connect(DB_PATH) as conn:
                         conn.row_factory = sqlite3.Row
                         cur = conn.cursor()
-                        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'bybit_liquidations%'")
+                        cur.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'bybit_liquidations%'"
+                        )
                         tables = [r[0] for r in cur.fetchall()]
                         if 'bybit_liquidations' in tables:
                             cur.execute("SELECT COUNT(*) FROM bybit_liquidations")

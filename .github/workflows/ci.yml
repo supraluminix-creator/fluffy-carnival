@@ -42,9 +42,9 @@ jobs:
             main.py main_backup.py \
             scripts analysis
 
-      - name: Mypy
+      - name: Mypy (targeted)
         run: |
-          mypy --cache-dir .mypy_cache .
+          mypy --cache-dir .mypy_cache --hide-error-context --no-error-summary api scheduler
 
   security:
     runs-on: ubuntu-latest

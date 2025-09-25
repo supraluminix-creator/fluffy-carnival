@@ -67,7 +67,10 @@ def main():
     for c in candidates:
         print(f" - {c['file']} (size={c['size']})")
     print(f"Total candidats: {len(candidates)}")
-    print('\nNOTE: Heuristique basée sur occurrences textuelles des basenames. Vérifier usages dynamiques (importlib, scheduler).')
+    print(
+        "\nNOTE: Heuristique basée sur occurrences textuelles des basenames."
+        " Vérifier usages dynamiques (importlib, scheduler)."
+    )
 
 if __name__ == '__main__':
     main()

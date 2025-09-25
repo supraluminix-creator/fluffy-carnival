@@ -11,7 +11,9 @@ import asyncio
 import contextlib
 import os
 import sys
+from collections.abc import Callable as _Callable
 from typing import TYPE_CHECKING, Any
+from typing import Any as _Any
 
 import structlog
 from dotenv import load_dotenv
@@ -41,6 +43,8 @@ from pipeline.collectors.onchain import (
     fetch_txcount,
 )
 from pipeline.collectors.sentiment import SentimentRecord, fetch_fear_greed
+from pipeline.orchestrator import ParallelOrchestrator
+from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
 CollectorRecord = (
     MacroRecord |
@@ -53,13 +57,6 @@ CollectorRecord = (
     SentimentRecord |
     dict[str, Any]  # legacy/unknown
 )
-
-# Import components Sprint 1
-from collections.abc import Callable as _Callable
-from typing import Any as _Any
-
-from pipeline.orchestrator import ParallelOrchestrator
-from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
 try:
     from scheduler.runner import build_scheduler as _imported_build_scheduler

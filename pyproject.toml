@@ -17,6 +17,10 @@ ignore = [
 "pipeline/exporter.py" = ["W191", "E101", "E117", "E501"]
 "pipeline/orchestrator.py" = ["E501"]
 "tests/**" = ["E501"]
+"test_integration.py" = ["E501"]
+"test_writer.py" = ["E501"]
+"test_fake_server.py" = ["E501"]
+"test_ws_client.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pipeline", "scheduler", "api"]

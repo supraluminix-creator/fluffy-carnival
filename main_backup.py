@@ -81,12 +81,14 @@ async def collect_all():
     # Macro
     macro = await fetch_macro("bitcoin", cmc_api_key=cmc_api_key)
     safe_print_table("Macro - CoinGecko/CMC", [macro] if macro else [], "keys")
-    if macro: results.append(macro)
+    if macro:
+        results.append(macro)
 
     # DeFi
     defi = fetch_defillama_tvl("ethereum")
     safe_print_table("DeFi - Defillama", [defi] if defi else [], "keys")
-    if defi: results.append(defi)
+    if defi:
+        results.append(defi)
 
     # On-chain
     txcount = await fetch_txcount("BTC", etherscan_api_key=etherscan_api_key)
@@ -95,24 +97,30 @@ async def collect_all():
     safe_print_table("On-chain - TxCount", [txcount] if txcount else [], "keys")
     safe_print_table("On-chain - Hashrate", [hashrate] if hashrate else [], "keys")
     safe_print_table("On-chain - SOPR", [sopr] if sopr else [], "keys")
-    if txcount: results.append(txcount)
-    if hashrate: results.append(hashrate)
-    if sopr: results.append(sopr)
+    if txcount:
+        results.append(txcount)
+    if hashrate:
+        results.append(hashrate)
+    if sopr:
+        results.append(sopr)
 
     # Dérivés - Open Interest
     bybit_oi = await fetch_bybit_oi("BTCUSDT")
     safe_print_table("Dérivés - Bybit OI", [bybit_oi] if bybit_oi else [], "keys")
-    if bybit_oi: results.append(bybit_oi)
+    if bybit_oi:
+        results.append(bybit_oi)
 
     # Dérivés - Long/Short Ratio Bybit
     bybit_lsr = await fetch_bybit_long_short_ratio("BTCUSDT")
     safe_print_table("Dérivés - Bybit Long/Short Ratio", [bybit_lsr] if bybit_lsr else [], "keys")
-    if bybit_lsr: results.append(bybit_lsr)
+    if bybit_lsr:
+        results.append(bybit_lsr)
 
     # Sentiment
     fg = await fetch_fear_greed()
     safe_print_table("Sentiment - Fear & Greed", [fg] if fg else [], "keys")
-    if fg: results.append(fg)
+    if fg:
+        results.append(fg)
 
     # Export CSV (consolidé + horodaté)
     export_csv(results, os.path.join(EXPORT_DIR, "latest_export.csv"))

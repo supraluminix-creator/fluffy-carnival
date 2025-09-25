@@ -44,9 +44,19 @@ async def _run_async_collectors() -> dict[str, Any]:
     start = time.perf_counter()
     try:
         tvl = await loop.run_in_executor(None, lambda: defi.fetch_tvl("ethereum"))
-        results["defillama_tvl"] = {"collector": "defillama_tvl", "success": tvl is not None, "data": tvl, "duration_ms": int((time.perf_counter()-start)*1000)}
+        results["defillama_tvl"] = {
+            "collector": "defillama_tvl",
+            "success": tvl is not None,
+            "data": tvl,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+        }
     except Exception as e:  # pragma: no cover - robustesse
-        results["defillama_tvl"] = {"collector": "defillama_tvl", "success": False, "error": str(e), "duration_ms": int((time.perf_counter()-start)*1000)}
+        results["defillama_tvl"] = {
+            "collector": "defillama_tvl",
+            "success": False,
+            "error": str(e),
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+        }
 
     # Onchain async
     for name, coro_factory in [
@@ -57,9 +67,19 @@ async def _run_async_collectors() -> dict[str, Any]:
         start = time.perf_counter()
         try:
             data = await coro_factory()
-            results[name] = {"collector": name, "success": data is not None, "data": data, "duration_ms": int((time.perf_counter()-start)*1000)}
+            results[name] = {
+                "collector": name,
+                "success": data is not None,
+                "data": data,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+            }
         except Exception as e:  # pragma: no cover
-            results[name] = {"collector": name, "success": False, "error": str(e), "duration_ms": int((time.perf_counter()-start)*1000)}
+            results[name] = {
+                "collector": name,
+                "success": False,
+                "error": str(e),
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+            }
 
     return results
 
@@ -69,9 +89,23 @@ def build_snapshot() -> list[Entry]:
     start = time.perf_counter()
     try:
         market = fetch_market("bitcoin")
-        entries.append({"collector": "market_bitcoin", "success": market is not None, "data": market, "duration_ms": int((time.perf_counter()-start)*1000)})
+        entries.append(
+            {
+                "collector": "market_bitcoin",
+                "success": market is not None,
+                "data": market,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+            }
+        )
     except Exception as e:  # pragma: no cover
-        entries.append({"collector": "market_bitcoin", "success": False, "error": str(e), "duration_ms": int((time.perf_counter()-start)*1000)})
+        entries.append(
+            {
+                "collector": "market_bitcoin",
+                "success": False,
+                "error": str(e),
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+            }
+        )
 
     # Async group
     async_results = asyncio.run(_run_async_collectors())

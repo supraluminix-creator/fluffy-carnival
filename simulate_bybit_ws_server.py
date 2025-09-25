@@ -16,15 +16,33 @@ async def fake_bybit_ws(websocket, path: str) -> None:  # type: ignore[no-untype
             if counter % 2 == 0:
                 event = {
                     "topic": "liquidation.BTCUSDT",
-                    "data": {"price": 42000 + counter, "qty": 1 + counter, "side": "Sell", "symbol": "BTCUSDT", "ts": 1700000000 + counter}
+                    "data": {
+                        "price": 42000 + counter,
+                        "qty": 1 + counter,
+                        "side": "Sell",
+                        "symbol": "BTCUSDT",
+                        "ts": 1700000000 + counter,
+                    },
                 }
             else:
                 event = {
                     "topic": "liquidation.BTCUSDT",
                     "data": [
-                        {"price": 42001 + counter, "qty": 2 + counter, "side": "Buy", "symbol": "BTCUSDT", "ts": 1700000001 + counter},
-                        {"price": 42002 + counter, "qty": 3 + counter, "side": "Sell", "symbol": "BTCUSDT", "ts": 1700000002 + counter}
-                    ]
+                        {
+                            "price": 42001 + counter,
+                            "qty": 2 + counter,
+                            "side": "Buy",
+                            "symbol": "BTCUSDT",
+                            "ts": 1700000001 + counter,
+                        },
+                        {
+                            "price": 42002 + counter,
+                            "qty": 3 + counter,
+                            "side": "Sell",
+                            "symbol": "BTCUSDT",
+                            "ts": 1700000002 + counter,
+                        },
+                    ],
                 }
             print(f"[FAKE SERVER] Sending event to {websocket.remote_address}: {event}")
             await websocket.send(json.dumps(event))

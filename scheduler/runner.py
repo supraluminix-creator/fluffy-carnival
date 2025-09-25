@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover
     yaml = _YamlFallback()  # type: ignore[assignment]
 
 # First-party
-from pipeline.circuit_breaker import _STATES as _CB_STATES  # type: ignore
+from pipeline.circuit_breaker import _STATES as _CB_STATES
 
 log = structlog.get_logger(__name__)
 
@@ -138,7 +138,7 @@ _BREAKER_GRACE_SECONDS = float(os.getenv("BREAKER_OPEN_GRACE_SECONDS", "120"))
 
 def _breaker_blocks_readiness() -> bool:
     now = _time()
-    for name, st in _CB_STATES.items():  # type: ignore[attr-defined]
+    for name, st in _CB_STATES.items():
         # si encore dans fenêtre active (is_open True) ET dépasse grace -> bloque
         if (
             name in _CRITICAL_BREAKERS
