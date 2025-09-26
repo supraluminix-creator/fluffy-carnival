@@ -26,3 +26,7 @@ pandas-stubs==2.2.2.240909
 types-PyYAML==6.0.12.20240808
 jsonschema==4.23.0
 uvicorn==0.30.6
+
+# Optionnel (outils dev uniquement) : voir requirements-dev-tools.in
+# - streamlit pour l'UI de configuration (tools/streamlit_ui.py)
+# - autres utilitaires pouvant être installés séparément pour ne pas alourdir la prod

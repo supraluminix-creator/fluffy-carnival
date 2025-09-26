@@ -1,3 +1,17 @@
+\n## Configuration interactive (nouveau)
+
+Un catalogue exhaustif des variables d'environnement et fonctionnalités est disponible dans `docs/PIPELINE_FEATURE_CATALOG.md`.
+
+Vous pouvez également générer un fichier `.env` via une interface Streamlit locale (optionnelle):
+
+1) Installer les outils optionnels (dans votre venv):
+  - Soit minimal: `pip install streamlit`
+  - Soit via fichier dédié: `pip install -r requirements-dev-tools.in`
+2) Lancer l'UI:
+  - `streamlit run tools/streamlit_ui.py`
+
+L'outil n'effectue aucun appel réseau: il sert uniquement à préparer proprement la configuration.
+
 # new_crypto_prodsafe
 
 [![CI](https://github.com/supraluminix-creator/fluffy-carnival/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/supraluminix-creator/fluffy-carnival/actions/workflows/ci.yml)
