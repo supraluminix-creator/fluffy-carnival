@@ -87,10 +87,8 @@ prometheus-client==0.20.0
     # via -r requirements.in
 psutil==5.9.8
     # via -r requirements.in
-# pyarrow ne propose pas (ou pas toujours) de wheels précompilés pour Python 3.13;
-# sur Streamlit Cloud (Py 3.13), l’installation tombe en mode build-from-source et échoue faute de cmake.
-# On le conserve pour Python < 3.13 (développement local/CI en 3.12), et on le désactive pour >= 3.13.
-pyarrow==16.1.0 ; python_version < "3.13"
+# Parité stricte Cloud=Local (Python 3.12) -> pyarrow activé partout
+pyarrow==16.1.0
     # via -r requirements.in
 pycodestyle==2.12.1
     # via flake8
