@@ -197,6 +197,41 @@ HELP: dict[str, str] = {
     "BREAKER_OPEN_GRACE_SECONDS": "Délai de grâce (s) après ouverture du breaker avant alerte forte.",
 }
 
+
+def parse_dotenv(content: str) -> dict[str, str]:
+    """Parse minimal d'un contenu .env en dict clé->valeur.
+    - Ignore les commentaires (#) et lignes vides
+    - Garde la première occurrence de '=' comme séparateur
+    - Retire les guillemets englobants simples ou doubles
+    """
+    result: dict[str, str] = {}
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+            v = v[1:-1]
+        result[k] = v
+    return result
+
+
+def load_env_into_state(values: dict[str, str]) -> None:
+    """Charge des paires clé/valeur dans session_state et os.environ.
+    - Convertit les clés booléennes en bool pour les toggles
+    - Laisse les autres en texte (les number_input s’occupent de caster lors de l’édition)
+    """
+    for k, v in values.items():
+        os.environ[k] = v  # pour que les defaults reflètent le .env
+        if k in BOOL_KEYS:
+            st.session_state[k] = _b(v)
+        else:
+            st.session_state[k] = v
+
 # Clés booléennes (affichées comme toggles)
 BOOL_KEYS: set[str] = {
     "ENABLE_SCHEDULER",
@@ -512,6 +547,34 @@ def main() -> None:
         profile = st.selectbox("Profil", ["local", "dev", "prod"], index=0, help="Pré-réglages rapides: local (débogage), dev (intégration), prod (sécurisé).")
         if st.button("Appliquer profil", help="Applique le profil sélectionné aux champs ci-dessous."):
             apply_profile(profile)
+
+        st.divider()
+        st.subheader("Importer configuration")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Charger .env (local)", help="Lit le fichier .env à la racine du projet et applique les valeurs."):
+                try:
+                    with open(".env", "r", encoding="utf-8") as f:
+                        data = parse_dotenv(f.read())
+                    load_env_into_state(data)
+                    st.success(".env chargé depuis le disque.")
+                except FileNotFoundError:
+                    st.warning("Aucun fichier .env trouvé à la racine.")
+                except Exception as e:
+                    st.error(f"Échec de chargement du .env: {e}")
+        with col2:
+            uploaded = st.file_uploader("Importer .env (upload)", type=["env", "txt"], help="Déposez un fichier .env pour préremplir la configuration.")
+            if uploaded is not None:
+                try:
+                    content = uploaded.getvalue().decode("utf-8", errors="replace")
+                    data = parse_dotenv(content)
+                    load_env_into_state(data)
+                    st.success(".env importé depuis le fichier fourni.")
+                except Exception as e:
+                    st.error(f"Échec d'import du .env: {e}")
+
+        st.caption("Guide: consultez la documentation du catalogue des variables.")
+        st.markdown("- Documentation: [PIPELINE_FEATURE_CATALOG.md](docs/PIPELINE_FEATURE_CATALOG.md)")
         st.write("Aperçu rapide (lecture seule)")
         run_id_preview = st.session_state.get("RUN_ID", os.getenv("RUN_ID", DEFAULTS["RUN_ID"]))
         metrics_port_preview = st.session_state.get(
@@ -565,13 +628,23 @@ def main() -> None:
     st.subheader("Générer .env")
     st.code(env_block, language="dotenv")
     st.caption("Copiez-collez dans un fichier .env à la racine du projet.")
-    if st.button("Exporter vers .env (écrire sur disque)", help="Crée/écrase le fichier .env à la racine avec la configuration affichée."):
-        try:
-            with open(".env", "w", encoding="utf-8") as f:
-                f.write(env_block + "\n")
-            st.success("Fichier .env écrit à la racine du projet.")
-        except Exception as e:
-            st.error(f"Échec d'écriture du .env: {e}")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Exporter vers .env (écrire sur disque)", help="Crée/écrase le fichier .env à la racine avec la configuration affichée."):
+            try:
+                with open(".env", "w", encoding="utf-8") as f:
+                    f.write(env_block + "\n")
+                st.success("Fichier .env écrit à la racine du projet.")
+            except Exception as e:
+                st.error(f"Échec d'écriture du .env: {e}")
+    with col_b:
+        st.download_button(
+            label="Télécharger .env",
+            data=env_block,
+            file_name=".env",
+            mime="text/plain",
+            help="Télécharge le contenu ci-dessus sous forme de fichier .env",
+        )
 
 
 if __name__ == "__main__":
