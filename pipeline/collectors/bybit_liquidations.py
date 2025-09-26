@@ -56,6 +56,7 @@ class BybitLiquidationsWriter:
         self.flush_interval: int = flush_interval
         self.parquet_enabled: bool = parquet_enabled
 
+
         os.makedirs(os.path.dirname(db), exist_ok=True)
         os.makedirs(parquet_dir, exist_ok=True)
 
