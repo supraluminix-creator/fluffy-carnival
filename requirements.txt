@@ -87,10 +87,11 @@ prometheus-client==0.20.0
     # via -r requirements.in
 psutil==5.9.8
     # via -r requirements.in
-# pyarrow pose problème sous Python 3.13 sur Streamlit Cloud (build nécessite cmake)
-# On le garde pour les environnements <3.13 (local 3.12) et on l'omet sinon
-pyarrow==16.1.0; python_version < '3.13'
-    # via -r requirements.in
+# pyarrow a été retiré des dépendances obligatoires pour éviter les échecs
+# d'installation sur Streamlit Cloud (qui utilise actuellement Python 3.13 et
+# tente de builder depuis les sources). Si vous avez besoin de l'export Parquet
+# en local (Python 3.12 recommandé), installez `pyarrow` via le fichier
+# optionnel requirements-parquet.txt ou manuellement.
 pycodestyle==2.12.1
     # via flake8
 pydantic==2.11.9

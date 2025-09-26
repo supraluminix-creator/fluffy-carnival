@@ -1,0 +1,2 @@
+# Dépendances optionnelles pour activer l'export Parquet en local (Python 3.12)
+pyarrow==16.1.0
