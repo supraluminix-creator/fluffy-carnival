@@ -9,7 +9,9 @@ diskcache==5.6.3
 pandas-ta==0.4.71b0
 structlog==24.1.0
 prometheus_client==0.20.0
-pyarrow==16.1.0
+# pyarrow nécessite des wheels précompilés et échoue à builder sous Python 3.13 sur Streamlit Cloud
+# On l'installe uniquement pour Python < 3.13 (parité locale 3.12 maintenue)
+pyarrow==16.1.0; python_version < '3.13'
 apscheduler==3.10.4
 pyyaml==6.0.1
 pytest==8.3.3
