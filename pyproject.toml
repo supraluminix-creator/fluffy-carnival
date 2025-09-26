@@ -145,3 +145,12 @@ disallow_incomplete_defs = true
 # disallow_untyped_defs = true
 # disallow_incomplete_defs = true
 # enable_error_code = true
+
+# --- Projet (métadonnées minimales + contrainte Python pour le déploiement Cloud) ---
+[project]
+name = "fluffy-carnival"
+version = "0.0.0"
+description = "Crypto prod-safe pipeline and configuration UI"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
