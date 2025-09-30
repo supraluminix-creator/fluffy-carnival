@@ -22,8 +22,11 @@ from pipeline.export_utils import export_latest_and_timestamped
 EXAMPLES_DIR = Path("examples")
 
 
-async def collect_public(symbol: str = "bitcoin") -> List[Dict[str, Any]]:
-    """Collect a minimal set of public metrics without paid keys."""
+async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = False) -> List[Dict[str, Any]]:
+    """Collect a minimal set of public metrics without paid keys.
+
+    If include_derivatives is True, also attempts Bybit OI/LSR (public endpoints).
+    """
     results: List[Dict[str, Any]] = []
     try:
         from pipeline.collectors.market import fetch_macro
@@ -39,6 +42,20 @@ async def collect_public(symbol: str = "bitcoin") -> List[Dict[str, Any]]:
             results.append(res)
     except Exception as e:
         print("collect_public: sentiment.fetch_fear_greed failed:", e)
+    if include_derivatives:
+        try:
+            from pipeline.collectors.derivatives import (
+                fetch_bybit_long_short_ratio,
+                fetch_bybit_oi,
+            )
+            oi = await fetch_bybit_oi("BTCUSDT")
+            if isinstance(oi, dict) and oi:
+                results.append(oi)
+            lsr = await fetch_bybit_long_short_ratio("BTCUSDT")
+            if isinstance(lsr, dict) and lsr:
+                results.append(lsr)
+        except Exception as e:
+            print("collect_public: derivatives failed:", e)
     return results
 
 
@@ -80,7 +97,7 @@ async def main_async(args: argparse.Namespace) -> int:
         if args.mock:
             rows = make_mock_records(args.symbol)
         else:
-            rows = await collect_public(symbol=args.symbol)
+            rows = await collect_public(symbol=args.symbol, include_derivatives=args.include_derivatives)
         write_examples(rows)
         export_dir = os.getenv("EXPORT_DIR", "exports")
         latest, ts = export_latest_and_timestamped(rows, export_dir=export_dir, run_id=os.getenv("RUN_ID"))
@@ -101,6 +118,11 @@ def main(argv: List[str] | None = None) -> int:
     p_run.add_argument("--symbol", default="bitcoin")
     p_run.add_argument("--mock", action="store_true", help="Run in mock mode (no network)")
     p_run.add_argument("--public-only", action="store_true", help="Alias of real run with public endpoints only")
+    p_run.add_argument(
+        "--include-derivatives",
+        action="store_true",
+        help="Include public derivatives metrics (Bybit OI/LSR) in non-mock runs",
+    )
     args = ap.parse_args(argv)
     return asyncio.run(main_async(args))
 
