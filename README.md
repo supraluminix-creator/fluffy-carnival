@@ -64,13 +64,13 @@ Mock (sans clés):
 
 ```powershell
 Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
-.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py --mock
+.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py run --mock
 ```
 
 Réel (public par défaut):
 
 ```powershell
-.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py --symbol bitcoin
+.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py run --symbol bitcoin --public-only
 ```
 
 Exports dans `exports/`, exemples JSON dans `examples/`.
@@ -78,8 +78,8 @@ Exports dans `exports/`, exemples JSON dans `examples/`.
 Archiver le non-core:
 
 ```powershell
-.\\.venv\\Scripts\\python.exe .\\tools\\archive_scan.py --write
-.\\.venv\\Scripts\\python.exe .\\tools\\archive_exec.py
+.\\.venv\\Scripts\\python.exe .\\tools\\archive_repo.py --scan-only
+.\\.venv\\Scripts\\python.exe .\\tools\\archive_repo.py --run
 ```
 
 Prerequisites:

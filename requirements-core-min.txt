@@ -1,0 +1,6 @@
+# Minimal pinned dependencies for prod-safe core (collectors/ETL only)
+httpx==0.27.2
+structlog==24.1.0
+prometheus-client==0.20.0
+diskcache==5.6.3
+pydantic==2.8.2
