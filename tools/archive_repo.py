@@ -39,12 +39,10 @@ import zipfile
 # --------------------------- Config & Rules ---------------------------
 
 ARCHIVE_EXTS = {".ipynb", ".pbix", ".ppt", ".pptx", ".ps1"}
-ARCHIVE_KEYWORDS = [
-    "ui",
-    "streamlit",
-    "dashboard",
-    "frontend",
-]
+# Segment-based keywords (match full path segment only)
+ARCHIVE_SEGMENT_KEYWORDS = {"ui", "streamlit", "dashboard", "frontend"}
+# Filename substring keywords (more permissive, but limited to filenames)
+ARCHIVE_FILENAME_SUBSTR = {"streamlit"}
 ARCHIVE_FOLDERS = {"notebooks", "demo", "demos"}
 
 KEEP_TOP_DIRS = {
@@ -122,6 +120,9 @@ def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
     parts = [part.lower() for part in rel.parts]
     name = p.name.lower()
     parent = rel.parts[0].lower() if len(rel.parts) > 0 else ""
+    # Helper: does any path segment match a keyword exactly?
+    def has_segment_keyword() -> bool:
+        return any(seg in ARCHIVE_SEGMENT_KEYWORDS for seg in parts)
 
     # Ignore top-level keep dirs wholesale unless they match specific archive rules
     if rel.parts and rel.parts[0] in KEEP_TOP_DIRS:
@@ -129,11 +130,11 @@ def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
         if rel.parts[0] == "tools" and p.suffix.lower() == ".ps1":
             return ("ARCHIVE", "PowerShell script (tools)")
         # Within any keep dir, only archive explicit UI or file types
-        if any(k in "/".join(parts) for k in ARCHIVE_KEYWORDS):
-            return ("ARCHIVE", "UI/Dashboard keyword within keep dir")
+        if has_segment_keyword():
+            return ("ARCHIVE", "UI/Dashboard segment within keep dir")
         if p.is_file() and p.suffix.lower() in ARCHIVE_EXTS:
             return ("ARCHIVE", f"File extension {p.suffix.lower()}")
-        if name.__contains__("streamlit"):
+        if any(sub in name for sub in ARCHIVE_FILENAME_SUBSTR):
             return ("ARCHIVE", "Streamlit file")
         return (None, None)
 
@@ -149,13 +150,12 @@ def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
         base = name
         if base in ARCHIVE_FOLDERS:
             return ("ARCHIVE", f"Folder name {base}")
-        if any(k in base for k in ARCHIVE_KEYWORDS):
+        if base in ARCHIVE_SEGMENT_KEYWORDS:
             return ("ARCHIVE", f"Folder keyword {base}")
 
     # Path contains UI keywords (case-insensitive)
-    joined = "/".join(parts)
-    if any(k in joined for k in ARCHIVE_KEYWORDS):
-        return ("ARCHIVE", "UI keyword in path")
+    if has_segment_keyword():
+        return ("ARCHIVE", "UI/Dashboard segment in path")
 
     # Default: not a candidate
     return (None, None)
