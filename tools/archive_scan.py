@@ -43,6 +43,11 @@ KEEP_TOP_LEVEL_DIRS = {
 
 EXCLUDE_DIRS = {".git", ".venv", "__pycache__", "archive-"}
 
+DO_NOT_ARCHIVE_FILES = {
+    ".env.example",
+    "secrets.example.env",
+}
+
 
 @dataclass
 class ScanEntry:
@@ -72,10 +77,15 @@ def decide(path: Path) -> ScanEntry:
     rel = path.relative_to(REPO_ROOT).as_posix()
     parts = [p.lower() for p in rel.split('/')]
     top = parts[0] if parts else ""
+    base = Path(rel).name
 
     # Default reasons
     decision = "REVIEW"
     reason = "no rule matched"
+
+    # Explicit keep for placeholder/example secret files
+    if base in DO_NOT_ARCHIVE_FILES:
+        return ScanEntry(rel, "KEEP", f"explicit keep for {base}")
 
     # Keep core paths
     if top in KEEP_TOP_LEVEL_DIRS:

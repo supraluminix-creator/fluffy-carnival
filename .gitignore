@@ -44,3 +44,5 @@ fluffy-carnival/
 # Archive outputs (repo archiver)
 archive-*/
 archive-*.zip
+ARCHIVE_SCAN.json
+ARCHIVE_SCAN.md

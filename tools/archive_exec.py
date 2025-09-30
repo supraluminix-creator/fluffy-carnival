@@ -1,15 +1,15 @@
 """Execute archiving based on scan rules.
 
 This script:
-  - Runs archive_scan to produce a list of candidates
-  - Creates archive-YYYYMMDD_HHMMSS directory at repo root
-  - Moves files classified ARCHIVE into it (preserving structure)
-  - Zips the archive directory
-  - Writes ARCHIVE_REPORT.md with details (date, git HEAD, counts, notes)
+    - Runs archive_scan to produce a list of candidates
+    - Creates archive-YYYYMMDD_HHMMSS directory at repo root
+    - Moves files classified ARCHIVE into it (preserving structure)
+    - Zips the archive directory (skipped on --dry-run or when no items moved)
+    - Writes ARCHIVE_REPORT.md inside the archive directory with details (date, git HEAD, counts, notes)
 
 Usage (PowerShell):
-  .\\.venv\\Scripts\\python.exe tools\\archive_exec.py --dry-run  # preview only
-  .\\.venv\\Scripts\\python.exe tools\\archive_exec.py             # execute moves
+    .\\.venv\\Scripts\\python.exe tools\\archive_exec.py --dry-run  # preview only
+    .\\.venv\\Scripts\\python.exe tools\\archive_exec.py             # execute moves
 """
 from __future__ import annotations
 
@@ -66,12 +66,68 @@ def main() -> None:
             shutil.move(str(src), str(dst))
             moved.append(rel)
 
+    # If dry-run, write a plan and skip zipping
+    if args.dry_run:
+        plan = arc_dir / f"DRY_RUN_PLAN_{ts}.md"
+        lines = [
+            "# Dry-run plan",
+            "",
+            f"Date: {datetime.now().isoformat(timespec='seconds')}",
+            f"Git HEAD: {_git_head()}",
+            "",
+            f"Planned moves: {len(archive_items)}",
+            "",
+        ]
+        for item in archive_items:
+            rel = item["path"]
+            lines.append(f"- {rel} -> {arc_dir / rel}")
+        plan.write_text("\n".join(lines), encoding="utf-8")
+        print(f"Dry-run complete. Plan: {plan}")
+        # No zip in dry-run to avoid clutter
+        # Still write a lightweight report for traceability
+        report = arc_dir / "ARCHIVE_REPORT.md"
+        report.write_text(
+            "\n".join([
+                "# Archive report (dry-run)",
+                "",
+                f"Date: {datetime.now().isoformat(timespec='seconds')}",
+                f"Git HEAD: {_git_head()}",
+                f"Archive directory: {arc_dir.name}",
+                "",
+                f"Moved items: 0 (dry-run)",
+            ]),
+            encoding="utf-8",
+        )
+        print(f"Report written: {report}")
+        return
+
+    # If no items were moved (either no candidates or missing files), skip zipping
+    if not moved:
+        report = arc_dir / "ARCHIVE_REPORT.md"
+        report.write_text(
+            "\n".join([
+                "# Archive report",
+                "",
+                f"Date: {datetime.now().isoformat(timespec='seconds')}",
+                f"Git HEAD: {_git_head()}",
+                f"Archive directory: {arc_dir.name}",
+                "",
+                "Moved items: 0",
+                "",
+                "## Notes",
+                "- No items to move; zip skipped.",
+            ]),
+            encoding="utf-8",
+        )
+        print(f"Archive run completed: no items to move. Report: {report}")
+        return
+
     # Zip archive directory
     zip_path = REPO_ROOT / f"{arc_dir.name}.zip"
     shutil.make_archive(str(zip_path.with_suffix("")), "zip", root_dir=arc_dir)
 
     # Report
-    report = REPO_ROOT / "ARCHIVE_REPORT.md"
+    report = arc_dir / "ARCHIVE_REPORT.md"
     head = _git_head()
     lines = [
         "# Archive report",
