@@ -24,17 +24,13 @@ Notes:
 from __future__ import annotations
 
 import argparse
-import os
-import re
 import shutil
-import sys
+import subprocess
 import time
+import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple
-import subprocess
-import zipfile
-
 
 # --------------------------- Config & Rules ---------------------------
 
@@ -103,12 +99,10 @@ def should_skip(path: Path, root: Path) -> bool:
     if ".venv" in parts or name == ".venv":
         return True
     # Skip existing archived folder at repo root
-    if name == "archived" and path.is_dir() and path.parent == root:
-        return True
-    return False
+    return name == "archived" and path.is_dir() and path.parent == root
 
 
-def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
+def classify_path(p: Path, root: Path) -> tuple[str, str] | tuple[None, None]:
     """Return (action, reason) where action in {ARCHIVE, KEEP, REVIEW}. None if not applicable.
 
     We only return ARCHIVE/REVIEW for candidates; KEEP is implicit and not listed by default.
@@ -119,7 +113,6 @@ def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
     rel = p.relative_to(root)
     parts = [part.lower() for part in rel.parts]
     name = p.name.lower()
-    parent = rel.parts[0].lower() if len(rel.parts) > 0 else ""
     # Helper: does any path segment match a keyword exactly?
     def has_segment_keyword() -> bool:
         return any(seg in ARCHIVE_SEGMENT_KEYWORDS for seg in parts)
@@ -161,8 +154,8 @@ def classify_path(p: Path, root: Path) -> Tuple[str, str] | Tuple[None, None]:
     return (None, None)
 
 
-def scan_repo(root: Path) -> List[ScanItem]:
-    items: List[ScanItem] = []
+def scan_repo(root: Path) -> list[ScanItem]:
+    items: list[ScanItem] = []
     for p in root.rglob("*"):
         # Skip directories we don't want to traverse deeply (like .git, .venv, archive-* zips)
         if p.is_dir() and should_skip(p, root):
@@ -174,7 +167,7 @@ def scan_repo(root: Path) -> List[ScanItem]:
     # De-duplicate by top-level directory where moving a directory will capture children
     # Prefer directories first; remove children of directories from the list
     dirs = {it.path for it in items if it.path.is_dir()}
-    filtered: List[ScanItem] = []
+    filtered: list[ScanItem] = []
     for it in items:
         if any(is_within(it.path, d) and it.path != d for d in dirs):
             continue
@@ -186,10 +179,10 @@ def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
 
 
-def write_report(report_path: Path, head: str, moved: List[Tuple[Path, Path, str]], errors: List[str]) -> None:
+def write_report(report_path: Path, head: str, moved: list[tuple[Path, Path, str]], errors: list[str]) -> None:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    lines: List[str] = []
-    lines.append(f"# Archive Report\n\n")
+    lines: list[str] = []
+    lines.append("# Archive Report\n\n")
     lines.append(f"Date: {ts}\n\n")
     lines.append(f"Git HEAD: {head}\n\n")
     lines.append(f"Moved items: {len(moved)}\n\n")
@@ -199,8 +192,7 @@ def write_report(report_path: Path, head: str, moved: List[Tuple[Path, Path, str
             lines.append(f"- {src.as_posix()} -> {dst.as_posix()}  —  {reason}\n")
     if errors:
         lines.append("\n## Errors\n\n")
-        for e in errors:
-            lines.append(f"- {e}\n")
+        lines.extend(f"- {e}\n" for e in errors)
     lines.append("\n## Quickwins\n\n- Script executed with default rules.\n- No deletions, all moves reversible via archive folder or zip.\n")
     lines.append("\n## Next steps\n\n- Review archived list and restore any false positives.\n- Open PR with this report attached.\n")
     report_path.write_text("".join(lines), encoding="utf-8")
@@ -215,12 +207,12 @@ def make_zip(source_dir: Path, zip_path: Path) -> None:
 
 def perform_archive(
     root: Path,
-    scan_items: List[ScanItem],
+    scan_items: list[ScanItem],
     archive_root: Path,
     dry_run: bool = False,
-) -> Tuple[List[Tuple[Path, Path, str]], List[str]]:
-    moved: List[Tuple[Path, Path, str]] = []
-    errors: List[str] = []
+) -> tuple[list[tuple[Path, Path, str]], list[str]]:
+    moved: list[tuple[Path, Path, str]] = []
+    errors: list[str] = []
     moved_root = archive_root / "moved"
     ensure_dir(moved_root)
     for it in scan_items:
