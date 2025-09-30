@@ -86,11 +86,19 @@ Archiver le non-core:
 ```powershell
 .\\.venv\\Scripts\\python.exe .\\tools\\archive_repo.py --scan-only
 .\\.venv\\Scripts\\python.exe .\\tools\\archive_repo.py --run
+# Plan détaillé sans déplacer (dry-run)
+.\\.venv\\Scripts\\python.exe .\\tools\\archive_repo.py --run --dry-run
 ```
 
 Prerequisites:
 - Python 3.12
 - Create and activate the venv, install deps (already in this repo)
+
+### Validation rapide env/collectors
+
+```powershell
+.\.venv\Scripts\python.exe .\cli_core.py validate
+```
 
 ### 1) Scheduler mode
 

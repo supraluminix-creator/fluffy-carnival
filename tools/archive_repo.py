@@ -213,7 +213,12 @@ def make_zip(source_dir: Path, zip_path: Path) -> None:
                 zf.write(p, p.relative_to(source_dir).as_posix())
 
 
-def perform_archive(root: Path, scan_items: List[ScanItem], archive_root: Path) -> Tuple[List[Tuple[Path, Path, str]], List[str]]:
+def perform_archive(
+    root: Path,
+    scan_items: List[ScanItem],
+    archive_root: Path,
+    dry_run: bool = False,
+) -> Tuple[List[Tuple[Path, Path, str]], List[str]]:
     moved: List[Tuple[Path, Path, str]] = []
     errors: List[str] = []
     moved_root = archive_root / "moved"
@@ -227,6 +232,9 @@ def perform_archive(root: Path, scan_items: List[ScanItem], archive_root: Path) 
             target = dst
             if target.exists():
                 target = dst.with_name(dst.name + f".__arch__{int(time.time())}")
+            if dry_run:
+                moved.append((it.path, target, it.reason))
+                continue
             shutil.move(str(it.path), str(target))
             moved.append((it.path, target, it.reason))
         except Exception as e:
@@ -239,6 +247,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("--run", action="store_true", help="Execute archive (move + zip + report)")
     ap.add_argument("--scan-only", action="store_true", help="Only scan and write scan report (no changes)")
     ap.add_argument("--out", default=None, help="Optional archive folder name (default: archive-<timestamp>)")
+    ap.add_argument("--dry-run", action="store_true", help="Do not move files; write a dry-run plan only")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     root = get_repo_root()
@@ -261,10 +270,20 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"Scan-only report written to {scan_report}")
         return 0
 
-    moved, errors = perform_archive(root, items, archive_root)
+    moved, errors = perform_archive(root, items, archive_root, dry_run=args.dry_run)
     # Write archive report
     report_path = archive_root / f"ARCHIVE_REPORT_{ts}.md"
     write_report(report_path, head, moved, errors)
+
+    # If dry-run, also write a simple plan file and skip zipping
+    if args.dry_run:
+        plan = archive_root / f"DRY_RUN_PLAN_{ts}.md"
+        with open(plan, "w", encoding="utf-8") as pf:
+            pf.write(f"# Dry-run plan\n\nPlanned moves: {len(moved)}\n\n")
+            for src, dst, reason in moved:
+                pf.write(f"- {src.as_posix()} -> {dst.as_posix()}  —  {reason}\n")
+        print(f"Dry-run complete. Plan: {plan}")
+        return 0
 
     # Zip
     zip_path = root / f"{archive_name}.zip"

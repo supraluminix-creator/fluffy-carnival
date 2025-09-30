@@ -108,6 +108,26 @@ async def main_async(args: argparse.Namespace) -> int:
         }
         print(json.dumps(summary, indent=2))
         return 0
+    if args.command == "validate":
+        info = {
+            "EXPORT_DIR": os.getenv("EXPORT_DIR", "exports"),
+            "ENABLE_MVRV_COLLECTOR": os.getenv("ENABLE_MVRV_COLLECTOR", "0"),
+            "ENABLE_MACRO_INDICES": os.getenv("ENABLE_MACRO_INDICES", "0"),
+            "HTTP_THROTTLE_PER_MIN_DEFAULT": os.getenv("HTTP_THROTTLE_PER_MIN_DEFAULT", "0"),
+        }
+        # Check presence of optional API keys (masked)
+        def mask(v: str | None) -> str:
+            if not v:
+                return ""
+            return (v[:3] + "…" + v[-2:]) if len(v) > 6 else "***"
+        keys = {
+            "CMC_API_KEY": mask(os.getenv("CMC_API_KEY")),
+            "COINMARKETCAP_API_KEY": mask(os.getenv("COINMARKETCAP_API_KEY")),
+            "ETHERSCAN_API_KEY": mask(os.getenv("ETHERSCAN_API_KEY")),
+            "BGEOMETRICS_API_KEY": mask(os.getenv("BGEOMETRICS_API_KEY")),
+        }
+        print(json.dumps({"env": info, "keys": keys, "collectors": ["macro", "fear_greed", "bybit_oi", "bybit_lsr"]}, indent=2))
+        return 0
     return 1
 
 
@@ -123,6 +143,8 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help="Include public derivatives metrics (Bybit OI/LSR) in non-mock runs",
     )
+    # validate
+    p_val = sub.add_parser("validate", help="Check environment and list available collectors")
     args = ap.parse_args(argv)
     return asyncio.run(main_async(args))
 

@@ -23,10 +23,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-core-min.txt
           pip install pytest
+          pip install ruff
 
       - name: Secret scan (heuristic)
         run: |
           python tools/secret_scan.py --fail-on-find || (echo "Secret scan found issues" && exit 1)
+
+      - name: Lint (ruff quick)
+        run: |
+          ruff check --select F,B,SIM,UP,PERF,I --exclude tests .
 
       - name: Run CLI (mock)
         run: |
