@@ -71,6 +71,12 @@ Réel (public par défaut):
 
 ```powershell
 .$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py run --symbol bitcoin --public-only
+
+Optionnel: inclure les dérivés (Bybit OI/LSR) en mode public-only:
+
+```powershell
+.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py run --symbol bitcoin --public-only --include-derivatives
+```
 ```
 
 Exports dans `exports/`, exemples JSON dans `examples/`.
