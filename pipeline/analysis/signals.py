@@ -4,7 +4,7 @@ Renvoie une liste de signaux (dict) prêts pour consommation par un moteur d'ana
 """
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 

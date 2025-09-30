@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 
 def emit_signals(signals: Iterable[dict[str, Any]], export_dir: str = "exports") -> tuple[str | None, str | None]:

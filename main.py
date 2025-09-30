@@ -10,6 +10,7 @@ Cette version intègre:
 import asyncio
 import contextlib
 import os
+import subprocess
 import sys
 from collections.abc import Callable as _Callable
 from typing import TYPE_CHECKING, Any
@@ -17,7 +18,6 @@ from typing import Any as _Any
 
 import structlog
 from dotenv import load_dotenv
-import subprocess
 
 if TYPE_CHECKING:  # Only imported for type checking; avoids runtime stub dependency
     from tabulate import tabulate  # type: ignore
@@ -25,6 +25,9 @@ else:  # pragma: no cover
     from tabulate import tabulate  # type: ignore
 
 
+from pipeline.analysis.events import emit_signals
+from pipeline.analysis.persist import save_analysis
+from pipeline.analysis.runner import run_automatic_analyses
 from pipeline.collectors.defi import DefiTVLRecord, fetch_defillama_tvl
 from pipeline.collectors.derivatives import (
     LongShortRatioRecord,
@@ -46,9 +49,6 @@ from pipeline.collectors.onchain import (
 from pipeline.collectors.sentiment import SentimentRecord, fetch_fear_greed
 from pipeline.orchestrator import ParallelOrchestrator
 from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
-from pipeline.analysis.runner import run_automatic_analyses
-from pipeline.analysis.persist import save_analysis
-from pipeline.analysis.events import emit_signals
 
 CollectorRecord = (
     MacroRecord |
@@ -187,7 +187,7 @@ async def _fetch_sopr_with_fallback(symbol: str = "BTC") -> SoprRecord | None:
             return None
         source = "bgeometrics"
         return {
-            "timestamp": ts if isinstance(ts, (int, float)) else None,
+            "timestamp": ts if isinstance(ts, int | float) else None,
             "asset": symbol,
             "metric_name": "sopr",
             "value": fval,

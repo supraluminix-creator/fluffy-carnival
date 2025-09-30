@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import signal
@@ -40,7 +41,6 @@ from typing import Any, Protocol
 import structlog
 import websockets
 from prometheus_client import Counter, Summary, start_http_server
-import contextlib
 
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 

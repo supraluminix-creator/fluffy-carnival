@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 
 import httpx
 import structlog
+
 from .rate_limit import build_rate_limiter_from_env
 
 try:  # pragma: no cover - metrics import defensive
@@ -78,10 +79,7 @@ def _get_http_throttle():
     except Exception:
         lim = 0
     _HTTP_THROTTLE_LIMIT = max(0, lim)
-    if _HTTP_THROTTLE_LIMIT > 0:
-        _HTTP_THROTTLE = build_rate_limiter_from_env(_HTTP_THROTTLE_LIMIT)
-    else:
-        _HTTP_THROTTLE = None
+    _HTTP_THROTTLE = build_rate_limiter_from_env(_HTTP_THROTTLE_LIMIT) if _HTTP_THROTTLE_LIMIT > 0 else None
     return _HTTP_THROTTLE, _HTTP_THROTTLE_LIMIT
 
 # ------------------ Endpoint labeling (réduction cardinalité) ------------------

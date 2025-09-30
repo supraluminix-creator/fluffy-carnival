@@ -1,7 +1,11 @@
-import csv, json, os, re, sqlite3
-from datetime import datetime, timezone
+import contextlib
+import csv
+import json
+import os
+import re
+import sqlite3
 from glob import glob
-from urllib.request import urlopen, Request
+from urllib.request import Request, urlopen
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ROOT)  # repo root
@@ -12,14 +16,12 @@ def _read_latest_manifest():
     if not os.path.exists(path):
         return None
     last = None
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
-                try:
+                with contextlib.suppress(Exception):
                     last = json.loads(line)
-                except Exception:
-                    pass
     return last
 
 
@@ -237,7 +239,7 @@ def main():
     last_log = _most_recent(os.path.join(ROOT, "logs", "run_*.log"))
     if last_log and os.path.exists(last_log):
         try:
-            with open(last_log, "r", encoding="utf-8", errors="ignore") as f:
+            with open(last_log, encoding="utf-8", errors="ignore") as f:
                 lines = [ln for ln in f if "mvrv" in ln.lower()]
             print(f"log: {os.path.basename(last_log)}, mvrv-lines={len(lines)}")
             for ln in lines[-5:]:

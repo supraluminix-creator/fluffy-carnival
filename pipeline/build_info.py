@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TypedDict
 import os
 import subprocess
-
+from datetime import UTC, datetime
+from typing import TypedDict
 
 # Start time captured at import; used to compute uptime
-STARTED_AT_DT = datetime.now(timezone.utc)
+STARTED_AT_DT = datetime.now(UTC)
 STARTED_AT = STARTED_AT_DT.isoformat()
 
 
@@ -39,7 +38,7 @@ def build_metadata(include_uptime: bool = True) -> BuildMetadata:
         "started_at": STARTED_AT,
     }
     if include_uptime:
-        meta["uptime_seconds"] = (datetime.now(timezone.utc) - STARTED_AT_DT).total_seconds()
+        meta["uptime_seconds"] = (datetime.now(UTC) - STARTED_AT_DT).total_seconds()
     return meta
 
 

@@ -16,15 +16,14 @@ import asyncio
 import os
 from typing import Any
 
-from dotenv import load_dotenv
 import structlog
-
-from pipeline.export_utils import export_latest_and_timestamped
-from pipeline.analysis.runner import run_automatic_analyses
-from pipeline.analysis.persist import save_analysis
-from pipeline.analysis.events import emit_signals
+from dotenv import load_dotenv
 
 from main import run_legacy_collection  # réutilise la collecte existante
+from pipeline.analysis.events import emit_signals
+from pipeline.analysis.persist import save_analysis
+from pipeline.analysis.runner import run_automatic_analyses
+from pipeline.export_utils import export_latest_and_timestamped
 
 logger = structlog.get_logger(__name__)
 

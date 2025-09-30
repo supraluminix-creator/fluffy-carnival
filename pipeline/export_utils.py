@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -74,7 +74,7 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
     validated: list[ExportRecord] = []
     def _coerce_value(metric_name: str, val: Any) -> float | None:
         # Déjà numérique
-        if isinstance(val, (int, float)):
+        if isinstance(val, int | float):
             try:
                 return float(val)
             except Exception:
@@ -121,11 +121,11 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
                         except Exception:
                             pass
             # Sinon: premier champ numérique trouvé
-            for k, v in val.items():
+            for v in val.values():
                 try:
                     return float(v)
                 except Exception:
-                    continue
+                    pass
         return None
 
     for r_in in rows:
@@ -137,7 +137,7 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
             r["timestamp"] = str(ts)
         elif ts in (None, ""):
             # fallback ISO UTC si timestamp manquant
-            r["timestamp"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            r["timestamp"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         # Fallback asset<-symbol (legacy tests fournissent seulement symbol)
         if "asset" not in r and "symbol" in r:
             r["asset"] = r["symbol"]

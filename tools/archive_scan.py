@@ -17,11 +17,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
-from dataclasses import dataclass, asdict
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

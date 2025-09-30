@@ -14,9 +14,7 @@ Options:
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
 from dataclasses import dataclass
-
 
 KIND_ALIASES = {
     "ta": "Technical Analysis",
@@ -39,14 +37,14 @@ ROLE_ALIASES = {
 class TemplateOptions:
     max_tokens: int = 800
     detail: str = "normal"  # low|normal|high
-    sections: Optional[List[str]] = None
+    sections: list[str] | None = None
 
 
 def _header(title: str) -> str:
     return f"# {title}\n\n"
 
 
-def _common_sections(kind_label: str, role_label: str, opts: TemplateOptions) -> List[str]:
+def _common_sections(kind_label: str, role_label: str, opts: TemplateOptions) -> list[str]:
     sections = [
         "## TL;DR\n- 3 bullets clés\n\n",
         "## Observations\n- Données principales\n- Signaux\n\n",
@@ -58,7 +56,7 @@ def _common_sections(kind_label: str, role_label: str, opts: TemplateOptions) ->
     return sections
 
 
-def generate_template(kind: str, role: str, options: Optional[dict] = None) -> str:
+def generate_template(kind: str, role: str, options: dict | None = None) -> str:
     k = kind.lower().strip()
     r = role.lower().strip()
     if k not in KIND_ALIASES:
@@ -67,7 +65,7 @@ def generate_template(kind: str, role: str, options: Optional[dict] = None) -> s
         raise ValueError(f"Unsupported role: {role}")
     opts = TemplateOptions(**(options or {}))
     title = f"{KIND_ALIASES[k]} — {ROLE_ALIASES[r]}"
-    parts: List[str] = [_header(title)]
+    parts: list[str] = [_header(title)]
     # Context block
     parts.append(
         """> Contexte: Remplir avec les données brutes (prix, volumes, news, métriques on-chain).\n\n"""
@@ -94,8 +92,7 @@ def generate_template(kind: str, role: str, options: Optional[dict] = None) -> s
 
     # Sections
     if opts.sections:
-        for s in opts.sections:
-            parts.append(f"## {s}\n\n")
+        parts.extend([f"## {s}\n\n" for s in opts.sections])
     else:
         parts.extend(_common_sections(KIND_ALIASES[k], ROLE_ALIASES[r], opts))
 
@@ -104,7 +101,7 @@ def generate_template(kind: str, role: str, options: Optional[dict] = None) -> s
     return "".join(parts)
 
 
-def list_templates() -> Dict[str, List[str]]:
+def list_templates() -> dict[str, list[str]]:
     return {
         "kinds": list(KIND_ALIASES.keys()),
         "roles": list(ROLE_ALIASES.keys()),

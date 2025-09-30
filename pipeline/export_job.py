@@ -71,9 +71,10 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
 
     # Optionnels: macro indices & MVRV (feature flags)
     if os.getenv("ENABLE_MACRO_INDICES", "0") == "1":
-        from pipeline.collectors.macro_indices import fetch_macro_index  # lazy import to avoid metric registration when disabled
-        for idx in ("sp500", "nasdaq", "dowjones", "gold", "dxy"):
-            tasks.append((f"macroidx_{idx}", fetch_macro_index, (idx,), {}))
+        from pipeline.collectors.macro_indices import (
+            fetch_macro_index,  # lazy import to avoid metric registration when disabled
+        )
+        tasks.extend((f"macroidx_{idx}", fetch_macro_index, (idx,), {}) for idx in ("sp500", "nasdaq", "dowjones", "gold", "dxy"))
     if os.getenv("ENABLE_MVRV_COLLECTOR", "0") == "1":
         from pipeline.collectors.mvrv import fetch_mvrv  # lazy import
         tasks.append(("mvrv", fetch_mvrv, ("BTC",), {}))

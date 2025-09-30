@@ -5,8 +5,8 @@ Feature flag: ENABLE_MVRV_COLLECTOR=1
 from __future__ import annotations
 
 import os
-from typing import TypedDict, Any
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any, TypedDict
 
 import httpx
 import structlog
@@ -73,7 +73,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
         status = None
         async with httpx.AsyncClient(verify=verify_ssl, follow_redirects=True) as client:
             last_exc: Exception | None = None
-            for idx, url in enumerate(base_urls):
+            for _idx, url in enumerate(base_urls):
                 try:
                     # Prefer token in query for bitcoin-data.com; header also supported
                     params: dict[str, Any] = {}
@@ -133,7 +133,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                         try:
                             if isinstance(x, str) and len(x) >= 10:
                                 dt = datetime.fromisoformat(x[:10])
-                                return int(dt.replace(tzinfo=timezone.utc).timestamp())
+                                return int(dt.replace(tzinfo=UTC).timestamp())
                         except Exception:
                             pass
                         return None
@@ -175,7 +175,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                     # _embedded style
                     emb = payload.get("_embedded")
                     if isinstance(emb, dict):
-                        for k, vlist in emb.items():
+                        for vlist in emb.values():
                             if isinstance(vlist, list) and vlist:
                                 v, ts = _parse_any(vlist[-1])
                                 if v is not None:

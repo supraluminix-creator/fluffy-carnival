@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import httpx
 import structlog
@@ -99,7 +99,7 @@ async def _fetch_twelvedata(symbol: str) -> tuple[int | None, float] | None:
         values = data.get("values") if isinstance(data, dict) else None
         if isinstance(values, list) and values:
             last = values[0]
-            ts_str = last.get("datetime")
+            last.get("datetime")
             close_raw = last.get("close")
             try:
                 close = float(close_raw)

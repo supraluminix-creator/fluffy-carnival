@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pipeline.llm.providers import mock_generate, openai_generate, openrouter_generate, ollama_generate
+from pipeline.llm.providers import mock_generate, ollama_generate, openai_generate, openrouter_generate
 
 
 def choose_provider() -> str:

@@ -9,10 +9,9 @@ Usage (PowerShell):
   .\.venv\Scripts\python.exe tools\write_secrets.py
 """
 from __future__ import annotations
+
 import getpass
-import os
 from pathlib import Path
-from typing import Dict
 
 try:
     import tomllib  # Python 3.11+
@@ -35,7 +34,7 @@ SENSITIVE = {
 }
 
 # Quelques champs non sensibles utiles à surcharger rapidement
-NON_SENSITIVE_DEFAULTS: Dict[str, str] = {
+NON_SENSITIVE_DEFAULTS: dict[str, str] = {
     'CRYPTO_MONITOR_MODE': 'scheduler',
     'ENABLE_SCHEDULER': '1',
     'API_DOCS_ENABLED': '1',
@@ -44,7 +43,7 @@ NON_SENSITIVE_DEFAULTS: Dict[str, str] = {
 }
 
 
-def load_existing() -> Dict[str, str]:
+def load_existing() -> dict[str, str]:
     if SECRETS_PATH.exists():
         raw = SECRETS_PATH.read_bytes()
         data = tomllib.loads(raw.decode('utf-8'))
@@ -64,7 +63,7 @@ def prompt_var(name: str, current: str | None) -> str:
     return val
 
 
-def save(data: Dict[str, str]) -> None:
+def save(data: dict[str, str]) -> None:
     # utiliser tomli_w si dispo, sinon écrire manuellement (clé = "val")
     if tomli_w:
         SECRETS_PATH.write_bytes(tomli_w.dumps(data).encode('utf-8'))

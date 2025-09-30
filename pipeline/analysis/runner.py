@@ -9,11 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import pandas as pd
-
 from .dataset import load_latest_export
-from .signals import detect_signals
 from .llm_exec import run_llm_analysis
+from .signals import detect_signals
 
 
 def build_prompt_from_signals(signals: list[dict[str, Any]]) -> str:
@@ -38,7 +36,7 @@ def run_automatic_analyses(path: str = "exports/latest_export.csv") -> dict[str,
 
     try:
         signals = detect_signals(df)
-    except Exception as e:
+    except Exception:
         signals = []
 
     try:

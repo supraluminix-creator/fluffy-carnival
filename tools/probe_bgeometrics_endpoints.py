@@ -9,9 +9,9 @@ BGEOMETRICS_VERIFY_SSL (0/1). Follows redirects, prints status and brief body.
 """
 from __future__ import annotations
 
-import os
 import asyncio
 import json
+import os
 
 import httpx
 from dotenv import load_dotenv

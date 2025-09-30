@@ -13,10 +13,9 @@ Env:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
 import time as _time
-from typing import Dict
+from dataclasses import dataclass
 
 from .metrics.breakers import (
     CB_LAST_OPEN_TIMESTAMP,
@@ -38,7 +37,7 @@ class _BreakerState:
     opened_at: float = 0.0  # epoch seconds
 
 
-_STATES: Dict[str, _BreakerState] = {}
+_STATES: dict[str, _BreakerState] = {}
 
 
 def _cfg_threshold() -> int:

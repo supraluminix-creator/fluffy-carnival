@@ -15,12 +15,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCAN_JSON = REPO_ROOT / "ARCHIVE_SCAN.json"

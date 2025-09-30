@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-import asyncio
-import os
 import sqlite3
+import time
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
+
+from pipeline.metrics.export import (
+    FLUSH_FAILURES_TOTAL,
+    FLUSH_LIQ_ROWS_WRITTEN,
+    FLUSH_OPERATIONS_TOTAL,
+    LAST_FLUSH_DURATION_SECONDS,
+    LAST_FLUSH_TIMESTAMP,
+    WRITER_FLUSH_LATENCY_SECONDS,
+)
 
 
 def _ensure_dirs(path: str) -> None:
@@ -18,7 +25,7 @@ def _ensure_dirs(path: str) -> None:
         p.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _normalize_event(ev: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_event(ev: dict[str, Any]) -> dict[str, Any]:
     sym = str(ev.get("symbol", "")).upper()
     side_raw = str(ev.get("side", "")).upper()
     side = "BUY" if side_raw.startswith("B") else ("SELL" if side_raw.startswith("S") else side_raw)
@@ -57,7 +64,7 @@ class BybitLiquidationsWriter:
 
     def __post_init__(self):
         _ensure_dirs(self.db)
-        self._buffer: List[Dict[str, Any]] = []
+        self._buffer: list[dict[str, Any]] = []
         self._conn = sqlite3.connect(self.db)
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._init_schema()
@@ -92,7 +99,7 @@ class BybitLiquidationsWriter:
         )
         self._conn.commit()
 
-    async def write_record(self, ev: Dict[str, Any]) -> None:
+    async def write_record(self, ev: dict[str, Any]) -> None:
         rec = _normalize_event(ev)
         self._buffer.append(rec)
         if len(self._buffer) >= self.flush_size:
@@ -101,14 +108,6 @@ class BybitLiquidationsWriter:
     async def flush(self) -> int:
         if not self._buffer:
             return 0
-        from pipeline.metrics.export import (
-            WRITER_FLUSH_LATENCY_SECONDS,
-            FLUSH_OPERATIONS_TOTAL,
-            LAST_FLUSH_TIMESTAMP,
-            LAST_FLUSH_DURATION_SECONDS,
-            FLUSH_FAILURES_TOTAL,
-            FLUSH_LIQ_ROWS_WRITTEN,
-        )
         writer_label = "bybit_liq"
         start = time.perf_counter()
         rows = self._buffer
@@ -121,7 +120,7 @@ class BybitLiquidationsWriter:
                 [(r["symbol"], r["side"], r["price"], r["qty"], r["qty_usd"], r["time"]) for r in rows],
             )
             # Aggregate by hour
-            agg: Dict[Tuple[str, str, int], Tuple[float, int]] = defaultdict(lambda: (0.0, 0))
+            agg: dict[tuple[str, str, int], tuple[float, int]] = defaultdict(lambda: (0.0, 0))
             for r in rows:
                 hour_start = (r["time"] // 1000) // 3600 * 3600
                 key = (r["symbol"], r["side"], hour_start)

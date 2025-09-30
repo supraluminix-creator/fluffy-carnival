@@ -35,10 +35,8 @@ from .binance import fetch_binance_funding
 log = structlog.get_logger()
 cache: Cache = Cache('.cache')
 if "PYTEST_CURRENT_TEST" in os.environ:  # nettoyage pour éviter contamination cross-tests
-    try:
+    with suppress(Exception):
         cache.clear()
-    except Exception:
-        pass
 _LEGACY_LOGGED: set[str] = set()
 
 # Compteur usage legacy HTTP (direct client.get) pour fonctions non encore migrées vers façade
@@ -500,7 +498,6 @@ async def fetch_bybit_long_short_ratio(
         async with httpx.AsyncClient() as client:
             force_flag = is_forced_facade()
             dry_run = is_dry_run_facade() and not force_flag
-            from contextlib import suppress
             with suppress(Exception):  # pragma: no cover
                 set_facade_mode("deriv_lsr", force_flag, dry_run)
             if force_flag:

@@ -17,11 +17,10 @@ Notes: POE public API is not officially documented; adapter is a stub with NotIm
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Protocol, TypedDict, Optional
-import os
-import asyncio
 import json
+import os
+from dataclasses import dataclass, field
+from typing import Any, Protocol, TypedDict
 
 import httpx
 import structlog
@@ -41,9 +40,9 @@ class AIProvider(Protocol):
     async def generate(
         self,
         prompt: str,
-        model_hint: Optional[str] = None,
+        model_hint: str | None = None,
         max_tokens: int = 800,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AIResult:  # pragma: no cover - interface only
         ...
 

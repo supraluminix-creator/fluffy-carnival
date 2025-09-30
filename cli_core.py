@@ -14,20 +14,19 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from pipeline.export_utils import export_latest_and_timestamped
-
 
 EXAMPLES_DIR = Path("examples")
 
 
-async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = False) -> List[Dict[str, Any]]:
+async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = False) -> list[dict[str, Any]]:
     """Collect a minimal set of public metrics without paid keys.
 
     If include_derivatives is True, also attempts Bybit OI/LSR (public endpoints).
     """
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     try:
         from pipeline.collectors.market import fetch_macro
         res = await fetch_macro(symbol, cmc_api_key=None)
@@ -59,7 +58,7 @@ async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = Fa
     return results
 
 
-def make_mock_records(symbol: str = "bitcoin") -> List[Dict[str, Any]]:
+def make_mock_records(symbol: str = "bitcoin") -> list[dict[str, Any]]:
     return [
         {
             "timestamp": None,
@@ -84,7 +83,7 @@ def make_mock_records(symbol: str = "bitcoin") -> List[Dict[str, Any]]:
     ]
 
 
-def write_examples(rows: List[Dict[str, Any]]) -> None:
+def write_examples(rows: list[dict[str, Any]]) -> None:
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
     (EXAMPLES_DIR / "sample_export.json").write_text(
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -93,7 +92,7 @@ def write_examples(rows: List[Dict[str, Any]]) -> None:
 
 async def main_async(args: argparse.Namespace) -> int:
     if args.command == "run":
-        rows: List[Dict[str, Any]]
+        rows: list[dict[str, Any]]
         if args.mock:
             rows = make_mock_records(args.symbol)
         else:
@@ -131,7 +130,7 @@ async def main_async(args: argparse.Namespace) -> int:
     return 1
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="cli_core", description="Prod-safe core CLI for collectors")
     sub = ap.add_subparsers(dest="command")
     p_run = sub.add_parser("run", help="Run minimal collectors and export outputs")
@@ -144,7 +143,7 @@ def main(argv: List[str] | None = None) -> int:
         help="Include public derivatives metrics (Bybit OI/LSR) in non-mock runs",
     )
     # validate
-    p_val = sub.add_parser("validate", help="Check environment and list available collectors")
+    _p_val = sub.add_parser("validate", help="Check environment and list available collectors")
     args = ap.parse_args(argv)
     return asyncio.run(main_async(args))
 

@@ -2,7 +2,7 @@
 """CLI minimal pour lancer une analyse AI à la demande.
 
 Usage (PowerShell):
-  .\.venv\Scripts\python.exe cli_analysis.py
+  .\.venv\\Scripts\\python.exe cli_analysis.py
 
 Variables d'environnement utiles:
   ANALYSIS_ONLY_ON_SIGNALS=1   # ne persiste que s'il y a des signaux
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import os
 
-from pipeline.analysis.runner import run_automatic_analyses
 from pipeline.analysis.persist import save_analysis
+from pipeline.analysis.runner import run_automatic_analyses
 
 
 def main() -> None:
