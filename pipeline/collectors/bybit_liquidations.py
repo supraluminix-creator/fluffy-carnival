@@ -24,11 +24,13 @@ try:  # pragma: no cover - si metrics indisponible
         LAST_FLUSH_DURATION_SECONDS,
         LAST_FLUSH_TIMESTAMP,
         WRITER_FLUSH_LATENCY_SECONDS,
+        FLUSH_LIQ_ROWS_WRITTEN,
+        LAST_LIQ_EVENT_TIMESTAMP,
     )
 except Exception:  # pragma: no cover
     BUFFER_LENGTH = LAST_FLUSH_TIMESTAMP = FLUSH_OPERATIONS_TOTAL = (
         FLUSH_FAILURES_TOTAL
-    ) = WRITER_FLUSH_LATENCY_SECONDS = LAST_FLUSH_DURATION_SECONDS = None  # type: ignore
+    ) = WRITER_FLUSH_LATENCY_SECONDS = LAST_FLUSH_DURATION_SECONDS = FLUSH_LIQ_ROWS_WRITTEN = LAST_LIQ_EVENT_TIMESTAMP = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +153,10 @@ class BybitLiquidationsWriter:
                 if BUFFER_LENGTH is not None:
                     with suppress(Exception):  # pragma: no cover - defensive
                         BUFFER_LENGTH.labels(writer="bybit_liq").set(len(self.buffer))
+                # Update freshness gauge to the latest event timestamp (seconds)
+                if LAST_LIQ_EVENT_TIMESTAMP is not None:
+                    with suppress(Exception):  # pragma: no cover
+                        LAST_LIQ_EVENT_TIMESTAMP.labels(writer="bybit_liq").set(int(ts) / 1000)
 
                 logger.debug("Buffered liquidation: %s %s %.3f @ $%.2f", symbol, side, size, price)
 
@@ -201,7 +207,12 @@ class BybitLiquidationsWriter:
                 """, (hour_start, r["symbol"], r["side"], r["price"] * r["qty"], r["price"] * r["qty"]))
 
             self.conn.commit()
-            logger.info("Successfully flushed %d events to database", len(buf))
+            rows_written = len(buf)
+            logger.info("Successfully flushed %d events to database", rows_written)
+            # Metric dédiée: lignes écrites par flush
+            if FLUSH_LIQ_ROWS_WRITTEN is not None:
+                with suppress(Exception):  # pragma: no cover - métriques optionnelles
+                    FLUSH_LIQ_ROWS_WRITTEN.labels(writer="bybit_liq").inc(rows_written)
             if FLUSH_OPERATIONS_TOTAL is not None:
                 with suppress(Exception):  # pragma: no cover
                     FLUSH_OPERATIONS_TOTAL.labels(writer="bybit_liq", status="success").inc()

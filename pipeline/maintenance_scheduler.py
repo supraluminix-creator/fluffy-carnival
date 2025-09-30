@@ -18,6 +18,7 @@ Fallback: si APScheduler non dispo, la fonction renvoie False.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 try:
     from apscheduler.schedulers.base import BaseScheduler  # type: ignore
@@ -60,7 +61,7 @@ def _job_wrapper(db_path: str):  # pragma: no cover - exécuté en scheduler ré
 
 
 def register_maintenance(
-    scheduler: BaseScheduler,
+    scheduler: Any,
     *,
     db_path: str = "data/crypto.db",
     trigger: str = "cron",

@@ -428,6 +428,7 @@ async def fetch_macro(
         rec: MacroRecord = {
             "timestamp": data.get("last_updated"),
             "asset": symbol,
+            # Conserve le nom historique "macro" (les exports savent en extraire le prix).
             "metric_name": "macro",
             "value": {
                 "price": to_float(cp.get("usd")),

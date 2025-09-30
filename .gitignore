@@ -21,9 +21,13 @@ run_*.log
 run/
 
 .env
+.env.local
 
 # Autoriser le .env placeholder versionné (sans secrets réels)
 !/.env
+
+# Ne jamais versionner les secrets réels Streamlit
+.streamlit/secrets.toml
 
 .pytest_cache/
 **/__pycache__/

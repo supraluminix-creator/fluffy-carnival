@@ -52,7 +52,7 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
     ------
     dict: résumé (counts, paths) pour logging.
     """
-    cmc_api_key = os.getenv("CMC_API_KEY") or None
+    cmc_api_key = os.getenv("CMC_API_KEY") or os.getenv("COINMARKETCAP_API_KEY") or None
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY") or None
     run_id = os.getenv("RUN_ID") or None
     export_dir = os.getenv("EXPORT_DIR", "exports")
@@ -68,6 +68,15 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
         ("defillama", fetch_defillama_tvl, ("ethereum",), {}),
         ("sentiment", fetch_fear_greed, tuple(), {}),
     ]
+
+    # Optionnels: macro indices & MVRV (feature flags)
+    if os.getenv("ENABLE_MACRO_INDICES", "0") == "1":
+        from pipeline.collectors.macro_indices import fetch_macro_index  # lazy import to avoid metric registration when disabled
+        for idx in ("sp500", "nasdaq", "dowjones", "gold", "dxy"):
+            tasks.append((f"macroidx_{idx}", fetch_macro_index, (idx,), {}))
+    if os.getenv("ENABLE_MVRV_COLLECTOR", "0") == "1":
+        from pipeline.collectors.mvrv import fetch_mvrv  # lazy import
+        tasks.append(("mvrv", fetch_mvrv, ("BTC",), {}))
 
     results: list[dict[str, Any]] = []
     errors: list[str] = []

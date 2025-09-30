@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 
 import httpx
 import structlog
+from .rate_limit import build_rate_limiter_from_env
 
 try:  # pragma: no cover - metrics import defensive
     from .metrics import (
@@ -59,6 +60,29 @@ RETRIABLE_EXC = (RateLimitError, TimeoutError_, NetworkError, UpstreamError)
 __all__.append("RETRIABLE_EXC")
 
 DEFAULT_TIMEOUT = 10
+
+# ------------------ Throttling optionnel (par endpoint) ------------------
+_HTTP_THROTTLE = None  # construit à la demande
+_HTTP_THROTTLE_LIMIT = 0
+
+def _get_http_throttle():
+    """Retourne (limiter, limit) si activé; sinon (None, 0).
+
+    Activation via HTTP_THROTTLE_PER_MIN_DEFAULT (>0). Backend: mémoire ou Redis si configuré.
+    """
+    global _HTTP_THROTTLE, _HTTP_THROTTLE_LIMIT
+    if _HTTP_THROTTLE is not None:
+        return _HTTP_THROTTLE, _HTTP_THROTTLE_LIMIT
+    try:
+        lim = int(os.getenv("HTTP_THROTTLE_PER_MIN_DEFAULT", "0"))
+    except Exception:
+        lim = 0
+    _HTTP_THROTTLE_LIMIT = max(0, lim)
+    if _HTTP_THROTTLE_LIMIT > 0:
+        _HTTP_THROTTLE = build_rate_limiter_from_env(_HTTP_THROTTLE_LIMIT)
+    else:
+        _HTTP_THROTTLE = None
+    return _HTTP_THROTTLE, _HTTP_THROTTLE_LIMIT
 
 # ------------------ Endpoint labeling (réduction cardinalité) ------------------
 def endpoint_label(url: str) -> str:
@@ -245,6 +269,26 @@ def http_get_json_retry(
         start = time.perf_counter()
         final_status = "success"
         now = time.time()
+        # Throttling optionnel par endpoint (avant tentative réseau)
+        limiter, lim = _get_http_throttle()
+        if limiter is not None and lim > 0:
+            provider = (ep.split("/")[0]) if "/" in ep else ep
+            allowed, wait, _rem, _reset = limiter.check_allow_with_meta(f"http:{provider}")
+            if not allowed:
+                max_wait = float(os.getenv("HTTP_THROTTLE_MAX_WAIT", "8"))
+                sleep_for = min(max(1.0, float(wait)), max_wait)
+                logger.info(
+                    "http_throttle_sleep",
+                    endpoint=ep,
+                    provider=provider,
+                    wait=wait,
+                    sleep_for=sleep_for,
+                )
+                time.sleep(sleep_for)
+                cumulative_sleep += sleep_for
+                if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
+                    with suppress(Exception):
+                        RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
         if max_cumulative and cumulative_sleep >= max_cumulative:
             # Budget épuisé -> arrêter immédiatement
             logger.warning(
@@ -423,6 +467,26 @@ async def async_http_get_json_retry(
     while True:
         attempt += 1
         now = time.time()
+        # Throttling optionnel par endpoint (avant tentative réseau)
+        limiter, lim = _get_http_throttle()
+        if limiter is not None and lim > 0:
+            provider = (ep.split("/")[0]) if "/" in ep else ep
+            allowed, wait, _rem, _reset = limiter.check_allow_with_meta(f"http:{provider}")
+            if not allowed:
+                max_wait = float(os.getenv("HTTP_THROTTLE_MAX_WAIT", "8"))
+                sleep_for = min(max(1.0, float(wait)), max_wait)
+                logger.info(
+                    "http_throttle_sleep",
+                    endpoint=ep,
+                    provider=provider,
+                    wait=wait,
+                    sleep_for=sleep_for,
+                )
+                await _async_sleep(sleep_for)
+                cumulative_sleep += sleep_for
+                if RETRY_BUDGET_REMAINING_SECONDS is not None and max_cumulative:
+                    with suppress(Exception):
+                        RETRY_BUDGET_REMAINING_SECONDS.labels(endpoint=ep).set(max(0.0, max_cumulative - cumulative_sleep))
         if max_cumulative and cumulative_sleep >= max_cumulative:
             logger.warning(
                 "retry_budget_exhausted",

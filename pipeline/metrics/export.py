@@ -78,6 +78,20 @@ WRITER_FLUSH_LATENCY_SECONDS = _histogram(
 	"Latence des opérations de flush (s)", ["writer", "status"], buckets=(0.01,0.05,0.1,0.25,0.5,1,2,5,10)
 )
 
+# Comptage dédié pour les lignes de liquidations écrites par flush (sidecar WS)
+FLUSH_LIQ_ROWS_WRITTEN = _counter(
+    "flush_liq_rows_written",
+    "Nombre de lignes de liquidations écrites lors des flush",
+    ["writer"],
+)
+
+# Fraîcheur: timestamp du dernier évènement de liquidation observé
+LAST_LIQ_EVENT_TIMESTAMP = _gauge(
+	"writer_last_seen_event_timestamp",
+	"Timestamp epoch (s) du dernier évènement de liquidation observé",
+	["writer"],
+)
+
 __all__ = [
 	"EXPORTS_TOTAL",
 	"EXPORT_ROWS_TOTAL",
@@ -89,4 +103,6 @@ __all__ = [
 	"LAST_FLUSH_DURATION_SECONDS",
 	"FLUSH_FAILURES_TOTAL",
 	"WRITER_FLUSH_LATENCY_SECONDS",
+    "FLUSH_LIQ_ROWS_WRITTEN",
+	"LAST_LIQ_EVENT_TIMESTAMP",
 ]

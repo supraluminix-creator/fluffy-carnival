@@ -58,6 +58,30 @@ Note: This repository is published as "fluffy-carnival" on GitHub.
 
 ## Quick start (Windows / PowerShell)
 
+### Core collecte/ETL (prod-safe)
+
+Mock (sans clés):
+
+```powershell
+Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
+.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py --mock
+```
+
+Réel (public par défaut):
+
+```powershell
+.$env:PYTHONIOENCODING="utf-8"; .\\.venv\\Scripts\\python.exe .\\cli_core.py --symbol bitcoin
+```
+
+Exports dans `exports/`, exemples JSON dans `examples/`.
+
+Archiver le non-core:
+
+```powershell
+.\\.venv\\Scripts\\python.exe .\\tools\\archive_scan.py --write
+.\\.venv\\Scripts\\python.exe .\\tools\\archive_exec.py
+```
+
 Prerequisites:
 - Python 3.12
 - Create and activate the venv, install deps (already in this repo)
@@ -186,6 +210,25 @@ Santé enrichie:
 
 - GET /api/health → { status, version, git_sha, build_date, started_at, uptime_seconds }
 
+### Sidecar WebSocket Bybit — autostart et /health (nouveau)
+
+Le collector WebSocket Bybit peut être lancé automatiquement par l’application principale et expose un petit endpoint de santé optionnel.
+
+- Activation autostart: `BYBIT_WS_AUTOSTART=1`
+- Port Prometheus du sidecar: `BYBIT_WS_PORT` (défaut 8000)
+- Port /health explicite du sidecar: `BYBIT_WS_HEALTH_PORT` (par défaut identique à `BYBIT_WS_PORT`)
+
+Comportement de la sonde au démarrage:
+1) La sonde tente d’abord `http://127.0.0.1:<BYBIT_WS_HEALTH_PORT>/health`.
+2) En cas d’exception uniquement, elle retombe sur la racine Prometheus `http://127.0.0.1:<BYBIT_WS_PORT>/`.
+
+Payload du `/health` du sidecar (léger, via aiohttp):
+```
+{ "status": "ok", "symbols": ["BTCUSDT", ...], "ws_url": "wss://..." }
+```
+
+Remarque: si `aiohttp` n’est pas installé, l’endpoint `/health` du sidecar n’est pas exposé et seul le port Prometheus reste disponible.
+
 ## YAML-driven jobs
 
 Edit `scheduler/jobs.yaml` to enable/disable jobs and set intervals. We added args and kwargs support and allow `${ENV}` substitution for secrets.
@@ -279,6 +322,16 @@ Set-Location "C:\\Users\\To the moon\\Downloads\\new_crypto_prodsafe"
 .\\.venv\\Scripts\\python.exe -m pytest -q
 ```
 
+### Astuce CSV (Rainbow CSV)
+
+Pour explorer rapidement les exports CSV (`exports/*.csv`) dans VS Code, l’extension Rainbow CSV est pratique. Le séparateur est la virgule et les en-têtes standard sont:
+
+```
+timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
+```
+
+Vous pouvez activer la détection automatique ou définir un profil avec ce header pour de meilleurs surlignages/tri.
+
 ## Résilience HTTP
 
 Le module central `pipeline/http_wrappers.py` fournit:
@@ -351,6 +404,9 @@ Environment variables:
 - HEALTH_PORT=9310 — Health server port
 - APP_VERSION — App version (exposed in metrics)
 - GIT_SHA — Git commit SHA (exposed in metrics)
+ - BYBIT_WS_AUTOSTART=1 — Démarre automatiquement le sidecar WS Bybit depuis le processus principal
+ - BYBIT_WS_PORT=8000 — Port Prometheus exposé par le sidecar WS
+ - BYBIT_WS_HEALTH_PORT — Port HTTP du `/health` du sidecar (par défaut égal à BYBIT_WS_PORT)
 
 Endpoints:
 
@@ -365,6 +421,10 @@ Endpoints:
     ```
     Interprétation: 3 bascules (CG → CMC) réussies depuis le démarrage.
   - fallback_chain_depth{collector}: Gauge profondeur dernier run (voir section dédiée).
+
+  - Export/liquidations (nouveau):
+    * flush_liq_rows_written{writer="bybit_liq"}: compteur d’insertions lors d’un flush
+    * writer_last_seen_event_timestamp: jauge de fraicheur (UNIX epoch s) du dernier événement WS vu
 
 - Health JSON: http://localhost:9310/health (aliases: /ready, /live)
   - Payload includes run_id, jobs, started_at, ready, ready_ts, tasks ok/err, build {version, git_sha, run_id}, ports {metrics, health}, config_path

@@ -540,6 +540,35 @@ def main() -> None:
     st.title("Assistant de configuration – Crypto Pipeline")
     st.caption("Générez un fichier .env proprement sans toucher au code.")
 
+    # 1) Import automatique des secrets Streamlit (si présents) au premier chargement
+    def _import_streamlit_secrets() -> bool:
+        try:
+            # st.secrets se comporte comme un mapping clé->valeur
+            items = list(getattr(st, "secrets", {}).items())  # type: ignore[attr-defined]
+        except Exception:
+            return False
+        if not items:
+            return False
+        values: dict[str, str] = {}
+        for k, v in items:
+            try:
+                # On convertit tout en chaîne pour homogénéiser avec le .env
+                values[str(k)] = str(v)
+            except Exception:
+                continue
+        if values:
+            load_env_into_state(values)
+            return True
+        return False
+
+    if "SECRETS_IMPORTED" not in st.session_state:
+        imported = _import_streamlit_secrets()
+        st.session_state["SECRETS_IMPORTED"] = True
+        if imported:
+            # petit feedback non intrusif
+            with suppress(Exception):
+                st.toast("Secrets importés depuis secrets.toml", icon="🔐")
+
     with st.sidebar:
         st.header("Actions")
         if st.button("Réinitialiser valeurs par défaut", help="Remet toutes les valeurs aux paramètres conseillés."):
@@ -550,6 +579,11 @@ def main() -> None:
 
         st.divider()
         st.subheader("Importer configuration")
+        if st.button("Charger secrets (Cloud)", help="Charge les clés depuis .streamlit/secrets.toml si présent."):
+            if _import_streamlit_secrets():
+                st.success("Secrets chargés depuis secrets.toml.")
+            else:
+                st.info("Aucun secrets.toml trouvé ou vide.")
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Charger .env (local)", help="Lit le fichier .env à la racine du projet et applique les valeurs."):

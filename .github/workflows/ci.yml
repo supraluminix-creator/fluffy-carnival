@@ -225,7 +225,5 @@ jobs:
       - name: Smoke API with POST + SSE
         env:
           API_RATE_LIMIT_PER_MIN: "100"
-          # Use GitHub Secrets to provide API write key in CI. Define `API_WRITE_KEY` in repository secrets.
-          API_WRITE_KEY: ${{ secrets.API_WRITE_KEY }}
         run: |
           python tools/smoke_api.py

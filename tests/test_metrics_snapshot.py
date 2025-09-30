@@ -63,6 +63,8 @@ EXPECTED = {
     'writer_buffer_length',
     'writer_flush_latency_seconds',
     'writer_last_flush_timestamp',
+    'flush_liq_rows_written',
+    'writer_last_seen_event_timestamp',
     # health / maintenance / purge
     'health_requests',
     'heartbeat_ticks',

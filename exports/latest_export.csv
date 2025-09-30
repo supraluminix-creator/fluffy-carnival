@@ -1,2 +1,10 @@
 timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
-1758818700000,BTCUSDT,BTCUSDT,-,open_interest,66816.634,bybit,1.0
+2025-09-29T19:46:34.385Z,bitcoin,bitcoin,-,macro,114190.0,coingecko,1.0
+2025-09-29T19:47:30.983677Z,BTC,BTC,-,txcount,916959.0,blockchain.info,1.0
+2025-09-29T19:47:30.983677Z,BTC,BTC,-,hashrate,842030811393.0,blockchain.info,1.0
+1759017600,BTC,BTC,-,sopr,1.0261478320768926,bitcoin-data.com,1.0
+1759160400000,BTCUSDT,BTCUSDT,-,open_interest,68673.83,bybit,1.0
+1759160400000,BTCUSDT,BTCUSDT,-,long_short_ratio,0.6115,bybit,1.0
+1759174627,ethereum,ethereum,ethereum,defi_tvl,88085657472.18564,defillama,1.0
+1759104000,BTC,BTC,-,fear_greed,50.0,alternative.me,1.0
+2025-09-29T19:47:30.983677Z,gold,gold,-,macro_index,3841.3,twelvedata,1.0

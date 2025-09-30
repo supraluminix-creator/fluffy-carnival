@@ -40,6 +40,7 @@ from typing import Any, Protocol
 import structlog
 import websockets
 from prometheus_client import Counter, Summary, start_http_server
+import contextlib
 
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
 
@@ -78,7 +79,8 @@ class BybitWSService:
     """
     def __init__(self, symbols: list[str], ws_url: str | None = None, db_path: str = "data/crypto.db",
                  parquet_dir: str = "data/bybit_liquidations", flush_size: int = 100,
-                 flush_interval: int = 5, subscribe_tpl: str = "liquidation.{}"):
+                 flush_interval: int = 5, subscribe_tpl: str = "liquidation.{}",
+                 health_port: int | None = None):
         self.symbols: list[str] = symbols
         self.ws_url: str = ws_url or self._auto_detect_url(symbols)
         self.subscribe_tpl: str = subscribe_tpl
@@ -103,8 +105,8 @@ class BybitWSService:
         self.ws: Any | None = None
         self.stop_event: asyncio.Event = asyncio.Event()
         self._reconnect_delay: int = 1
-
-        logger.info("BybitWSService created", symbols=symbols, ws_url=self.ws_url)
+        self.health_port: int | None = health_port
+        logger.info("BybitWSService created", symbols=symbols, ws_url=self.ws_url, health_port=self.health_port)
 
     def _auto_detect_url(self, symbols: list[str]) -> str:
         """
@@ -188,7 +190,7 @@ class BybitWSService:
         """
         Main run loop: manages signal handling, reconnects, and graceful shutdown.
         """
-        logger.info("Starting BybitWSService")
+        logger.info("Starting BybitWSService", symbols=self.symbols, ws_url=self.ws_url)
         # Register signal handlers only where supported (POSIX). On Windows rely on KeyboardInterrupt.
         try:
             loop = asyncio.get_running_loop()
@@ -203,11 +205,23 @@ class BybitWSService:
         else:
             print("[DEBUG] Skipping signal handler registration (platform limitation)")
 
+        # Start health endpoint if requested
+        health_task: asyncio.Task | None = None
+        if self.health_port:
+            try:
+                health_task = asyncio.create_task(self._run_health_server(self.health_port))
+                logger.info("WS health server started", port=self.health_port, symbols=self.symbols)
+            except Exception:
+                logger.warning("WS health server failed to start", port=self.health_port, exc_info=True)
+
         while not self.stop_event.is_set():
             await self.connect()
 
         if hasattr(self.writer, "close"):
             await self.writer.close()  # runtime check; writer conforms
+        if health_task:
+            with contextlib.suppress(Exception):
+                health_task.cancel()
         logger.info("BybitWSService stopped")
 
     async def stop(self) -> None:
@@ -222,6 +236,40 @@ class BybitWSService:
                 await self.ws.close()
         if hasattr(self.writer, "close"):
             await self.writer.close()
+
+    async def _run_health_server(self, port: int) -> None:
+        """Runs a tiny aiohttp server exposing /health with runtime info.
+
+        Lightweight and optional to avoid adding FastAPI/Starlette here.
+        """
+        try:
+            import importlib
+            web = importlib.import_module("aiohttp.web")  # type: ignore[assignment]
+        except Exception:
+            # Fallback: no health server if aiohttp not installed
+            logger.warning("aiohttp_not_available_for_ws_health")
+            return
+
+        async def handle_health(_request):  # type: ignore[no-untyped-def]
+            payload = {
+                "status": "ok",
+                "symbols": self.symbols,
+                "ws_url": self.ws_url,
+            }
+            return web.json_response(payload)
+
+        app = web.Application()
+        app.add_routes([web.get('/health', handle_health)])
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        try:
+            while not self.stop_event.is_set():
+                await asyncio.sleep(1)
+        finally:
+            with contextlib.suppress(Exception):
+                await runner.cleanup()
 
 
 # ---------------------------------------------------------
@@ -310,6 +358,7 @@ def main() -> int:
     parser.add_argument("--flush-interval", type=int, default=5, help="Flush après N secondes")
     parser.add_argument("--subscribe-tpl", default="liquidation.{}", help="Template de souscription")
     parser.add_argument("--prometheus-port", type=int, default=8000, help="Prometheus metrics port (default: 8000)")
+    parser.add_argument("--health-port", type=int, default=None, help="Port HTTP pour /health explicite du sidecar")
 
     args = parser.parse_args()
     print(f"[DEBUG] Parsed args: {args}")
@@ -327,6 +376,7 @@ def main() -> int:
         flush_size=args.flush_size,
         flush_interval=args.flush_interval,
         subscribe_tpl=args.subscribe_tpl,
+        health_port=args.health_port,
     )
     print("[DEBUG] BybitWSService instantiated")
 

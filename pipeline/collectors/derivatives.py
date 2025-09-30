@@ -34,6 +34,11 @@ from .binance import fetch_binance_funding
 
 log = structlog.get_logger()
 cache: Cache = Cache('.cache')
+if "PYTEST_CURRENT_TEST" in os.environ:  # nettoyage pour éviter contamination cross-tests
+    try:
+        cache.clear()
+    except Exception:
+        pass
 _LEGACY_LOGGED: set[str] = set()
 
 # Compteur usage legacy HTTP (direct client.get) pour fonctions non encore migrées vers façade
@@ -77,6 +82,11 @@ DERIV_CACHE_MISS = Counter('derivatives_cache_miss_total', 'Derivatives cache mi
 DERIV_BREAKER_SKIPS = Counter('derivatives_breaker_skips_total', 'Calls skipped (circuit breaker open)')
 
 
+def _cache_enabled() -> bool:
+    # Contrôle via variable; par défaut cache actif (y compris en tests)
+    return os.getenv("DISABLE_DERIV_CACHE", "0") != "1"
+
+
 def fetch_binance_futures_oi(symbol: str) -> OpenInterestRecord | None:  # pragma: no cover
     """Stub par défaut pour tests (monkeypatch)."""
     return None
@@ -95,7 +105,7 @@ async def fetch_bybit_oi(
         log.warning("deriv_breaker_open", symbol=symbol, metric="open_interest")
         return None
     key = f"deriv_oi_{symbol}_{category}_{interval}"
-    if key in cache:
+    if _cache_enabled() and key in cache:
         DERIV_CACHE_HIT.inc()
         log.info("deriv_cache_hit", symbol=symbol)
         cached = cache.get(key)
@@ -128,7 +138,8 @@ async def fetch_bybit_oi(
             "source": "bybit",
             "confidence_score": 1.0,
         }
-        cache.set(key, rec, expire=cache_ttl)
+        if _cache_enabled():
+            cache.set(key, rec, expire=cache_ttl)
         DERIV_SUCCESS.inc()
         with suppress(Exception):  # pragma: no cover
             FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
@@ -237,7 +248,8 @@ async def fetch_bybit_oi(
         try:
             alt = fetch_binance_futures_oi(symbol.upper())
             if alt:
-                cache.set(key, alt, expire=cache_ttl)
+                if _cache_enabled():
+                    cache.set(key, alt, expire=cache_ttl)
                 DERIV_SUCCESS.inc()
                 record_success("deriv_oi")
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
@@ -290,10 +302,26 @@ async def fetch_bybit_funding(
         DERIV_BREAKER_SKIPS.inc()
         log.warning("deriv_breaker_open", symbol=symbol, metric="funding")
         return None
+    # Positionne la gauge facade_forced/dry_run dès l'entrée, avant tout early-return (cache)
+    try:
+        force_flag_early = is_forced_facade()
+        dry_run_early = is_dry_run_facade() and not force_flag_early
+        with suppress(Exception):  # pragma: no cover
+            set_facade_mode("deriv_funding", force_flag_early, dry_run_early)
+    except Exception:
+        pass
     key = f"deriv_funding_{symbol}_{category}"
-    if key in cache:
+    if _cache_enabled() and key in cache:
         DERIV_CACHE_HIT.inc()
         cached = cache.get(key)
+        # Repositionne les gauges au cas où un état précédent les aurait laissées à 1
+        try:
+            force_flag_cached = is_forced_facade()
+            dry_run_cached = is_dry_run_facade() and not force_flag_cached
+            with suppress(Exception):  # pragma: no cover
+                set_facade_mode("deriv_funding", force_flag_cached, dry_run_cached)
+        except Exception:
+            pass
         if isinstance(cached, dict):
             return cached  # type: ignore[return-value]
     DERIV_CACHE_MISS.inc()
@@ -338,7 +366,8 @@ async def fetch_bybit_funding(
                 "source": "bybit",
                 "confidence_score": 1.0,
             }
-            cache.set(key, rec, expire=cache_ttl)
+            if _cache_enabled():
+                cache.set(key, rec, expire=cache_ttl)
             DERIV_SUCCESS.inc()
             record_success("deriv_funding")
             with suppress(Exception):  # pragma: no cover
@@ -362,7 +391,8 @@ async def fetch_bybit_funding(
             with fallback_tier_timing("deriv_funding", 2):
                 fb = fetch_binance_funding(symbol)
             if fb:
-                cache.set(key, fb, expire=cache_ttl)
+                if _cache_enabled():
+                    cache.set(key, fb, expire=cache_ttl)
                 DERIV_SUCCESS.inc()
                 record_success("deriv_funding")  # succès via fallback
                 FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="success").inc()
@@ -436,11 +466,27 @@ async def fetch_bybit_long_short_ratio(
         DERIV_BREAKER_SKIPS.inc()
         log.warning("deriv_breaker_open", symbol=symbol, metric="long_short_ratio")
         return None
+    # Positionne la gauge facade_forced/dry_run dès l'entrée, avant tout early-return (cache)
+    try:
+        force_flag_early = is_forced_facade()
+        dry_run_early = is_dry_run_facade() and not force_flag_early
+        with suppress(Exception):  # pragma: no cover
+            set_facade_mode("deriv_lsr", force_flag_early, dry_run_early)
+    except Exception:
+        pass
     key = f"deriv_lsr_{symbol}_{category}_{period}"
-    if key in cache:
+    if _cache_enabled() and key in cache:
         DERIV_CACHE_HIT.inc()
         log.info("deriv_cache_hit", symbol=symbol, metric="long_short_ratio")
         cached = cache.get(key)
+        # Repositionne les gauges au cas où un état précédent les aurait laissées à 1
+        try:
+            force_flag_cached = is_forced_facade()
+            dry_run_cached = is_dry_run_facade() and not force_flag_cached
+            with suppress(Exception):  # pragma: no cover
+                set_facade_mode("deriv_lsr", force_flag_cached, dry_run_cached)
+        except Exception:
+            pass
         if isinstance(cached, dict):
             return cached  # type: ignore[return-value]
     DERIV_CACHE_MISS.inc()
@@ -497,7 +543,8 @@ async def fetch_bybit_long_short_ratio(
                 "source": "bybit",
                 "confidence_score": 1.0,
             }
-            cache.set(key, result, expire=cache_ttl)
+            if _cache_enabled():
+                cache.set(key, result, expire=cache_ttl)
             DERIV_SUCCESS.inc()
             record_success("deriv_lsr")
             log.info("deriv_success", symbol=symbol, metric="long_short_ratio", source="bybit")
