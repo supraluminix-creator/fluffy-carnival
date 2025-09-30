@@ -40,3 +40,7 @@ coverage.xml
 .coverage.*
 # Prevent accidental nested clone duplication
 fluffy-carnival/
+
+# Archive outputs (repo archiver)
+archive-*/
+archive-*.zip

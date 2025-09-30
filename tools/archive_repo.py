@@ -285,6 +285,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"Dry-run complete. Plan: {plan}")
         return 0
 
+    # If no items were moved, skip creating a zip to avoid clutter
+    if not moved:
+        print(f"Archive run completed: no items to move. Report: {report_path}")
+        return 0
+
     # Zip
     zip_path = root / f"{archive_name}.zip"
     make_zip(archive_root, zip_path)
