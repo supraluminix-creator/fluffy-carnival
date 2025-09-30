@@ -13,9 +13,9 @@ async def flush_bybit_liquidations() -> dict:
 
     Retourne un petit dict pour visibilité lors d'un export batch (si utilisé).
     """
-    flushed = await liquidations_registry.flush_if_present()
-    if flushed:
+    ok = await liquidations_registry.flush_if_present()
+    if ok:
         logger.info("Flush job: liquidation buffer flushed")
     else:
         logger.debug("Flush job: aucun writer présent (process séparé ou WS non démarré)")
-    return {"flushed": flushed}
+    return {"flushed": ok}

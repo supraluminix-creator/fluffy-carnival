@@ -1,33 +1,23 @@
-"""Registry global pour le writer des liquidations Bybit.
-
-Permet à un job scheduler d'invoquer un flush explicite sans couplage
-fort avec l'instance WS. Si le writer n'est pas présent (process séparé),
-le flush job retournera False proprement.
-"""
 from __future__ import annotations
 
-from .collectors.bybit_liquidations import BybitLiquidationsWriter
+from typing import Optional
 
-_writer: BybitLiquidationsWriter | None = None
+_writer = None
 
 
-def set_writer(writer: BybitLiquidationsWriter) -> None:
-    """Enregistre le writer courant (idempotent)."""
+def set_writer(writer) -> None:
     global _writer
     _writer = writer
 
 
-def get_writer() -> BybitLiquidationsWriter | None:  # pragma: no cover - trivial
-    return _writer
-
-
 async def flush_if_present() -> bool:
-    """Flush le buffer si un writer est présent.
-
-    Returns:
-        bool: True si un flush a été déclenché, False sinon.
-    """
     if _writer is None:
         return False
-    await _writer.flush()
-    return True
+    try:
+        _ = await _writer.flush()
+        return True
+    except Exception:
+        return False
+
+
+__all__ = ["set_writer", "flush_if_present"]

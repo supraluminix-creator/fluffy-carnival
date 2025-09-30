@@ -17,7 +17,7 @@ Notes: POE public API is not officially documented; adapter is a stub with NotIm
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, TypedDict, Optional
 import os
 import asyncio
@@ -164,10 +164,10 @@ class AIClient:
     Order: local (Ollama) -> primary (env AI_PRIMARY) -> aggregator (OpenRouter) -> HuggingFace
     """
 
-    primary: str = os.getenv("AI_PRIMARY", "openrouter")
-    ollama: OllamaProvider = OllamaProvider()
-    openrouter: OpenRouterProvider = OpenRouterProvider()
-    huggingface: HuggingFaceProvider = HuggingFaceProvider()
+    primary: str = field(default_factory=lambda: os.getenv("AI_PRIMARY", "openrouter"))
+    ollama: OllamaProvider = field(default_factory=OllamaProvider)
+    openrouter: OpenRouterProvider = field(default_factory=OpenRouterProvider)
+    huggingface: HuggingFaceProvider = field(default_factory=HuggingFaceProvider)
 
     async def generate(self, prompt: str, model_hint: str | None = None, max_tokens: int = 800, metadata: dict[str, Any] | None = None) -> AIResult:
         errors: list[str] = []

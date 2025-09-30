@@ -1,5 +1,29 @@
 ## Objet
 
+Remodelage prod-safe: isoler le core collecte/WS/ingestion/ETL et archiver le non-core.
+
+### Checklist livrables
+- [ ] Script d’archivage fonctionnel (`tools/archive_repo.py`) — scan, move, zip, rapport
+- [ ] Rapport d’archivage committé (scan + report)
+- [ ] CLI core minimal (`cli_core.py`) — modes mock et public-only (+ option dérivés)
+- [ ] Dépendances minimales épinglées (`requirements-core-min.txt`)
+- [ ] `secrets.example.env` sans secrets réels
+- [ ] Exemples d’outputs (CSV/JSON) générés
+- [ ] README mis à jour (installation / run / archivage)
+- [ ] Tests/unitaires basiques OK (au moins 1 test rapide)
+
+### Rapports d’archivage
+- Dossier: `archive-<timestamp>/`
+- Fichiers: `scan_<timestamp>.md`, `ARCHIVE_REPORT_<timestamp>.md`
+
+### Notes
+- Toute action destructive évitée: déplacements réversibles (dossier d’archive + zip)
+- Secrets: placeholders uniquement; exécuter `python tools/secret_scan.py --fail-on-find` si applicable
+
+### Suivi
+- [ ] CI (à compléter si nécessaire): lint, tests rapides, scan secrets
+## Objet
+
 Décrire brièvement le changement.
 
 ## Type de changement
