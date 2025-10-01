@@ -149,7 +149,7 @@ disallow_incomplete_defs = true
 # --- Projet (métadonnées minimales + contrainte Python pour le déploiement Cloud) ---
 [project]
 name = "fluffy-carnival"
-version = "0.0.0"
+version = "0.1.0"
 description = "Crypto prod-safe pipeline and configuration UI"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
