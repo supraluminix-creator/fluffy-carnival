@@ -32,7 +32,7 @@ def get_db_path() -> Path:
 def update_db_metrics(db_path: str | Path | None = None) -> None:
     p = Path(db_path) if db_path else get_db_path()
     try:
-        if DB_FILE_SIZE_BYTES is not None and p.exists():  # type: ignore[truthy-function]
+        if DB_FILE_SIZE_BYTES is not None and p.exists():
             DB_FILE_SIZE_BYTES.set(p.stat().st_size)  # type: ignore[union-attr]
     except Exception:
         pass

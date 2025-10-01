@@ -7,3 +7,4 @@ diskcache==5.6.3
 tenacity==8.2.3
 pydantic==2.11.9
 pandas==2.3.2
+pyarrow==17.0.0

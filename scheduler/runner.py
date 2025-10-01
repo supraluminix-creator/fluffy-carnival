@@ -13,16 +13,15 @@ from typing import Any, cast
 
 # Third-party
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
-from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
+yaml: Any | None
 try:  # pragma: no cover - optional dependency
-    import yaml
+    import yaml as _yaml_mod
+    yaml = _yaml_mod
 except Exception:  # pragma: no cover
-    class _YamlFallback:
-        def safe_load(self, *_a: Any, **_kw: Any) -> dict[str, Any]:
-            return {}
-    yaml = _YamlFallback()  # type: ignore[assignment]
+    yaml = None
 
 # First-party
 from pipeline.circuit_breaker import _STATES as _CB_STATES
@@ -139,11 +138,11 @@ _BREAKER_GRACE_SECONDS = float(os.getenv("BREAKER_OPEN_GRACE_SECONDS", "120"))
 def _breaker_blocks_readiness() -> bool:
     now = _time()
     for name, st in _CB_STATES.items():
-        # si encore dans fenêtre active (is_open True) ET dépasse grace -> bloque
+        # si encore dans fenêtre active (open True) ET dépasse grace -> bloque
         if (
             name in _CRITICAL_BREAKERS
             and st.opened_at is not None
-            and st.is_open()
+            and st.open
             and (now - st.opened_at) >= _BREAKER_GRACE_SECONDS
         ):
             return True
@@ -413,7 +412,7 @@ def build_scheduler() -> AsyncIOScheduler:
                     raise TypeError("job.kwargs must be a dict")
                 sched.add_job(
                     task_wrapper,
-                    IntervalTrigger(seconds=_with_jitter(seconds)),
+                    IntervalTrigger(seconds=int(_with_jitter(seconds))),
                     id=str(job_id),
                     args=(job_id, fn, tuple(args), kwargs),
                     next_run_time=(datetime.now(UTC) if run_at_start else None),
@@ -453,7 +452,7 @@ def build_scheduler() -> AsyncIOScheduler:
         for jid, fn, sec in defaults:
             sched.add_job(
                 task_wrapper,
-                IntervalTrigger(seconds=_with_jitter(sec)),
+                IntervalTrigger(seconds=int(_with_jitter(sec))),
                 id=jid,
                 args=(jid, fn, tuple(), {}),
                 next_run_time=(datetime.now(UTC) if run_at_start else None),

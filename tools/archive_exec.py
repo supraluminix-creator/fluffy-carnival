@@ -94,7 +94,7 @@ def main() -> None:
                 f"Git HEAD: {_git_head()}",
                 f"Archive directory: {arc_dir.name}",
                 "",
-                f"Moved items: 0 (dry-run)",
+                "Moved items: 0 (dry-run)",
             ]),
             encoding="utf-8",
         )

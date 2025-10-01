@@ -26,7 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 ARCHIVE_DIR_KEYWORDS = {
     "ui", "dashboard", "dashboards", "frontend", "front", "streamlit",
-    "notebook", "notebooks", "examples", "demos", "demo",
+    "notebook", "notebooks", "demos", "demo",
 }
 
 ARCHIVE_FILE_EXTENSIONS = {
@@ -90,6 +90,10 @@ def decide(path: Path) -> ScanEntry:
     # Keep core paths
     if top in KEEP_TOP_LEVEL_DIRS:
         return ScanEntry(rel, "KEEP", f"top-level core dir: {top}")
+
+    # Keep current prod examples (small, maintained)
+    if top == "examples":
+        return ScanEntry(rel, "KEEP", "examples kept (core demo)")
 
     # Archive by directory keywords
     if any(k in parts for k in ARCHIVE_DIR_KEYWORDS):

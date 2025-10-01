@@ -62,7 +62,7 @@ class BybitLiquidationsWriter:
     flush_interval: int = 60
     parquet_enabled: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         _ensure_dirs(self.db)
         self._buffer: list[dict[str, Any]] = []
         self._conn = sqlite3.connect(self.db)
@@ -99,8 +99,8 @@ class BybitLiquidationsWriter:
         )
         self._conn.commit()
 
-    async def write_record(self, ev: dict[str, Any]) -> None:
-        rec = _normalize_event(ev)
+    async def write_record(self, record: dict[str, Any]) -> None:
+        rec = _normalize_event(record)
         self._buffer.append(rec)
         if len(self._buffer) >= self.flush_size:
             await self.flush()
@@ -143,7 +143,7 @@ class BybitLiquidationsWriter:
             # Optional parquet step
             if self.parquet_enabled and self.parquet_dir:
                 try:
-                    import pandas as pd  # type: ignore
+                    import pandas as pd  # pandas is optional at runtime
                     out_dir = Path(self.parquet_dir)
                     out_dir.mkdir(parents=True, exist_ok=True)
                     df = pd.DataFrame(rows)

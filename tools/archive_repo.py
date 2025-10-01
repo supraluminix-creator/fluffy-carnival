@@ -56,6 +56,9 @@ KEEP_TOP_DIRS = {
     "docs",
 }
 
+# Filenames that must never be archived (placeholders / examples kept in repo)
+DO_NOT_ARCHIVE_FILENAMES = {".env.example", "secrets.example.env"}
+
 
 @dataclass
 class ScanItem:
@@ -113,6 +116,9 @@ def classify_path(p: Path, root: Path) -> tuple[str, str] | tuple[None, None]:
     rel = p.relative_to(root)
     parts = [part.lower() for part in rel.parts]
     name = p.name.lower()
+    # Explicit keep for placeholder/example secret files
+    if name in DO_NOT_ARCHIVE_FILENAMES:
+        return (None, None)
     # Helper: does any path segment match a keyword exactly?
     def has_segment_keyword() -> bool:
         return any(seg in ARCHIVE_SEGMENT_KEYWORDS for seg in parts)

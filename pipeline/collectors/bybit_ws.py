@@ -64,8 +64,8 @@ BYBIT_WS_PARSE_ERRORS = Counter('bybit_ws_parse_errors_total', 'Total parse / JS
 # SERVICE WS
 # ---------------------------------------------------------
 class _WriterProtocol(Protocol):
-    async def write_record(self, record: Mapping[str, Any]) -> None: ...  # pragma: no cover
-    async def close(self) -> None: ...  # pragma: no cover
+    async def write_record(self, record: dict[str, Any]) -> None: ...  # pragma: no cover
+    def close(self) -> None: ...  # pragma: no cover
 
 
 class BybitWSService:
@@ -97,7 +97,7 @@ class BybitWSService:
         # Enregistre le writer dans un registre global pour permettre un job de flush périodique.
         try:  # pragma: no cover - simple instrumentation
             from pipeline.liquidations_registry import set_writer
-            set_writer(self.writer)  # type: ignore[arg-type]
+            set_writer(self.writer)
         except Exception:  # pragma: no cover - défense
             logger.warning("Impossible d'enregistrer le writer dans le registre global", exc_info=True)
 
@@ -218,7 +218,8 @@ class BybitWSService:
             await self.connect()
 
         if hasattr(self.writer, "close"):
-            await self.writer.close()  # runtime check; writer conforms
+            # close() est synchrone pour BybitLiquidationsWriter
+            self.writer.close()
         if health_task:
             with contextlib.suppress(Exception):
                 health_task.cancel()
@@ -235,7 +236,7 @@ class BybitWSService:
             with contextlib.suppress(Exception):
                 await self.ws.close()
         if hasattr(self.writer, "close"):
-            await self.writer.close()
+            self.writer.close()
 
     async def _run_health_server(self, port: int) -> None:
         """Runs a tiny aiohttp server exposing /health with runtime info.
@@ -244,13 +245,13 @@ class BybitWSService:
         """
         try:
             import importlib
-            web = importlib.import_module("aiohttp.web")  # type: ignore[assignment]
+            web = importlib.import_module("aiohttp.web")
         except Exception:
             # Fallback: no health server if aiohttp not installed
             logger.warning("aiohttp_not_available_for_ws_health")
             return
 
-        async def handle_health(_request):  # type: ignore[no-untyped-def]
+        async def handle_health(_request: object) -> object:
             payload = {
                 "status": "ok",
                 "symbols": self.symbols,
