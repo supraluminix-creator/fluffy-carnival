@@ -16,9 +16,13 @@ Thumbs.db
 logs/
 data/*.db
 exports/*.csv
+exports/export_manifest.jsonl
 run.log
 run_*.log
 run/
+
+# Analysis artifacts
+analysis/run_*/artifacts/*.json
 
 .env
 .env.local
