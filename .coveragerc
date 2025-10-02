@@ -1,0 +1,23 @@
+[run]
+omit =
+    pipeline/collectors/bybit_ws.py
+    pipeline/collectors/altme.py
+    pipeline/collectors/onchain.py
+    pipeline/collectors/txcount.py
+    pipeline/collectors/bybit_OI.py
+    pipeline/collectors/sentiment.py
+    tests/*
+    api/*
+    scheduler/runner.py
+    scripts/*
+    pipeline/orchestrator.py
+    pipeline/scheduler.py
+    pipeline/technical_indicators.py
+    pipeline/collectors/hashrate.py
+    pipeline/collectors/sopr.py
+    pipeline/exporter.py
+    pipeline/reporter.py
+
+[report]
+show_missing = True
+skip_covered = True

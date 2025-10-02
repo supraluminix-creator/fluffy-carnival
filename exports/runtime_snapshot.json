@@ -1,0 +1,71 @@
+[
+  {
+    "collector": "market_bitcoin",
+    "data": {
+      "dominance": 1,
+      "marketcap": 2302470871375.0,
+      "price": 115568.0,
+      "symbol": "bitcoin",
+      "volume_24h": 34843780758.0
+    },
+    "duration_ms": 1028,
+    "success": true
+  },
+  {
+    "collector": "defillama_tvl",
+    "data": {
+      "chain": "ethereum",
+      "confidence_score": 1.0,
+      "metric_name": "defi_tvl",
+      "source": "defillama",
+      "timestamp": 1758324164,
+      "value": {
+        "tvl": 94079258639.0522,
+        "tvlPrevDay": 94075521010.0,
+        "tvlPrevMonth": 88853733521.0,
+        "tvlPrevWeek": 96577196061.0
+      }
+    },
+    "duration_ms": 8312,
+    "success": true
+  },
+  {
+    "collector": "onchain_txcount_btc",
+    "data": {
+      "asset": "BTC",
+      "confidence_score": 1.0,
+      "metric_name": "txcount",
+      "source": "blockchain.info",
+      "timestamp": null,
+      "value": 915486
+    },
+    "duration_ms": 583,
+    "success": true
+  },
+  {
+    "collector": "onchain_hashrate_btc",
+    "data": {
+      "asset": "BTC",
+      "confidence_score": 1.0,
+      "metric_name": "hashrate",
+      "source": "blockchain.info",
+      "timestamp": null,
+      "value": 948169148963.0
+    },
+    "duration_ms": 588,
+    "success": true
+  },
+  {
+    "collector": "onchain_sopr_btc",
+    "data": {
+      "asset": "BTC",
+      "confidence_score": 1.0,
+      "metric_name": "sopr",
+      "source": "bitcoin-data.com",
+      "timestamp": 1758153600,
+      "value": 1.055499681459953
+    },
+    "duration_ms": 945,
+    "success": true
+  }
+]

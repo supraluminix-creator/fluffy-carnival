@@ -1,0 +1,27 @@
+title = "Gitleaks Config"
+
+# Allowlist global: regexes et chemins à ignorer
+[allowlist]
+description = "Global allowlist for placeholders and non-sensitive artifacts"
+paths = [
+	".venv",
+	"data",
+	"exports",
+	"archive-",
+	".streamlit",
+	".*archive-.*",
+	"ARCHIVE_SCAN.json",
+	"ARCHIVE_SCAN.md",
+	"^\.env$",
+	"^secrets\.example\.env$",
+]
+regexes = [
+	# RUN_ID short hex placeholders
+	'''RUN_ID"?:\s*"?[0-9a-f]{8}"?''',
+	# Dune query id numeric
+	'''DUNE_BTC_WIDE_QUERY_ID=\d+''',
+	# Lines where the value is the placeholder REPLACE_ME
+	'''^[A-Z0-9_]+\s*=\s*REPLACE_ME\s*$''',
+	# Empty env assignments (no secret value)
+	'''^[A-Z0-9_]+\s*=\s*$''',
+]

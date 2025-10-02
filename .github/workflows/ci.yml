@@ -1,0 +1,229 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, '**/copilot/**', '**/feature/**' ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint-and-type:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install mypy ruff
+
+      - name: "Ruff (lint minimal on core packages: import sorting only)"
+        run: ruff check --select I api pipeline
+
+      - name: "Ruff (tests/tools/typings targets)"
+        run: ruff check tools tests typings verify_liquidation_db.py
+
+      - name: "Ruff (quick wins on scripts/analysis/mains)"
+        run: |
+          ruff check --select F,B,SIM,UP,PERF,I \
+            main.py main_backup.py \
+            scripts analysis
+
+      - name: Mypy (targeted)
+        run: |
+          mypy --cache-dir .mypy_cache --hide-error-context --no-error-summary api scheduler
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pip-audit
+      - name: pip-audit
+        run: |
+          pip-audit --progress-spinner off
+
+      - name: Detect secrets (focused grep)
+        shell: bash
+        run: |
+          echo "Running focused secrets detection..."
+          set -o pipefail
+          PATTERN='(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----)'
+          # Exclude common non-sensitive locations to reduce false positives
+          git grep -I -n -E "$PATTERN" -- \
+            ':!tests/*' ':!docs/*' ':!*.md' ':!.github/*' ':!*.png' ':!*.jpg' ':!*.svg' ':!*.ico' ':!*.pdf' || true
+          MATCHES=$(git grep -I -n -E "$PATTERN" -- \
+            ':!tests/*' ':!docs/*' ':!*.md' ':!.github/*' ':!*.png' ':!*.jpg' ':!*.svg' ':!*.ico' ':!*.pdf' | wc -l || true)
+          if [ "${MATCHES:-0}" -ne 0 ]; then
+            echo "Potential hardcoded secrets found (see above). Please move them to GitHub Secrets or local .env and redact from repo." >&2
+            exit 1
+          fi
+
+  bandit:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+      - name: Bandit security scan
+        run: |
+          bandit -q -r pipeline scheduler api -ll -ii
+
+  tests:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type, security, bandit]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Pytest
+        env:
+          PYTHONPATH: .
+        run: pytest --maxfail=1
+
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+            name: coverage-xml
+            path: coverage.xml
+            if-no-files-found: warn
+
+  codecov:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-xml
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: true
+          verbose: true
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type, security, tests]
+    if: always()
+    steps:
+      - name: CI Result
+        run: |
+          if [ "${{ needs.lint-and-type.result }}" = "success" ] && [ "${{ needs.tests.result }}" = "success" ]; then
+            echo "All checks passed ✅";
+          else
+            echo "Some checks failed ❌"; exit 1; fi
+
+  smoke-health:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke health
+        run: |
+          python tools/smoke_health.py
+
+  smoke-api:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke API
+        env:
+          API_RATE_LIMIT_PER_MIN: "100"
+        run: |
+          python tools/smoke_api.py
+
+  smoke-api-sse:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Smoke API with POST + SSE
+        env:
+          API_RATE_LIMIT_PER_MIN: "100"
+        run: |
+          python tools/smoke_api.py

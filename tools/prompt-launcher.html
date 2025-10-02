@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt Launcher</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    textarea { width: 100%; min-height: 220px; }
+    .row { margin: 1rem 0; }
+    button { padding: .6rem 1rem; }
+    .hint { color: #555; font-size: .9rem; }
+    code { background: #f3f3f3; padding: .2rem .4rem; }
+  </style>
+  <script>
+    async function copyToClipboard() {
+      const txt = document.getElementById('prompt').value;
+      await navigator.clipboard.writeText(txt);
+      alert('Prompt copié dans le presse-papiers.');
+    }
+    function openSite(kind) {
+      const url = {
+        chatgpt: 'https://chat.openai.com/',
+        poe: 'https://poe.com/',
+        gemini: 'https://gemini.google.com/app',
+        openrouter: 'https://openrouter.ai/chat'
+      }[kind];
+      window.open(url, '_blank');
+    }
+  </script>
+  </head>
+  <body>
+    <h1>Prompt Launcher</h1>
+    <p>Collez un prompt Markdown et ouvrez l'UI cible, puis utilisez un bookmarklet (ou Ctrl+V) pour le coller dans la zone de saisie.</p>
+    <div class="row">
+      <textarea id="prompt" placeholder="# Votre prompt ici"></textarea>
+    </div>
+    <div class="row">
+      <button onclick="copyToClipboard()">Copier</button>
+      <button onclick="openSite('chatgpt')">Ouvrir ChatGPT</button>
+      <button onclick="openSite('poe')">Ouvrir Poe</button>
+      <button onclick="openSite('gemini')">Ouvrir Gemini</button>
+      <button onclick="openSite('openrouter')">Ouvrir OpenRouter</button>
+    </div>
+    <p class="hint">Limites : les sélecteurs DOM changent souvent. Préférez copier/coller. Les bookmarklets proposés fonctionnent au mieux-effort.</p>
+  </body>
+  </html>

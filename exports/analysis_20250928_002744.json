@@ -1,0 +1,1 @@
+{"status": "ok", "signals": [{"type": "derivatives_lsr_bullish", "severity": "info", "value": 0.6892, "msg": "Long/Short ratio élevé (0.69)"}], "insight": "[MOCK:mock] Synthétise les signaux suivants en un bref insight actionnable:\n- derivatives_lsr_bullish: Long/Short ratio élevé (0.69)"}

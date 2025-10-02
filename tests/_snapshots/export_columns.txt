@@ -1,0 +1,8 @@
+timestamp
+asset
+symbol
+chain
+metric_name
+value
+source
+confidence_score

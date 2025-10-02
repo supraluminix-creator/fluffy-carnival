@@ -1,0 +1,92 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		// Placeholder removed for security. Set your local key in a private env or secrets store.
+		"codeseek.apiKey": "<REDACTED>",
+		"powershell.cwd": ".",
+		// Python analysis tweaks (optional)
+		"python.analysis.typeCheckingMode": "basic"
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "Test (pytest -q)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": ["-m", "pytest", "-q"],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Lint (ruff quick)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/ruff.exe",
+				"args": [
+					"check",
+					"main.py",
+					"main_backup.py",
+					"api",
+					"pipeline",
+					"scheduler",
+					"tools",
+					"tests",
+					"scripts",
+					"analysis"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Lint Fix (ruff quick --fix)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/ruff.exe",
+				"args": [
+					"check",
+					"--fix",
+					"main.py",
+					"main_backup.py",
+					"api",
+					"pipeline",
+					"scheduler",
+					"tools",
+					"tests",
+					"scripts",
+					"analysis"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Types (mypy: api scheduler)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/mypy.exe",
+				"args": ["--hide-error-context", "--no-error-summary", "api", "scheduler"],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Format (ruff format)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/ruff.exe",
+				"args": ["format", "--diff"],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			}
+		]
+	}
+}

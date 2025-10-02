@@ -1,0 +1,14 @@
+# CODEOWNERS – définit les réviseurs automatiques
+# Format: plus spécifique en bas.
+
+# Propriétaire global (fallback)
+* @supraluminix-creator
+
+# Dossiers critiques
+/pipeline/ @supraluminix-creator
+/scheduler/ @supraluminix-creator
+/api/ @supraluminix-creator
+/tools/ @supraluminix-creator
+
+# Workflows CI
+/.github/workflows/ @supraluminix-creator

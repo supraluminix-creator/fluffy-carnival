@@ -1,0 +1,53 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+venv/
+
+.vscode/
+.idea/
+
+Thumbs.db
+.DS_Store
+
+.cache/
+.cache_*/
+logs/
+data/*.db
+exports/*.csv
+exports/export_manifest.jsonl
+run.log
+run_*.log
+run/
+
+# Analysis artifacts
+analysis/run_*/artifacts/*.json
+
+.env
+.env.local
+.env.*
+
+# Autoriser le .env placeholder versionné (sans secrets réels)
+!/.env
+
+# Ne jamais versionner les secrets réels Streamlit
+.streamlit/secrets.toml
+
+.pytest_cache/
+**/__pycache__/
+.mypy_cache/
+# Ruff cache
+.ruff_cache/
+# Coverage artifacts
+.coverage
+coverage.xml
+.coverage.*
+# Prevent accidental nested clone duplication
+fluffy-carnival/
+
+# Archive outputs (repo archiver)
+archive-*/
+archive-*.zip
+ARCHIVE_SCAN.json
+ARCHIVE_SCAN.md

@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-09-20T19:06:28.070535+00:00",
+  "elapsed_seconds": 180.97,
+  "connections_total": 1,
+  "errors_total": 0,
+  "events_per_symbol": {},
+  "min_events_target": 1,
+  "max_duration_seconds": 180,
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "XRPUSDT",
+    "SOLUSDT"
+  ]
+}

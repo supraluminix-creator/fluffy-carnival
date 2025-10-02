@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "signals": [
+    {
+      "type": "derivatives_lsr_bullish",
+      "severity": "info",
+      "value": 0.631,
+      "msg": "Long/Short ratio élevé (0.63)"
+    }
+  ],
+  "insight": "[analysis_error] [WinError 10061] Aucune connexion n’a pu être établie car l’ordinateur cible l’a expressément refusée"
+}

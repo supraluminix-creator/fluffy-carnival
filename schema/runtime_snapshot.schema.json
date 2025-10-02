@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Runtime Snapshot Entry Array",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["collector", "success", "duration_ms"],
+    "properties": {
+      "collector": {"type": "string"},
+      "success": {"type": "boolean"},
+      "duration_ms": {"type": "integer", "minimum": 0},
+      "error": {"type": "string"},
+      "data": {"oneOf": [
+        {"type": "null"},
+        {"type": "object"},
+        {"type": "array"},
+        {"type": "string"},
+        {"type": "number"},
+        {"type": "integer"}
+      ]}
+    },
+    "additionalProperties": false
+  }
+}
