@@ -1,9 +1,6 @@
-from typing import Any, Generic, TypeVar
+from typing import Any
 
-_K = TypeVar('_K')
-_V = TypeVar('_V')
-
-class Cache(Generic[_K, _V]):
+class Cache[_K, _V]:
     def __init__(self, directory: str, *args: Any, **kwargs: Any) -> None: ...
     def __contains__(self, key: _K) -> bool: ...
     def get(self, key: _K, default: _V | None = None) -> _V | None: ...

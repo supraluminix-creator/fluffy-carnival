@@ -68,7 +68,7 @@
 				}
 			},
 			{
-				"label": "Type (mypy api pipeline scheduler)",
+				"label": "Types (mypy: api scheduler)",
 				"type": "shell",
 				"command": "${workspaceFolder}/.venv/Scripts/mypy.exe",
 				"args": ["--hide-error-context", "--no-error-summary", "api", "scheduler"],

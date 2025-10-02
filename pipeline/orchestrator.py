@@ -25,7 +25,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
-from typing import Any, TypeVar
+from typing import Any
 
 import structlog
 from prometheus_client import Counter, Gauge, Histogram
@@ -38,10 +38,9 @@ from .metrics import (
     FALLBACK_TIER_LATENCY_SECONDS,
 )
 
-T = TypeVar("T")
 log = structlog.get_logger()
 
-async def run_fallback_chain(collector: str, tiers: Sequence[Callable[[], Awaitable[T | None]]]) -> T | None:
+async def run_fallback_chain[T](collector: str, tiers: Sequence[Callable[[], Awaitable[T | None]]]) -> T | None:
     for idx, tier_coro in enumerate(tiers, start=1):
         start = time.perf_counter()
         status = "success"

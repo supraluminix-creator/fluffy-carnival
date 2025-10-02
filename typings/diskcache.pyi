@@ -1,9 +1,4 @@
-from typing import Generic, TypeVar
-
-K = TypeVar("K")
-V = TypeVar("V")
-
-class Cache(Generic[K, V]):
+class Cache[K, V]:
     def __init__(self, directory: str = ..., timeout: int | None = ...) -> None: ...
     def get(self, key: K, default: V | None = ...) -> V | None: ...
     def set(self, key: K, value: V, expire: int | None = ...) -> None: ...

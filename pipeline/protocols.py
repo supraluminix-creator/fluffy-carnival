@@ -8,17 +8,14 @@ Provides:
 """
 from __future__ import annotations
 
-from typing import Any, Generic, Protocol, TypedDict, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 import httpx
 import structlog
 
 log = structlog.get_logger()
 
-T = TypeVar("T")
-
-
-class Result(TypedDict, Generic[T]):
+class Result[T](TypedDict):
     ok: bool
     value: T | None
     error: str | None
