@@ -1,7 +1,6 @@
-import asyncio
 import pytest
 
-from integrations.ai_provider import AIClient, OllamaProvider, OpenRouterProvider, HuggingFaceProvider
+from integrations.ai_provider import AIClient
 
 
 @pytest.mark.asyncio

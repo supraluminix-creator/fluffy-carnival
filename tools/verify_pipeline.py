@@ -159,7 +159,9 @@ def main():
         print("manifest: introuvable")
     else:
         print(
-            f"manifest last row_count={mani.get('row_count')}, latest={mani.get('latest_path')}, ts_path={mani.get('timestamped_path')}"
+            "manifest last row_count="
+            f"{mani.get('row_count')}, latest={mani.get('latest_path')}, "
+            f"ts_path={mani.get('timestamped_path')}"
         )
         latest = mani.get("latest_path")
         if latest and os.path.exists(latest):

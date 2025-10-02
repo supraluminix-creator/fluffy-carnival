@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Generate example outputs (JSON/CSV) using cli_core in mock mode if needed."""
+
+from __future__ import annotations
 
 import subprocess
 import sys

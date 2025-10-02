@@ -14,7 +14,8 @@ Rules (default):
    - filename contains 'streamlit' (e.g., streamlit_app.py)
    - folder name equals one of { 'notebooks', 'demo', 'demos' }
 
-  KEEP folders by default: pipeline, api, scheduler, integrations, typings, schema, data, run, exports, tests, tools (except targeted files), docs.
+    KEEP folders by default: pipeline, api, scheduler, integrations, typings, schema,
+    data, run, exports, tests, tools (except targeted files), docs.
   Skip already archived folders: archived/, archive-*/
 
 Notes:
@@ -199,8 +200,14 @@ def write_report(report_path: Path, head: str, moved: list[tuple[Path, Path, str
     if errors:
         lines.append("\n## Errors\n\n")
         lines.extend(f"- {e}\n" for e in errors)
-    lines.append("\n## Quickwins\n\n- Script executed with default rules.\n- No deletions, all moves reversible via archive folder or zip.\n")
-    lines.append("\n## Next steps\n\n- Review archived list and restore any false positives.\n- Open PR with this report attached.\n")
+    lines.append(
+        "\n## Quickwins\n\n- Script executed with default rules.\n"
+        "- No deletions, all moves reversible via archive folder or zip.\n"
+    )
+    lines.append(
+        "\n## Next steps\n\n- Review archived list and restore any false positives.\n"
+        "- Open PR with this report attached.\n"
+    )
     report_path.write_text("".join(lines), encoding="utf-8")
 
 

@@ -1,4 +1,3 @@
-import os
 from unittest.mock import patch
 
 
@@ -19,7 +18,6 @@ def test_health_probe_prefers_health_endpoint(monkeypatch):
         return FakeResp()
 
     with patch("httpx.get", new=fake_get):
-        from importlib import reload
         import main as _main
         # call private helper; ensure it does not raise
         _main._ensure_bybit_ws_running()

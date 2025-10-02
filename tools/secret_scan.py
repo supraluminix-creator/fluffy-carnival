@@ -34,7 +34,20 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("generic_api_key", re.compile(r"\b[A-Z0-9_]*API_KEY\s*[=:\s]\s*[0-9A-Za-z-_]{24,}\b")),
 ]
 
-IGNORE_DIRS = {".git", ".venv", "dist", "build", "__pycache__", "data", ".pytest_cache", ".ruff_cache", ".mypy_cache", "logs", "run", "exports"}
+IGNORE_DIRS = {
+    ".git",
+    ".venv",
+    "dist",
+    "build",
+    "__pycache__",
+    "data",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    "logs",
+    "run",
+    "exports",
+}
 IGNORE_EXT = {".pyc", ".parquet", ".db", ".sqlite"}
 MAX_FILE_SIZE = 200_000  # 200 KB heuristique
 

@@ -1,4 +1,3 @@
-import re
 from prompts.generator import generate_template, list_templates
 
 
