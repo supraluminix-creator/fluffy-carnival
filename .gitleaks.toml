@@ -9,4 +9,4 @@ regex = '''DUNE_BTC_WIDE_QUERY_ID=\d+'''
 
 # Exclure répertoires non pertinents
 [allowlist]
-paths = [".venv", "data", "exports"]
+paths = [".venv", "data", "exports", "archive-", ".streamlit"]

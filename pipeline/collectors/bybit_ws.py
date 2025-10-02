@@ -35,7 +35,7 @@ import json
 import os
 import signal
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any, Protocol
 
 import structlog

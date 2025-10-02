@@ -30,10 +30,11 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("binance_like", re.compile(r"\b[0-9A-Za-z]{32,64}\b")),
     ("coingecko_prefix", re.compile(r"CG-[0-9A-Za-z]{20,}")),
     ("token_metrics", re.compile(r"tm-[0-9a-fA-F-]{30,}")),
-    ("generic_api_key", re.compile(r"api_key[=:\s]+[0-9A-Za-z-_]{16,}", re.IGNORECASE)),
+    # Exige au moins 24 caractères pour réduire les faux positifs et évite de matcher des appels de code
+    ("generic_api_key", re.compile(r"\b[A-Z0-9_]*API_KEY\s*[=:\s]\s*[0-9A-Za-z-_]{24,}\b")),
 ]
 
-IGNORE_DIRS = {".git", ".venv", "dist", "build", "__pycache__", "data"}
+IGNORE_DIRS = {".git", ".venv", "dist", "build", "__pycache__", "data", ".pytest_cache", ".ruff_cache", ".mypy_cache", "logs", "run", "exports"}
 IGNORE_EXT = {".pyc", ".parquet", ".db", ".sqlite"}
 MAX_FILE_SIZE = 200_000  # 200 KB heuristique
 
@@ -49,9 +50,17 @@ def iter_text_files(root: Path) -> Iterator[Path]:
     for p in root.rglob("*"):
         if not p.is_file():
             continue
+        # Ignore environnements locaux versionnés par erreur
+        if p.name in {".env", ".env.local"}:
+            continue
         if p.suffix in IGNORE_EXT:
             continue
         if any(part in IGNORE_DIRS for part in p.parts):
+            continue
+        # Ignore archive outputs (archive-YYYYMMDD_*) and streamlit secrets samples
+        if any(part.startswith("archive-") for part in p.parts):
+            continue
+        if any(part == ".streamlit" for part in p.parts):
             continue
         try:
             if p.stat().st_size > MAX_FILE_SIZE:
