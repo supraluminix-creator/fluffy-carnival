@@ -10,6 +10,7 @@ async def test_mvrv_fallback_sequence(monkeypatch):
     # Clear disk cache to avoid interference from prior runs
     try:
         from pipeline.collectors import mvrv as _m
+
         _m.cache.clear()
     except Exception:
         pass
@@ -38,6 +39,7 @@ async def test_mvrv_fallback_sequence(monkeypatch):
     # Patch httpx.AsyncClient.get
     with patch("httpx.AsyncClient.get", new=AsyncMock(side_effect=fake_get)):
         from pipeline.collectors.mvrv import fetch_mvrv
+
         rec = await fetch_mvrv("BTC")
         assert rec is not None
         assert rec["metric_name"] == "mvrv_z_score"
@@ -50,6 +52,7 @@ async def test_mvrv_final_alternate_slug(monkeypatch):
     # Clear disk cache to avoid interference from prior runs
     try:
         from pipeline.collectors import mvrv as _m
+
         _m.cache.clear()
     except Exception:
         pass
@@ -81,6 +84,7 @@ async def test_mvrv_final_alternate_slug(monkeypatch):
 
     with patch("httpx.AsyncClient.get", new=AsyncMock(side_effect=fake_get)):
         from pipeline.collectors.mvrv import fetch_mvrv
+
         rec = await fetch_mvrv("BTC")
     assert rec is not None
     assert float(rec["value"]) == pytest.approx(2.34)

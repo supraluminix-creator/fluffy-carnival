@@ -1,3 +1,0 @@
-timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
-2025-09-30T06:20:06.818927Z,bitcoin,BTC,-,macro_price_usd,64000.0,mock,1.0
-2025-09-30T06:20:06.818927Z,BTC,BTC,-,fear_greed,56.0,mock,1.0

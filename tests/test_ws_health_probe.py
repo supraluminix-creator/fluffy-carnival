@@ -19,6 +19,7 @@ def test_health_probe_prefers_health_endpoint(monkeypatch):
 
     with patch("httpx.get", new=fake_get):
         import main as _main
+
         # call private helper; ensure it does not raise
         _main._ensure_bybit_ws_running()
         # First call should be /health on BYBIT_WS_HEALTH_PORT

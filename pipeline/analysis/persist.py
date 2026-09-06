@@ -2,6 +2,7 @@
 
 Ecrit un fichier latest + un fichier timestampé dans exports/.
 """
+
 from __future__ import annotations
 
 import json

@@ -11,6 +11,14 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ROOT)  # repo root
 
 
+def _validate_table_name(name: str) -> bool:
+    """Validate table name to prevent SQL injection (paranoid check)."""
+    if not name or not isinstance(name, str):
+        return False
+    # Allow alphanumeric, underscore, hyphen (common in table names)
+    return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
+
+
 def _read_latest_manifest():
     path = os.path.join(ROOT, "exports", "export_manifest.jsonl")
     if not os.path.exists(path):
@@ -47,7 +55,7 @@ def _parse_prom_value(lines, metric):
         if not line.startswith(metric):
             continue
         # ex: metric{label="x"} 123.0
-        m = re.match(rf'^{re.escape(metric)}(\{{.*\}})?\s+([\-0-9\.|eE]+)$', line)
+        m = re.match(rf"^{re.escape(metric)}(\{{.*\}})?\s+([\-0-9\.|eE]+)$", line)
         if not m:
             continue
         labels_raw, val_s = m.group(1), m.group(2)
@@ -113,7 +121,7 @@ def _inspect_liq_db(db_path, limit=5):
             break
     if not target and tables:
         target = tables[0]
-    if not target:
+    if not target or not _validate_table_name(target):
         con.close()
         return info
     try:

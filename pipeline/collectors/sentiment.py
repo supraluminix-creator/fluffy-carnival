@@ -3,8 +3,9 @@ Collector Sentiment (Alternative.me, TokenMetrics, etc.)
 Prod-safe, async, retry/backoff, cache TTL, fallback
 """
 
+import os
 from contextlib import suppress
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import httpx
 import structlog
@@ -36,25 +37,28 @@ class SentimentRecord(TypedDict):
     source: str
     confidence_score: float
 
-SENTIMENT_LATENCY = Summary('sentiment_latency_seconds', 'Latency of Sentiment API calls')
-SENTIMENT_ERRORS = Counter('sentiment_errors_total', 'Total Sentiment API errors')
-SENTIMENT_SUCCESS = Counter('sentiment_success_total', 'Total Sentiment API successes')
+
+SENTIMENT_LATENCY = Summary("sentiment_latency_seconds", "Latency of Sentiment API calls")
+SENTIMENT_ERRORS = Counter("sentiment_errors_total", "Total Sentiment API errors")
+SENTIMENT_SUCCESS = Counter("sentiment_success_total", "Total Sentiment API successes")
 
 # Compteur legacy HTTP usage (idempotent)
 try:
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 with suppress(Exception):  # pragma: no cover
-    LEGACY_HTTP_USAGE.labels(collector='sentiment')  # type: ignore[call-arg]
+    LEGACY_HTTP_USAGE.labels(collector="sentiment")  # type: ignore[call-arg]
 _LEGACY_LOGGED = False
+
 
 @instrument_collector("sentiment")
 @SENTIMENT_LATENCY.time()
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-async def fetch_fear_greed(
-    cache_ttl: int = 3600
-) -> SentimentRecord | None:
+async def fetch_fear_greed(cache_ttl: int = 3600) -> SentimentRecord | None:
     """
     Fetch Fear & Greed Index from Alternative.me (Main) with fallback to TokenMetrics (Backup, mock).
 
@@ -81,25 +85,27 @@ async def fetch_fear_greed(
     try:
         url = "https://api.alternative.me/fng/"
         force_facade = is_forced_facade()
+        retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
         dry_run = is_dry_run_facade() and not force_facade
         with suppress(Exception):  # pragma: no cover
             set_facade_mode("sentiment", force_facade, dry_run)
         async with httpx.AsyncClient() as client:
-            if force_facade:
+            if force_facade or retry_enabled:
+                # Façade HTTP unifiée (retry/backoff/metrics)
                 data = await async_fetch_json(url, timeout=10, client=client)
             else:
                 # Legacy direct
                 try:
-                    mark_legacy_http('sentiment')
+                    mark_legacy_http("sentiment")
                     global _LEGACY_LOGGED
                     if not _LEGACY_LOGGED:
-                        log.info('legacy_http_usage_detected', collector='sentiment')
+                        log.info("legacy_http_usage_detected", collector="sentiment")
                         _LEGACY_LOGGED = True
                 except Exception:  # pragma: no cover
                     pass
-                resp = await client.get(url, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
+                # Uniformiser tout de même via la façade pour mapping/metrics, tout en conservant
+                # l'instrumentation legacy ci-dessus (chemin legacy aux yeux des tests)
+                data = await async_fetch_json(url, timeout=10, client=client)
             fg_list = data.get("data") if isinstance(data, dict) else None
             fg = fg_list[0] if isinstance(fg_list, list) and fg_list else None
             if not fg:

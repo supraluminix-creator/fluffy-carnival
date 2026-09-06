@@ -1,5 +1,5 @@
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -129,12 +129,13 @@ def test_calculate_historical_values_empty():
 def test_calculate_historical_values_points():
     now = int(time.time())
     # Provide points around each target (approx). Order scrambled to ensure search works.
-    points = [
+    points: list[list[Any]] = [
         [now - 86400 + 30, 1000],
         [now - 604800 - 15, 900],
         [now - 2592000 + 120, 800],
     ]
-    res = defillama_mod.calculate_historical_values(points, 1100.0)
+    points_union = cast(list[list[Any] | dict[str, Any]], points)
+    res = defillama_mod.calculate_historical_values(points_union, 1100.0)
     assert res["tvlPrevDay"] in (1000.0, 1100.0)
     assert res["tvlPrevWeek"] in (900.0, 1100.0)
     assert res["tvlPrevMonth"] in (800.0, 1100.0)
@@ -147,12 +148,14 @@ async def test_fetch_defillama_tvl_with_historical(monkeypatch):
         return {"name": "Ethereum", "tvl": 1200}
 
     now = int(time.time())
+
     async def fake_get_hist(chain: str):
-        return [
+        hist: list[list[Any]] = [
             [now - 86400, 1000],
             [now - 604800, 900],
             [now - 2592000, 800],
         ]
+        return hist
 
     monkeypatch.setattr(defillama_mod, "get_chain_data", fake_get_chain_data)
     monkeypatch.setattr(defillama_mod, "get_historical_chain_data", fake_get_hist)

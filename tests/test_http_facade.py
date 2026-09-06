@@ -9,10 +9,13 @@ class DummyResp:
     def __init__(self, status_code, payload):
         self.status_code = status_code
         self._payload = payload
+
     def json(self):
         return self._payload
+
     def raise_for_status(self):
         pass
+
 
 @pytest.mark.parametrize("mode", ["sync", "async"])
 def test_http_facade_retry(monkeypatch, mode):
@@ -26,17 +29,21 @@ def test_http_facade_retry(monkeypatch, mode):
         http_wrappers._BREAKER_OPEN_UNTIL.clear()  # type: ignore[attr-defined]
     except Exception:
         pass
-    calls = {"n":0}
+    calls = {"n": 0}
 
     def fake_get(url, headers=None, params=None, timeout=None):
         calls["n"] += 1
         if calls["n"] < 3:  # deux premières: 429
+
             class R:
                 status_code = 429
+
                 def json(self):
-                    return {"error":"rate"}
+                    return {"error": "rate"}
+
                 def raise_for_status(self):
                     pass
+
             return R()
         return DummyResp(200, {"ok": True})
 
@@ -46,12 +53,16 @@ def test_http_facade_retry(monkeypatch, mode):
         # Reutilise la logique compteur pour aligner comportement
         calls["n"] += 1
         if calls["n"] < 3:
+
             class AR:
                 status_code = 429
+
                 def json(self):
-                    return {"error":"rate"}
+                    return {"error": "rate"}
+
                 def raise_for_status(self):
                     pass
+
             return AR()
         return DummyResp(200, {"ok": True})
 
@@ -64,8 +75,10 @@ def test_http_facade_retry(monkeypatch, mode):
         assert data["ok"] is True
     else:
         import asyncio
+
         async def run():
             return await async_fetch_json("https://api.llama.fi/chains")
+
         baseline = HTTP_RETRIES_TOTAL.labels(endpoint="llama/chains", reason="RateLimitError")._value.get()
         data = asyncio.run(run())
         assert data["ok"] is True

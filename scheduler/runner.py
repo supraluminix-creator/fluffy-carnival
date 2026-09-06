@@ -11,20 +11,19 @@ from random import uniform
 from time import time as _time
 from typing import Any, cast
 
-# Third-party
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from pipeline.circuit_breaker import _STATES as _CB_STATES
+
 yaml: Any | None
 try:  # pragma: no cover - optional dependency
     import yaml as _yaml_mod
-    yaml = _yaml_mod
 except Exception:  # pragma: no cover
     yaml = None
-
-# First-party
-from pipeline.circuit_breaker import _STATES as _CB_STATES
+else:
+    yaml = _yaml_mod
 
 log = structlog.get_logger(__name__)
 
@@ -40,9 +39,11 @@ CRYPTO_READY: Any | None = None
 CRYPTO_READY_TS: Any | None = None
 try:
     from prometheus_client import Counter, Gauge, Histogram
+
     try:
         # Info is available in newer prometheus_client versions
         from prometheus_client import Info
+
         _HAS_INFO = True
     except Exception:  # pragma: no cover - older prometheus_client
         _HAS_INFO = False
@@ -98,7 +99,7 @@ try:
         "Unix epoch seconds when process became ready",
     )
     # Build info (labels: version, git_sha, run_id)
-    if _HAS_INFO and 'Info' in locals():
+    if _HAS_INFO and "Info" in locals():
         CRYPTO_BUILD_INFO = Info(
             "crypto_build_info",
             "Build and runtime info",
@@ -135,6 +136,7 @@ _READY_TS: float | None = None
 _CRITICAL_BREAKERS = set(os.getenv("BREAKER_CRITICAL_LIST", "market,deriv_oi,onchain_txcount").split(","))
 _BREAKER_GRACE_SECONDS = float(os.getenv("BREAKER_OPEN_GRACE_SECONDS", "120"))
 
+
 def _breaker_blocks_readiness() -> bool:
     now = _time()
     for name, st in _CB_STATES.items():
@@ -147,6 +149,7 @@ def _breaker_blocks_readiness() -> bool:
         ):
             return True
     return False
+
 
 # Build/runtime info
 _BUILD_INFO: dict[str, str] = {
@@ -180,6 +183,7 @@ def _load_state() -> None:
     except Exception as e:
         log.warning("counters_state_load_failed", error=str(e))
 
+
 def _save_state() -> None:
     try:
         tmp = {
@@ -190,6 +194,7 @@ def _save_state() -> None:
             json.dump(tmp, f)
     except Exception as e:
         log.warning("counters_state_save_failed", error=str(e))
+
 
 # Load state at module import
 _load_state()
@@ -204,7 +209,7 @@ async def task_wrapper(
     fn: Callable[..., Any],
     args: tuple[Any, ...] = (),
     kwargs: dict[str, Any] | None = None,
-)-> None:
+) -> None:
     start = datetime.now(UTC)
     log.info("task_start", task=name, ts=start.isoformat())
     # Prometheus: increment start
@@ -345,6 +350,7 @@ def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
     if not isinstance(jobs, list):
         log.warning("scheduler_config_invalid", reason="jobs is not a list")
         return None
+
     # Expand any ${ENV_VAR} strings inside kwargs
     def _expand_env(val: Any) -> Any:
         if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
@@ -355,6 +361,7 @@ def _load_jobs_from_yaml(path: str) -> list[dict[str, Any]] | None:
         if isinstance(val, list):
             return [_expand_env(v) for v in val]
         return val
+
     expanded: list[dict[str, Any]] = []
     for j in jobs:
         if isinstance(j, dict):
@@ -437,8 +444,10 @@ def build_scheduler() -> AsyncIOScheduler:
                     job=job,
                 )
     else:
+
         async def _noop() -> None:
             await asyncio.sleep(0.05)
+
         defaults = [
             ("macro", _noop, 300),
             ("onchain", _noop, 300),

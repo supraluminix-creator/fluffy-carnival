@@ -57,12 +57,7 @@ def test_quant_404_then_ok():
 
     # now seed with quant section
     db_adapter._REPORTS.clear()
-    run_id = (
-        datetime.now(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    run_id = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     r = Report(
         meta=ReportMeta(asset="BTC", run_id=run_id),
         quant=QuantSection(volatility={"hv": 0.5}),
@@ -84,12 +79,7 @@ def test_onchain_404_then_ok():
 
     # now seed with technical section
     db_adapter._REPORTS.clear()
-    run_id = (
-        datetime.now(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    run_id = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     r = Report(
         meta=ReportMeta(asset="BTC", run_id=run_id),
         technical=TechnicalSection(patterns=["triangle", "breakout"]),
@@ -111,12 +101,7 @@ def test_fundamental_404_then_ok():
 
     # now seed with fundamental section
     db_adapter._REPORTS.clear()
-    run_id = (
-        datetime.now(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    run_id = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     r = Report(
         meta=ReportMeta(asset="BTC", run_id=run_id),
         fundamental=FundamentalSection(macro="soft landing", adoption="growing"),
@@ -135,4 +120,3 @@ def test_history_interval_validation():
     # invalid interval must be rejected by FastAPI validation (pattern)
     resp = client.get("/api/report/history", params={"interval": "5min"})
     assert resp.status_code == 422
-

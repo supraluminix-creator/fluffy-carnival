@@ -16,7 +16,7 @@ def _get_depth(collector: str):
 @pytest.mark.asyncio
 async def test_fallback_chain_depth_macro(monkeypatch):
     # Force CoinGecko failure -> Binance success
-    async def fail_coingecko(session, url, timeout):
+    async def fail_coingecko(session, url, **kwargs):
         raise RuntimeError("cg_down")
 
     def fake_binance(symbol):

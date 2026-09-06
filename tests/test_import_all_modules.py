@@ -15,7 +15,7 @@ for m in pkgutil.walk_packages(pipeline.__path__, pipeline.__name__ + "."):
         _collected.append(name)
         # Exécuter passivement quelques fonctions publiques sans effets dangereux
         for attr, obj in list(vars(mod).items()):
-            if attr.startswith('_'):
+            if attr.startswith("_"):
                 continue
             if inspect.isfunction(obj):
                 # Heuristique: fonctions sans param obligatoires -> appeler
@@ -26,6 +26,7 @@ for m in pkgutil.walk_packages(pipeline.__path__, pipeline.__name__ + "."):
                 )
                 if all(conds):
                     from contextlib import suppress
+
                     with suppress(Exception):
                         obj()  # type: ignore[misc]
     except Exception:

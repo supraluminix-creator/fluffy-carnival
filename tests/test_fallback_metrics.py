@@ -36,6 +36,7 @@ def log_buffer(monkeypatch):
         import pipeline.collectors.market as _m
         import pipeline.collectors.onchain as _o
         import pipeline.collectors.sentiment as _s
+
         new_logger = structlog.get_logger("tests_fallback")
         for mod in (_m, _s, _o, _d):
             if hasattr(mod, "log"):
@@ -47,6 +48,7 @@ def log_buffer(monkeypatch):
     finally:
         structlog.reset_defaults()
 
+
 def _parsed_events(buf: io.StringIO):
     lines = [line for line in buf.getvalue().splitlines() if line.strip()]
     out = []
@@ -57,9 +59,12 @@ def _parsed_events(buf: io.StringIO):
             continue
     return out
 
+
 def _fallback_metric_value(metrics_text: str, collector: str, status: str) -> float | None:
     # Recherche ligne correspondante et extrait la valeur numérique finale
-    pattern = rf'^fallback_invocations_total\{{[^}}]*collector="{collector}"[^}}]*status="{status}"[^}}]*\}} (\d+(?:\.\d+)?)$'
+    pattern = (
+        rf'^fallback_invocations_total\{{[^}}]*collector="{collector}"[^}}]*status="{status}"[^}}]*\}} (\d+(?:\.\d+)?)$'
+    )
     for line in metrics_text.splitlines():
         m = re.match(pattern, line)
         if m:
@@ -69,18 +74,23 @@ def _fallback_metric_value(metrics_text: str, collector: str, status: str) -> fl
                 return None
     return None
 
+
 class DummyResp:
     def __init__(self, json_data=None, text=None, status=200):
         self._json = json_data
         self.text = text or ""
         self.status_code = status
+
     def raise_for_status(self):
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("boom", request=None, response=None)
+
     def json(self):
         return self._json
 
+
 # --- MARKET fallback test (primary fail -> fallback success) ---
+
 
 def test_market_fallback_metrics(monkeypatch, log_buffer):
     symbol = "bitcoinxx"
@@ -88,13 +98,25 @@ def test_market_fallback_metrics(monkeypatch, log_buffer):
     cmc_url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
     cache.clear()
     calls = []
+
     def fake_get(url, *a, **k):
         calls.append(url)
         if url == cg_url:
             raise RuntimeError("primary fail")
         if url == cmc_url:
-            return DummyResp(json_data={"data": {symbol.upper(): {"quote": {"USD": {"price": 1.0, "volume_24h": 2.0, "market_cap": 3.0, "market_cap_dominance": 0.4}}}}})
+            return DummyResp(
+                json_data={
+                    "data": {
+                        symbol.upper(): {
+                            "quote": {
+                                "USD": {"price": 1.0, "volume_24h": 2.0, "market_cap": 3.0, "market_cap_dominance": 0.4}
+                            }
+                        }
+                    }
+                }
+            )
         return DummyResp(json_data={})
+
     monkeypatch.setattr(httpx, "get", fake_get)
     res = fetch_market(symbol)
     assert res is not None and res["price"] == 1.0
@@ -104,20 +126,28 @@ def test_market_fallback_metrics(monkeypatch, log_buffer):
     events = _parsed_events(log_buffer)
     assert any(e.get("event") == "market_fallback_success" and e.get("fallback") == 1 for e in events)
 
+
 # --- SENTIMENT fallback test ---
 @pytest.mark.asyncio
 async def test_sentiment_fallback_metrics(monkeypatch, log_buffer):
     cache.clear()
     alt_url = "https://api.alternative.me/fng/"
+
     def fake_async_client():
         class C:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *exc): return False
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
             async def get(self, url, timeout=10):
                 if url == alt_url:
                     raise RuntimeError("alt fail")
                 raise AssertionError("Unexpected URL")
+
         return C()
+
     monkeypatch.setattr(httpx, "AsyncClient", fake_async_client)
     rec = await fetch_fear_greed()
     assert rec is not None and rec["source"].startswith("tokenmetrics")
@@ -127,23 +157,31 @@ async def test_sentiment_fallback_metrics(monkeypatch, log_buffer):
     events = _parsed_events(log_buffer)
     assert any(e.get("event") == "sentiment_fallback_success" and e.get("fallback") == 1 for e in events)
 
+
 # --- ONCHAIN fallback test (BTC primary fail) ---
 @pytest.mark.asyncio
 async def test_onchain_txcount_fallback_metrics(monkeypatch, log_buffer):
     cache.clear()
     main_url = "https://api.blockchain.info/q/getblockcount"
     eth_fb = "https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=KEY"
+
     def fake_async_client():
         class C:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *exc): return False
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
             async def get(self, url, timeout=10):
                 if url == main_url:
                     raise RuntimeError("main down")
                 if url == eth_fb:
                     return DummyResp(json_data={"result": hex(0x55)})
                 raise AssertionError("Unexpected URL")
+
         return C()
+
     monkeypatch.setattr(httpx, "AsyncClient", fake_async_client)
     rec = await fetch_txcount("BTC", etherscan_api_key="KEY")
     assert rec is not None and rec["value"] == 0x55
@@ -160,7 +198,8 @@ async def test_derivatives_oi_fallback_metrics(monkeypatch, log_buffer):
     cache.clear()
     try:
         import pipeline.circuit_breaker as cb
-        cb.reset('deriv_oi')  # Assure un état neutre (évite pollution de tests précédents)
+
+        cb.reset("deriv_oi")  # Assure un état neutre (évite pollution de tests précédents)
     except Exception:
         pass
     bybit_url = "https://api.bybit.com/v5/market/open-interest"
@@ -170,24 +209,32 @@ async def test_derivatives_oi_fallback_metrics(monkeypatch, log_buffer):
         def __init__(self, json_data=None, status=200):
             self._json = json_data or {}
             self.status_code = status
+
         def raise_for_status(self):
             if self.status_code >= 400:
                 raise httpx.HTTPStatusError("boom", request=None, response=None)
+
         def json(self):
             return self._json
 
     # Async client mock
     def fake_async_client():
         class C:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *exc): return False
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
             async def get(self, url, params=None, timeout=10):
                 if url == bybit_url:
                     raise RuntimeError("bybit down")
                 if url == binance_url:
                     return DummyResp(json_data=[{"timestamp": 1234567890, "sumOpenInterest": "4567.89"}])
                 raise AssertionError("Unexpected URL")
+
         return C()
+
     monkeypatch.setattr(httpx, "AsyncClient", fake_async_client)
 
     rec = await fetch_bybit_oi("BTCUSDT")
@@ -205,10 +252,12 @@ def test_market_fallback_error_metrics(monkeypatch, log_buffer):
     cg_url = f"https://api.coingecko.com/api/v3/coins/{symbol}"
     cmc_url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={symbol.upper()}"
     cache.clear()
+
     def fake_get(url, *a, **k):
         if url in (cg_url, cmc_url):
             raise RuntimeError("both fail")
         raise AssertionError("Unexpected URL")
+
     monkeypatch.setattr(httpx, "get", fake_get)
     res = fetch_market(symbol)
     assert res is None
@@ -225,15 +274,22 @@ async def test_derivatives_oi_fallback_error_metrics(monkeypatch, log_buffer):
     cache.clear()
     bybit_url = "https://api.bybit.com/v5/market/open-interest"
     binance_url = "https://fapi.binance.com/futures/data/openInterestHist"
+
     def fake_async_client():
         class C:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *exc): return False
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
             async def get(self, url, params=None, timeout=10):
                 if url in (bybit_url, binance_url):
                     raise RuntimeError("down")
                 raise AssertionError("Unexpected URL")
+
         return C()
+
     monkeypatch.setattr(httpx, "AsyncClient", fake_async_client)
     rec = await fetch_bybit_oi("ETHUSDT")
     assert rec is None

@@ -1,0 +1,391 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-prodsafe
+  labels:
+    app: crypto-prodsafe
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: crypto-prodsafe
+  template:
+    metadata:
+      labels:
+        app: crypto-prodsafe
+        version: v1
+    spec:
+      containers:
+      - name: crypto-prodsafe
+        image: crypto-prodsafe:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: crypto-prodsafe-secrets
+              key: redis-url
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: crypto-prodsafe-secrets
+              key: database-url
+        - name: API_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: crypto-prodsafe-secrets
+              key: api-keys
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: config-volume
+        configMap:
+          name: crypto-prodsafe-config
+      - name: logs-volume
+        emptyDir: {}
+      serviceAccountName: crypto-prodsafe-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - crypto-prodsafe
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "node-type"
+        operator: "Equal"
+        value: "ml-compute"
+        effect: "NoSchedule"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crypto-prodsafe-service
+  labels:
+    app: crypto-prodsafe
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: crypto-prodsafe
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crypto-prodsafe-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - crypto-prodsafe.example.com
+    secretName: crypto-prodsafe-tls
+  rules:
+  - host: crypto-prodsafe.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: crypto-prodsafe-service
+            port:
+              number: 8000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: crypto-prodsafe-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: crypto-prodsafe
+  minReplicas: 3
+  maxReplicas: 50
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: 100
+  - type: Pods
+    pods:
+      metric:
+        name: queue_depth
+      target:
+        type: AverageValue
+        averageValue: 10
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 5
+        periodSeconds: 60
+      selectPolicy: Max
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: crypto-prodsafe-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: crypto-prodsafe
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crypto-prodsafe-config
+data:
+  config.yaml: |
+    app:
+      name: crypto-prodsafe
+      version: "1.0.0"
+      environment: production
+
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+      timeout: 30
+
+    database:
+      pool_size: 20
+      max_overflow: 30
+      pool_timeout: 30
+      pool_recycle: 3600
+
+    redis:
+      max_connections: 50
+      retry_on_timeout: true
+      socket_timeout: 5
+      socket_connect_timeout: 5
+
+    monitoring:
+      prometheus_enabled: true
+      metrics_port: 9090
+      health_check_interval: 30
+
+    ml:
+      feature_store_enabled: true
+      model_cache_ttl: 3600
+      batch_size: 1000
+
+    security:
+      rate_limit_requests: 1000
+      rate_limit_window: 60
+      cors_origins: ["https://crypto-prodsafe.example.com"]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: crypto-prodsafe-secrets
+type: Opaque
+data:
+  # Base64 encoded values - replace with actual secrets
+  redis-url: <BASE64_REDIS_URL>
+  database-url: <BASE64_DATABASE_URL>
+  api-keys: <BASE64_API_KEYS>
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crypto-prodsafe-sa
+  labels:
+    app: crypto-prodsafe
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: crypto-prodsafe-role
+  labels:
+    app: crypto-prodsafe
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: crypto-prodsafe-rolebinding
+  labels:
+    app: crypto-prodsafe
+subjects:
+- kind: ServiceAccount
+  name: crypto-prodsafe-sa
+roleRef:
+  kind: Role
+  name: crypto-prodsafe-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: crypto-prodsafe-servicemonitor
+  labels:
+    app: crypto-prodsafe
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: crypto-prodsafe
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: crypto-prodsafe-prometheusrules
+  labels:
+    app: crypto-prodsafe
+    release: prometheus
+spec:
+  groups:
+  - name: crypto-prodsafe
+    rules:
+    - alert: CryptoProdSafeHighCPUUsage
+      expr: rate(container_cpu_usage_seconds_total{pod=~"crypto-prodsafe-.*"}[5m]) > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage detected"
+        description: "CPU usage is above 80% for 5 minutes"
+
+    - alert: CryptoProdSafeHighMemoryUsage
+      expr: container_memory_usage_bytes{pod=~"crypto-prodsafe-.*"} / container_spec_memory_limit_bytes > 0.9
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High memory usage detected"
+        description: "Memory usage is above 90% for 3 minutes"
+
+    - alert: CryptoProdSafePodCrashLooping
+      expr: increase(kube_pod_container_status_restarts_total{pod=~"crypto-prodsafe-.*"}[10m]) > 3
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod crash looping detected"
+        description: "Pod has restarted more than 3 times in 10 minutes"
+
+    - alert: CryptoProdSafeHPAscaling
+      expr: kube_horizontalpodautoscaler_status_current_replicas{name="crypto-prodsafe-hpa"} / kube_horizontalpodautoscaler_spec_max_replicas{name="crypto-prodsafe-hpa"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "HPA scaling near maximum"
+        description: "HPA is using more than 80% of maximum replicas"

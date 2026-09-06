@@ -2,6 +2,7 @@
 
 MVP: mock par défaut; OpenAI/OpenRouter/Ollama si clés présentes.
 """
+
 from __future__ import annotations
 
 import os

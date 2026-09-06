@@ -99,6 +99,7 @@ class RateLimiter:
 class SupportsRedisClient(Protocol):
     def pipeline(self) -> Any: ...
     def ping(self) -> Any: ...
+
     # from_url is module-level, not on client instance
 
 

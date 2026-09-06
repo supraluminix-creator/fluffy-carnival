@@ -10,13 +10,8 @@ omit =
     api/*
     scheduler/runner.py
     scripts/*
-    pipeline/orchestrator.py
-    pipeline/scheduler.py
-    pipeline/technical_indicators.py
     pipeline/collectors/hashrate.py
     pipeline/collectors/sopr.py
-    pipeline/exporter.py
-    pipeline/reporter.py
 
 [report]
 show_missing = True

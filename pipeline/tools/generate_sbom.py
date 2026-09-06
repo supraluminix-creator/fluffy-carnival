@@ -16,6 +16,7 @@ Env:
 Usage:
   python -m pipeline.tools.generate_sbom
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -50,11 +51,12 @@ def build_components() -> list[dict[str, Any]]:
         }
         # Hash heuristique (concat contenu .py)
         try:
-            dist_path = Path(dist.locate_file(""))
+            dist_path = Path(str(dist.locate_file("")))
             h_sha = hashlib.sha256()
             if dist_path.exists():
                 for f in dist_path.rglob("*.py"):
                     from contextlib import suppress
+
                     with suppress(Exception):
                         h_sha.update(f.read_bytes())
                 comp["hashes"] = [{"alg": "SHA-256", "content": h_sha.hexdigest()}]

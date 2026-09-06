@@ -13,14 +13,17 @@ from pipeline.metrics import (
 
 
 class DummyResp:
-    def __init__(self, status_code:int, payload):
+    def __init__(self, status_code: int, payload):
         self.status_code = status_code
         self._payload = payload
+
     def json(self):
         return self._payload
+
     def raise_for_status(self):
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("err", request=None, response=None)
+
 
 @pytest.fixture(autouse=True)
 def _env_setup(monkeypatch):
@@ -33,13 +36,15 @@ def _env_setup(monkeypatch):
 
 
 def test_breaker_opens_and_short_circuits(monkeypatch):
-    calls = {"n":0}
+    calls = {"n": 0}
+
     # 3 premières réponses -> 429, ensuite (si appel) 200
     def fake_get(url, headers=None, params=None, timeout=None):
         calls["n"] += 1
         if calls["n"] <= 3:
-            return DummyResp(429, {"err":"rate"})
-        return DummyResp(200, {"ok":True})
+            return DummyResp(429, {"err": "rate"})
+        return DummyResp(200, {"ok": True})
+
     monkeypatch.setattr(http_wrappers.httpx, "get", fake_get)
     url = "https://api.test/breaker"
     # Première tentative fera plusieurs retries internes jusqu'à succès ou breaker ouverture.
@@ -69,8 +74,10 @@ def test_empty_payload_raises(monkeypatch):
     # Une 200 avec payload vide doit générer EmptyDataError et ne pas être retriable
     # (pas d'incrément http_retries_total)
     from pipeline.http_wrappers import EmptyDataError
+
     def fake_get(url, headers=None, params=None, timeout=None):
         return DummyResp(200, {})  # empty dict
+
     monkeypatch.setattr(http_wrappers.httpx, "get", fake_get)
     url = "https://api.test/empty"
     with pytest.raises(EmptyDataError):

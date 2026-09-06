@@ -1,14 +1,4 @@
-Parfait 👍 Tu veux un **document Markdown prêt pour GitHub Copilot** qui :
 
-* donne à Copilot le **cadre clair (Main/Backup, timings, quotas)**
-* précise les **données nécessaires pour les indicateurs pros**
-* et explique comment intégrer ça dans le pipeline (`technical_indicators.py`).
-
-Voici une version reformulée et structurée pour un dev Python expérimenté 👇
-
----
-
-````markdown
 # 🚀 Crypto Monitor – Sources, Timings & Technical Indicators
 
 ## 🎯 Objectif

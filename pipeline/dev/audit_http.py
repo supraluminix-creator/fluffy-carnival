@@ -28,6 +28,7 @@ Sortie:
   - Résumé final: total occurrences restantes.
   - Option --json: JSON list [{file, line, code}]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,6 +36,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent  # pipeline/
 
@@ -45,30 +47,31 @@ PAT_CLIENT_GET = re.compile(r"client\.get\s*\(")
 PAT_FACADE = re.compile(r"(fetch_json|async_fetch_json)\s*\(")
 
 IGNORE_SUBPATHS = {
-    'http.py',
-    'http_wrappers.py',
+    "http.py",
+    "http_wrappers.py",
 }
 
+
 def scan_file(path: Path):
-    findings = []
+    findings: list[tuple[int, str]] = []
     try:
-        text = path.read_text(encoding='utf-8')
+        text = path.read_text(encoding="utf-8")
     except Exception:
         return findings
     # Ignorer immédiatement si pas de 'get(' pour perf
-    if 'get(' not in text and 'httpx.get' not in text:
+    if "get(" not in text and "httpx.get" not in text:
         return findings
     for idx, line in enumerate(text.splitlines(), start=1):
         lstr = line.strip()
-        if not lstr or lstr.startswith('#'):
+        if not lstr or lstr.startswith("#"):
             continue
-        if 'httpx.get' in lstr and PAT_HTTPX_GET.search(lstr):
+        if "httpx.get" in lstr and PAT_HTTPX_GET.search(lstr):
             if PAT_FACADE.search(lstr):  # ligne mélange façade -> ignorer
                 continue
             findings.append((idx, line.rstrip()))
             continue
         # Heuristique client.get
-        if 'client.get' in lstr and PAT_CLIENT_GET.search(lstr):
+        if "client.get" in lstr and PAT_CLIENT_GET.search(lstr):
             if PAT_FACADE.search(lstr):
                 continue
             findings.append((idx, line.rstrip()))
@@ -77,33 +80,34 @@ def scan_file(path: Path):
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--json', action='store_true', help='Sortie JSON')
+    ap.add_argument("--json", action="store_true", help="Sortie JSON")
     args = ap.parse_args(argv)
 
-    results: list[dict] = []
-    for py in ROOT.rglob('*.py'):
+    results: list[dict[str, Any]] = []
+    for py in ROOT.rglob("*.py"):
         if any(py.name == ign for ign in IGNORE_SUBPATHS):
             continue
         rel = py.relative_to(ROOT.parent)  # remonter pour inclure 'pipeline/...'
         findings = scan_file(py)
         for line_no, code in findings:
-            results.append({'file': str(rel), 'line': line_no, 'code': code})
+            results.append({"file": str(rel), "line": line_no, "code": code})
 
     # Tri stable
-    results.sort(key=lambda x: (x['file'], x['line']))
+    results.sort(key=lambda x: (x["file"], x["line"]))
 
     if args.json:
         print(json.dumps(results, ensure_ascii=False, indent=2))
     else:
         if not results:
-            print('[OK] Aucun usage HTTP legacy détecté (httpx.get / client.get)')
+            print("[OK] Aucun usage HTTP legacy détecté (httpx.get / client.get)")
         else:
-            width = max(len(r['file']) for r in results)
+            width = max(len(r["file"]) for r in results)
             for r in results:
                 print(f"{r['file']:<{width}}:{r['line']:>4} | {r['code']}")
             print(f"\nTotal occurrences legacy potentiellement non migrées: {len(results)}")
-            print("(Vérifier les faux positifs éventuels — heuristique client.get)" )
+            print("(Vérifier les faux positifs éventuels — heuristique client.get)")
     return 0
 
-if __name__ == '__main__':  # pragma: no cover - exécution manuelle
+
+if __name__ == "__main__":  # pragma: no cover - exécution manuelle
     raise SystemExit(main(sys.argv[1:]))

@@ -35,10 +35,13 @@ async def test_oi_fallback_binance(monkeypatch):
 
 class _DummyAsyncClientError:
     """Contexte async qui lève sur get pour simuler échec Bybit."""
+
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, exc_type, exc, tb):
         return False
+
     async def get(self, *a, **k):  # always fail
         raise RuntimeError("network_down")
 
@@ -50,8 +53,10 @@ async def test_funding_fallback_binance(monkeypatch):
     class _DummyClientFunding:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             return False
+
         async def get(self, *a, **k):
             calls["bybit"] += 1
             raise RuntimeError("bybit_down")

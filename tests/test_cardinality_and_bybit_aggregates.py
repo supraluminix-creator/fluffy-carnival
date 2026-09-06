@@ -21,10 +21,7 @@ def test_endpoint_label_cardinality():
         "https://api.coinmarketcap.com/v3/cryptocurrency/quotes/latest?id=1",
     ]
     # Ajouter variations synthétiques
-    base_urls += [
-        f"https://api.coingecko.com/api/v3/coins/randomtoken{i}?foo=bar&v={i}"
-        for i in range(40)
-    ]
+    base_urls += [f"https://api.coingecko.com/api/v3/coins/randomtoken{i}?foo=bar&v={i}" for i in range(40)]
     labels = {endpoint_label(u) for u in base_urls}
     # On s'attend à une forte déduplication: coingecko/coins, coingecko/simple, binance/depth, binance/ticker, llama/protocols, coingecko/ping, coinmarketcap/cryptocurrency => ~7-8
     assert len(labels) < 15, f"Cardinalité trop élevée: {len(labels)} labels = {labels}"  # seuil large pour robustesse
@@ -39,7 +36,9 @@ async def _write_events(writer: BybitLiquidationsWriter, events):
 def test_bybit_hourly_aggregation_and_parquet_disabled(tmp_path):
     db_path = tmp_path / "liq.db"
     parquet_dir = tmp_path / "parquet"
-    writer = BybitLiquidationsWriter(db=str(db_path), parquet_dir=str(parquet_dir), flush_size=10, parquet_enabled=False)
+    writer = BybitLiquidationsWriter(
+        db=str(db_path), parquet_dir=str(parquet_dir), flush_size=10, parquet_enabled=False
+    )
 
     # Deux events même heure/symbol/side
     hour_ts = 1700000000 * 1000  # arbitraire en ms

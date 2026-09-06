@@ -10,12 +10,7 @@ from pipeline.rate_limit import RateLimiter
 
 
 def _now_run_id():
-    return (
-        datetime.now(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def test_rate_limit_report(monkeypatch):

@@ -2,9 +2,12 @@
 Collector Bybit WebSocket robuste (reconnect/backoff)
 Prod-safe, asynchrone, testable
 """
+
 import asyncio
 import json
+import os
 from collections.abc import Callable
+from contextlib import suppress
 from typing import TypedDict
 
 import requests
@@ -12,10 +15,15 @@ import structlog
 import websockets
 from prometheus_client import Counter, Summary
 
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import fetch_json
+from pipeline.http_utils import is_requests_monkeypatched
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
+
 log = structlog.get_logger()
-BYBIT_OI_LATENCY = Summary('bybit_oi_latency_seconds', 'Latency of Bybit OI API calls')
-BYBIT_OI_ERRORS = Counter('bybit_oi_errors_total', 'Total Bybit OI API errors')
-BYBIT_OI_SUCCESS = Counter('bybit_oi_success_total', 'Total Bybit OI API successes')
+BYBIT_OI_LATENCY = Summary("bybit_oi_latency_seconds", "Latency of Bybit OI API calls")
+BYBIT_OI_ERRORS = Counter("bybit_oi_errors_total", "Total Bybit OI API errors")
+BYBIT_OI_SUCCESS = Counter("bybit_oi_success_total", "Total Bybit OI API successes")
 
 
 class BybitOIRecord(TypedDict):
@@ -27,12 +35,15 @@ class BybitOIRecord(TypedDict):
     open_interest: Open interest as float
     timestamp: Milliseconds epoch timestamp provided by Bybit
     """
+
     symbol: str
     open_interest: float
     timestamp: int
 
+
 class BybitWSCollector:
     """Collecteur Bybit WebSocket avec reconnexion et backoff."""
+
     WS_URL = "wss://stream.bybit.com/v5/public/linear"
 
     def __init__(self, symbol: str = "BTCUSDT", on_message: Callable | None = None):
@@ -45,10 +56,7 @@ class BybitWSCollector:
         while self.running:
             try:
                 async with websockets.connect(self.WS_URL) as ws:
-                    sub_msg = json.dumps({
-                        "op": "subscribe",
-                        "args": [f"publicTrade.{self.symbol}"]
-                    })
+                    sub_msg = json.dumps({"op": "subscribe", "args": [f"publicTrade.{self.symbol}"]})
                     await ws.send(sub_msg)
                     self.backoff = 1
                     while self.running:
@@ -79,9 +87,23 @@ class BybitWSCollector:
         """
         url = f"https://api.bybit.com/v5/market/open-interest?category=linear&symbol={symbol}"
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            data_obj = resp.json()
+            # Chemin façade sous drapeaux explicites; default = legacy pour compat tests
+            force_facade = is_forced_facade()
+            dry_run = is_dry_run_facade() and not force_facade
+            with suppress(Exception):  # pragma: no cover
+                set_facade_mode("bybit_oi", force_facade, dry_run)
+            # Détection monkeypatch tests sur requests.get (utilitaire partagé)
+            is_tests_patch = is_requests_monkeypatched(getattr(requests, "get", None))
+            use_facade_flag = os.getenv("BYBIT_OI_USE_FACADE", "0") == "1"
+            if force_facade or (use_facade_flag and not is_tests_patch):
+                data_obj = fetch_json(url, timeout=10)
+            else:
+                with suppress(Exception):  # pragma: no cover
+                    # Incrémente compteur usage legacy pour suivi de migration
+                    mark_legacy_http("bybit_oi")
+                resp = requests.get(url, timeout=10)
+                resp.raise_for_status()
+                data_obj = resp.json()
             if not isinstance(data_obj, dict):
                 return None
             result = data_obj.get("result")

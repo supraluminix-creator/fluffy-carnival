@@ -1,0 +1,7 @@
+{
+  "grok": "javascript:(function(){var p=prompt('Grok Quant Analysis:');if(p){window.open('https://grok.x.ai/?q='+encodeURIComponent('Analyze crypto data: '+p));}})();",
+  "deepseek": "javascript:(function(){var p=prompt('DeepSeek Confirm:');if(p){window.open('https://platform.deepseek.com/chat?q='+encodeURIComponent('Confirm sentiment: '+p));}})();",
+  "claude": "javascript:(function(){var p=prompt('Claude Ethics Review:');if(p){window.open('https://claude.ai/chats?q='+encodeURIComponent('Ethical analysis: '+p));}})();",
+  "perplexity": "javascript:(function(){var p=prompt('Perplexity Legal Check:');if(p){window.open('https://www.perplexity.ai/search?q='+encodeURIComponent('French/EU crypto laws: '+p));}})();",
+  "mistral": "javascript:(function(){var p=prompt('Mistral Tax Verify:');if(p){window.open('https://chat.mistral.ai/chat?q='+encodeURIComponent('Verify French/EU crypto tax guidance: '+p));}})();"
+}

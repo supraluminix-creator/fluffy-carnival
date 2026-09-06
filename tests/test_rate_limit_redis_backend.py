@@ -7,7 +7,7 @@ class FakePipe:
     def __init__(self, store: dict, key: str):
         self.store = store
         self.key = key
-        self.ops = []
+        self.ops: list[tuple[object, ...]] = []
 
     def incr(self, k):
         self.ops.append(("incr", k))
@@ -46,11 +46,13 @@ class FakeRedis:
 def test_redis_rate_limiter_basic(monkeypatch):
     fr = FakeRedis()
     rl = RedisRateLimiter(fr, limit_per_minute=2, prefix="t")
+
     # monkeypatch _bucket_key pour que FakeRedis sache où écrire
     def _bk(key: str, epoch_min: int):
         k = f"t:{key}:{epoch_min}"
         fr.set_last_key(k)
         return k
+
     rl._bucket_key = _bk  # type: ignore
 
     ok1 = rl.check_allow_with_meta("a")
@@ -65,6 +67,7 @@ def test_factory_fallbacks(monkeypatch):
     # Pas de backend redis -> in-memory
     monkeypatch.delenv("API_RATE_LIMIT_BACKEND", raising=False)
     from pipeline import rate_limit as rlmod
+
     rl = rlmod.build_rate_limiter_from_env(5)
     assert rl.__class__.__name__ == "RateLimiter"
 

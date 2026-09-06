@@ -27,19 +27,23 @@ def test_purge_and_vacuum_flow(tmp_path):
 
     now_ms = int(time.time() * 1000)
     old_ms = now_ms - 45 * 86400 * 1000
+
     # Ajoute événements (dont anciens)
     async def _inject():
         for i in range(12):
-            await writer.write_record({
-                "symbol": "BTCUSDT",
-                "side": "Buy" if i % 2 == 0 else "Sell",
-                "price": 50000 + i,
-                "qty": 0.1 * i,
-                "time": old_ms if i < 5 else now_ms,
-            })
+            await writer.write_record(
+                {
+                    "symbol": "BTCUSDT",
+                    "side": "Buy" if i % 2 == 0 else "Sell",
+                    "price": 50000 + i,
+                    "qty": 0.1 * i,
+                    "time": old_ms if i < 5 else now_ms,
+                }
+            )
         await writer.flush()
 
     import asyncio
+
     asyncio.run(_inject())
 
     # Mise à jour métriques initiales

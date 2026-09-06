@@ -185,7 +185,8 @@ def main() -> None:
                 "runs": runs[name],
                 "failures": fails.get(name, 0),
                 "error_rate": (fails.get(name, 0) / runs[name]) if runs[name] else None,
-            } for name in set(list(runs.keys()) + list(fails.keys()))
+            }
+            for name in set(list(runs.keys()) + list(fails.keys()))
         },
     }
 
@@ -236,6 +237,7 @@ def main() -> None:
             print(f"  {c:>4}  {msg}")
 
     print(f"Verdict: {verdict} — {note}")
+
 
 if __name__ == "__main__":
     main()

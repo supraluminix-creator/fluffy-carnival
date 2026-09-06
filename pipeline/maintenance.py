@@ -19,6 +19,7 @@ Tests:
  - Monkeypatch `vacuum_and_update_metrics` pour observer appel ou non.
 
 """
+
 from __future__ import annotations
 
 import os
@@ -30,6 +31,7 @@ from dataclasses import dataclass
 from . import purge_job
 from .db_stats import update_db_metrics, vacuum_and_update_metrics
 from .metrics import MAINTENANCE_NEXT_RUN_TIMESTAMP
+from .storage.sqlite_adapter import get_default_db_path
 
 # Type alias
 FragmentFn = Callable[[str], tuple[int, int, float]]
@@ -41,6 +43,7 @@ with suppress(Exception):  # import facultatif si factorisation future
 def compute_fragmentation(db_path: str) -> tuple[int, int, float]:  # pragma: no cover - utilisé indirectement
     import sqlite3
     from pathlib import Path
+
     p = Path(db_path)
     if not p.exists():
         return (0, 0, 0.0)
@@ -64,10 +67,13 @@ class MaintenanceResult:
     next_run_ts: int
 
 
-def run_maintenance(db_path: str = "data/crypto.db", *,
-                    fragmentation_threshold: float | None = None,
-                    fragment_fn: FragmentFn = compute_fragmentation,
-                    purge: bool = True) -> MaintenanceResult:
+def run_maintenance(
+    db_path: str | None = None,
+    *,
+    fragmentation_threshold: float | None = None,
+    fragment_fn: FragmentFn = compute_fragmentation,
+    purge: bool = True,
+) -> MaintenanceResult:
     """Exécute un cycle de maintenance.
 
     Args:
@@ -85,25 +91,27 @@ def run_maintenance(db_path: str = "data/crypto.db", *,
     next_run_ts = now + interval
 
     purged_stats = None
+    resolved_db_path = db_path or get_default_db_path()
+
     if purge:
         try:
-            purged_stats = purge_job.purge_liquidations(db_path)
+            purged_stats = purge_job.purge_liquidations(resolved_db_path)
         except Exception:  # pragma: no cover
             purged_stats = None
 
     # Fragmentation check
     vacuum_needed = False
     try:
-        _, _, ratio = fragment_fn(db_path)
+        _, _, ratio = fragment_fn(resolved_db_path)
         vacuum_needed = force_vacuum or (ratio > fragmentation_threshold)
     except Exception:  # pragma: no cover
         ratio = 0.0
 
     if vacuum_needed:
-        vacuum_and_update_metrics(db_path)
+        vacuum_and_update_metrics(resolved_db_path)
     else:
         # Toujours rafraîchir les métriques de base
-        update_db_metrics(db_path)
+        update_db_metrics(resolved_db_path)
 
     # Planification prochaine exécution
     try:
@@ -118,5 +126,6 @@ def run_maintenance(db_path: str = "data/crypto.db", *,
         fragmentation_ratio=ratio,
         next_run_ts=next_run_ts,
     )
+
 
 __all__ = ["run_maintenance", "MaintenanceResult", "compute_fragmentation"]

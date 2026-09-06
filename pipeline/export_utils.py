@@ -1,4 +1,5 @@
 """Utilitaires d'export CSV centralisés."""
+
 from __future__ import annotations
 
 import csv
@@ -37,6 +38,9 @@ EXPORT_FIELDS: Sequence[str] = (
     "value",
     "source",
     "confidence_score",
+    "topic",
+    "sentiment",
+    "confidence",
 )
 
 try:
@@ -55,8 +59,12 @@ class ExportRecord(BaseModel):  # type: ignore[misc]
     value: float
     source: str
     confidence_score: float = Field(ge=0.0, le=1.0)
+    topic: str = "-"
+    sentiment: str = "-"
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
     # Normalisation légère possible ici (ex: upper asset) si besoin futur.
+
 
 def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
     """Valide et normalise des enregistrements d'export.
@@ -72,6 +80,7 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
       - schéma invalide malgré normalisation
     """
     validated: list[ExportRecord] = []
+
     def _coerce_value(metric_name: str, val: Any) -> float | None:
         # Déjà numérique
         if isinstance(val, int | float):
@@ -162,6 +171,16 @@ def _coerce_records(rows: Iterable[Mapping[str, Any]]) -> list[ExportRecord]:
             r["source"] = r["metric_name"]
         if "confidence_score" not in r:
             r["confidence_score"] = 1.0
+        if "topic" not in r or not r.get("topic"):
+            r["topic"] = "-"
+        if "sentiment" not in r or not r.get("sentiment"):
+            r["sentiment"] = "-"
+        if "confidence" not in r:
+            conf_val = r.get("confidence_score")
+            try:
+                r["confidence"] = float(conf_val) if conf_val is not None else None
+            except Exception:
+                r["confidence"] = None
         # Coercition de value (dict -> float principal)
         coerced = _coerce_value(str(r.get("metric_name", "")), r.get("value"))
         if coerced is not None:

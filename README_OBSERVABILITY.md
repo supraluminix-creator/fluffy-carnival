@@ -15,6 +15,7 @@ Nouveau: l'architecture des métriques est désormais segmentée (voir `docs/ARC
 - [8. Purge & Maintenance](#8-purge--maintenance)
 - [9. Exemples PromQL](#9-exemples-promql)
 - [10. Alerting recommandé](#10-alerting-recommandé)
+- [11. Exposition /metrics (sécurité)](#11-exposition-metrics-sécurité)
 
 ---
 ## 1. Principes
@@ -30,6 +31,7 @@ Les métriques sont conçues pour:
 
 ---
 ## 2. Collectors & Fallbacks
+
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `collector_runs_total` | Counter | collector,status | Exécutions globales d'un collecteur (avec instrumentation explicite). |
@@ -38,8 +40,17 @@ Les métriques sont conçues pour:
 | `fallback_tier_latency_seconds` | Histogram | collector,tier,status | Latence par tier avec buckets (0.05 à 30s). Utile pour comparer lenteur des fallbacks vs primaire. |
 | `fallback_chain_depth` | Gauge | collector | Dernière profondeur atteinte dans une exécution (1=primaire). Réinitialisée implicitement par nouvelles observations. |
 
+### 2.1 Hyperliquid whales
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `whale_hyperliquid_position_notional_usd` | Gauge | trader,symbol,side | Notionnel USD par position surveillée sur Hyperliquid. |
+| `whale_hyperliquid_position_leverage` | Gauge | trader,symbol,side | Levier signalé par position Hyperliquid. |
+| `whale_hyperliquid_last_updated_timestamp` | Gauge | trader | Timestamp de la dernière collecte Hyperliquid pour ce trader. |
+
 ---
 ## 3. Export & Buffer
+
 | Metric | Type | Labels | Note |
 |--------|------|--------|------|
 | `pipeline_exports_total` | Counter | status | Succès/erreurs d'exports CSV. |
@@ -196,7 +207,34 @@ Exemple de règle Prometheus (YAML):
 ```
 
 ---
-## 11. Taxonomie des erreurs collecteurs
+## 11. Exposition /metrics (sécurité)
+
+L'endpoint `/metrics` est exposé par l'application FastAPI par défaut si `prometheus_client` est présent.
+Par sécurité, l'accès est restreint à une allow-list d'hôtes locaux:
+
+- Valeurs par défaut: `127.0.0.1, ::1, localhost`
+- Variable d'environnement pour surcharger: `METRICS_ALLOWED_HOSTS`
+- Confiance envers `X-Forwarded-For`: désactivée par défaut. Pour activer, définir `METRICS_TRUST_XFF=1`.
+
+La décision d'autorisation considère plusieurs sources: l'adresse pair (socket), l'en-tête `Host`
+et le premier hop de `X-Forwarded-For`. En pratique:
+
+- En local, un simple `curl http://127.0.0.1:8000/metrics` fonctionne.
+- Derrière un reverse proxy, vous pouvez autoriser une IP interne spécifique (ex: le sidecar Prometheus)
+  en ajoutant son IP à `METRICS_ALLOWED_HOSTS` et/ou en vous assurant que `X-Forwarded-For` la reflète.
+  Par sécurité, `X-Forwarded-For` n'est pris en compte que si `METRICS_TRUST_XFF=1` est défini.
+
+Exemples (PowerShell):
+
+```powershell
+$env:METRICS_ALLOWED_HOSTS = "127.0.0.1,10.0.0.15"
+curl http://127.0.0.1:8000/metrics
+```
+
+Si l'accès est refusé, l'API répond `403 Forbidden`.
+
+---
+## 12. Taxonomie des erreurs collecteurs
 
 Les collecteurs lèvent désormais (directement ou via mapping) une série d'exceptions
 typiques normalisées en catégories stables. La métrique
@@ -238,16 +276,28 @@ Détection d'un nouveau schéma inattendu (hausse brutale schema):
 increase(collector_error_types_total{error_type="schema"}[10m]) > 5
 ```
 
-## 12. Références complémentaires
+## 13. Références complémentaires
 - Schéma base: voir `SCHEMA_DB.md`
 - Modèle de menace: `THREAT_MODEL.md`
 - Sécurité & SBOM: `README_SECURITY.md`
 
-## 13. Roadmap courte observabilité
+## 14. Roadmap courte observabilité
 - Séparer phase flush parquet vs write.
 - Ajouter gauge last_flush_duration_seconds.
 - Dashboard Grafana standard packagé.
+- Import automatisé Grafana (PowerShell): utilisez la tâche VS Code "Grafana: Import dashboards" (voir scripts/grafana/import_dashboards.ps1). Configurez au préalable GRAFANA_URL et GRAFANA_API_TOKEN (cf. .env.local.example). Les dashboards se trouvent dans grafana/dashboards.
 
-## 14. Notes d’implémentation
+## 15. Notes d’implémentation
+- Astuce (audit indicateurs / observabilité non-bloquante): combinez les options suivantes pour éviter d’échouer vos jobs tout en conservant un rapport utile:
+
+  ```powershell
+  $env:INDICATORS_AUDIT_JSON_DEFAULT = "1"
+  & ".\.venv\Scripts\python.exe" tools\data_quality_audit.py --html --print-tips --no-fail-exit --lenient-symbols
+  ```
+
+  - `--no-fail-exit` garantit un code de sortie 0 même si le statut est FAIL (utile pour la CI d’observabilité).
+  - `--lenient-symbols` ignore l’uppercase strict sur `symbol` (utile avec des historiques hétérogènes).
+  - Le HTML inclut un lien vers le JSON (sidecar) si `INDICATORS_AUDIT_JSON_DEFAULT=1`.
+
 ---
 Fin du document.

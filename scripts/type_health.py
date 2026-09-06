@@ -9,6 +9,7 @@ Scans project packages to classify modules into:
 
 Outputs a concise table & guidance for next tightening steps.
 """
+
 from __future__ import annotations
 
 import tomllib
@@ -19,6 +20,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 TARGET_PACKAGES = ["pipeline/collectors", "api", "scheduler"]
+
 
 @dataclass(frozen=True)
 class ModuleStatus:

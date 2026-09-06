@@ -1,4 +1,5 @@
 """Jobs utilitaires pour opérations de maintenance (flush, etc.)."""
+
 from __future__ import annotations
 
 import logging

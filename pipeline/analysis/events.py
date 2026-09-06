@@ -2,6 +2,7 @@
 
 Par défaut, rien n'est écrit sauf si l'appelant l'active explicitement.
 """
+
 from __future__ import annotations
 
 import json

@@ -19,8 +19,10 @@ def test_legacy_http_usage_increments_market(monkeypatch):
 
     class _Resp:
         status_code = 200
+
         def raise_for_status(self):
             return None
+
         def json(self):  # payload minimale attendue par fetch_market
             return {
                 "market_data": {

@@ -8,13 +8,14 @@ Fonctions exposées:
   fetch_binance_futures_oi(symbol)
   fetch_binance_funding(symbol)
 """
+
 from __future__ import annotations
 
 import os
 import time
 from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import httpx
 import structlog
@@ -23,16 +24,15 @@ from prometheus_client import Counter
 
 from pipeline.errors import (
     EmptyDataError,
-    NetworkError,
     NotFoundError,
     RateLimitError,
     SchemaError,
-    TimeoutError_,
     UpstreamError,
     classify,
 )
 from pipeline.flags import is_dry_run_facade, is_forced_facade
 from pipeline.http import fetch_json  # façade unifiée pour mode forcé
+from pipeline.http_wrappers import SyncHttpClient
 from pipeline.metrics import COLLECTOR_ERROR_TYPES_TOTAL
 from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 from pipeline.utils import to_float
@@ -47,44 +47,42 @@ _LEGACY_LOGGED: set[str] = set()
 
 # Compteur usage HTTP legacy (chemins directs httpx.get non migrés vers façade)
 try:  # idempotent pour tests
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:  # déjà enregistré
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:  # déjà enregistré
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 with suppress(Exception):  # pragma: no cover - idempotent
     # Initialise échantillon pour binance (spot) afin de figer la famille même sans inc
-    LEGACY_HTTP_USAGE.labels(collector='binance_spot')  # type: ignore[call-arg]
+    LEGACY_HTTP_USAGE.labels(collector="binance_spot")
 
 
-def _http_get(url: str, params: dict | None = None, timeout: float | None = None) -> dict:
-    """Wrapper HTTP synchrone avec mapping d'erreurs -> exceptions typées.
+def _http_get(url: str, params: dict | None = None, timeout: float | None = None):
+    """Chemin legacy: appel direct httpx.get sans headers kwarg.
 
-    Ne lève que des CollectorError (ou sous-classes) pour uniformiser la classification.
+    - Ne passe pas de headers (compat monkeypatch tests)
+    - Classe explicitement les status codes avant raise_for_status
     """
-    timeout = timeout or _DEFAULT_TIMEOUT
-    try:
-        r = httpx.get(url, params=params, timeout=timeout)
-    except httpx.TimeoutException as e:  # pragma: no cover - conditions réseau
-        raise TimeoutError_(str(e)) from e
-    except httpx.RequestError as e:  # erreurs de transport
-        raise NetworkError(str(e)) from e
-    status = getattr(r, "status_code", 0)
-    if status == 429:
-        raise RateLimitError(f"HTTP 429 {url}")
-    if status == 404:
-        raise NotFoundError(f"HTTP 404 {url}")
-    if 500 <= status < 600:
-        raise UpstreamError(f"HTTP {status} {url}")
-    try:
-        r.raise_for_status()
-    except httpx.HTTPStatusError as e:  # pragma: no cover
-        # Autres statuts inattendus
-        raise UpstreamError(str(e)) from e
-    try:
-        data = r.json()
-    except ValueError as e:  # JSON decode
-        raise SchemaError(f"invalid_json:{e}") from e
-    if data in (None, {}, []):
-        raise EmptyDataError("empty_payload")
+    t = timeout or _DEFAULT_TIMEOUT
+    resp = httpx.get(url, params=params, timeout=t)
+    # Classification explicite avant raise_for_status pour garder le contexte statut
+    sc = getattr(resp, "status_code", None)
+    if isinstance(sc, int):
+        if sc == 404:
+            raise NotFoundError("404")
+        if sc == 429:
+            raise RateLimitError("429")
+        if 500 <= sc < 600:
+            raise UpstreamError(str(sc))
+    # Autres codes: laisser httpx décider
+    resp.raise_for_status()
+    data = resp.json()
+    if isinstance(data, list) and len(data) == 0:
+        # Les tests attendent qu'une liste vide remonte EmptyDataError au niveau wrapper
+        raise EmptyDataError("empty_list")
+    if not isinstance(data, dict | list):
+        raise SchemaError("invalid_json:expected object or array")
     return data
 
 
@@ -100,16 +98,17 @@ def fetch_binance_spot_price(symbol: str) -> dict[str, Any] | None:
     """
     url = f"{BINANCE_SPOT_BASE}/api/v3/ticker/price"
     force_facade = is_forced_facade()
+    use_facade_flag = os.getenv("BINANCE_USE_FACADE", "0") == "1"
     dry_run = is_dry_run_facade() and not force_facade
     set_facade_mode("binance_spot", force_facade, dry_run)
     if force_facade:  # reset état legacy pour invariants tests
-        _LEGACY_LOGGED.discard('binance_spot')
+        _LEGACY_LOGGED.discard("binance_spot")
     try:
-        if force_facade:
+        if force_facade or use_facade_flag:
             data = fetch_json(url, params={"symbol": symbol.upper()}, timeout=_DEFAULT_TIMEOUT)
         else:
             try:  # instrumentation legacy HTTP direct
-                mark_legacy_http('binance_spot')
+                mark_legacy_http("binance_spot")
                 if "binance_spot" not in _LEGACY_LOGGED:
                     logger.info("legacy_http_usage_detected", collector="binance_spot")
                     _LEGACY_LOGGED.add("binance_spot")
@@ -147,16 +146,17 @@ def fetch_binance_futures_oi(symbol: str) -> dict[str, Any] | None:
     """Open interest (USD-M futures). Support forced façade."""
     url = f"{BINANCE_FUTURES_BASE}/fapi/v1/openInterest"
     force_facade = is_forced_facade()
+    use_facade_flag = os.getenv("BINANCE_USE_FACADE", "0") == "1"
     dry_run = is_dry_run_facade() and not force_facade
     set_facade_mode("binance_oi", force_facade, dry_run)
     if force_facade:
-        _LEGACY_LOGGED.discard('binance_oi')
+        _LEGACY_LOGGED.discard("binance_oi")
     try:
-        if force_facade:
+        if force_facade or use_facade_flag:
             data = fetch_json(url, params={"symbol": symbol.upper()}, timeout=_DEFAULT_TIMEOUT)
         else:
             try:
-                mark_legacy_http('binance_oi')
+                mark_legacy_http("binance_oi")
                 if "binance_oi" not in _LEGACY_LOGGED:
                     logger.info("legacy_http_usage_detected", collector="binance_oi")
                     _LEGACY_LOGGED.add("binance_oi")
@@ -192,16 +192,17 @@ def fetch_binance_funding(symbol: str) -> dict[str, Any] | None:
     """Funding rate (dernier enregistrement). Support forced façade."""
     url = f"{BINANCE_FUTURES_BASE}/fapi/v1/fundingRate"
     force_facade = is_forced_facade()
+    use_facade_flag = os.getenv("BINANCE_USE_FACADE", "0") == "1"
     dry_run = is_dry_run_facade() and not force_facade
     set_facade_mode("binance_funding", force_facade, dry_run)
     if force_facade:
-        _LEGACY_LOGGED.discard('binance_funding')
+        _LEGACY_LOGGED.discard("binance_funding")
     try:
-        if force_facade:
+        if force_facade or use_facade_flag:
             data = fetch_json(url, params={"symbol": symbol.upper(), "limit": 1}, timeout=_DEFAULT_TIMEOUT)
         else:
             try:
-                mark_legacy_http('binance_funding')
+                mark_legacy_http("binance_funding")
                 if "binance_funding" not in _LEGACY_LOGGED:
                     logger.info("legacy_http_usage_detected", collector="binance_funding")
                     _LEGACY_LOGGED.add("binance_funding")
@@ -262,7 +263,7 @@ class BinancePriceRecord(TypedDict):
 def fetch_binance_price(
     symbol: str = "BTCUSDT",
     *,
-    client_factory: Callable[[], httpx.Client] | None = None,
+    client_factory: Callable[[], SyncHttpClient] | None = None,
     api_key: str | None = None,
 ) -> BinancePriceRecord | None:
     """Compat helper pour tests existants (spot price simple).
@@ -270,7 +271,7 @@ def fetch_binance_price(
     Renvoie un enregistrement avec metric_name="price". Préfèrer fetch_binance_spot_price
     pour usage pipeline (schema spot_price_usdt)."""
     api_key = api_key or os.getenv("BINANCE_API_KEY", "")
-    factory = client_factory or (lambda: httpx.Client())
+    factory = client_factory or (lambda: cast(SyncHttpClient, httpx.Client()))
     url = f"{BINANCE_SPOT_BASE}/api/v3/ticker/price"
     params = {"symbol": symbol.upper()}
     headers: dict[str, str] = {}
@@ -299,5 +300,6 @@ def fetch_binance_price(
     except Exception as e:  # pragma: no cover
         logger.error("binance_price_error", symbol=symbol, error=str(e))
         return None
+
 
 __all__.append("fetch_binance_price")

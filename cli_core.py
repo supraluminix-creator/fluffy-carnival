@@ -7,6 +7,7 @@ Examples (PowerShell):
   # Mock run (no network), generates example outputs in exports/ and examples/
   python cli_core.py run --mock
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,6 +30,7 @@ async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = Fa
     results: list[dict[str, Any]] = []
     try:
         from pipeline.collectors.market import fetch_macro
+
         res = await fetch_macro(symbol, cmc_api_key=None)
         if isinstance(res, dict) and res:
             results.append(res)
@@ -36,6 +38,7 @@ async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = Fa
         print("collect_public: market.fetch_macro failed:", e)
     try:
         from pipeline.collectors.sentiment import fetch_fear_greed
+
         res = await fetch_fear_greed()
         if isinstance(res, dict) and res:
             results.append(res)
@@ -47,6 +50,7 @@ async def collect_public(symbol: str = "bitcoin", include_derivatives: bool = Fa
                 fetch_bybit_long_short_ratio,
                 fetch_bybit_oi,
             )
+
             oi = await fetch_bybit_oi("BTCUSDT")
             if isinstance(oi, dict) and oi:
                 results.append(oi)
@@ -85,9 +89,7 @@ def make_mock_records(symbol: str = "bitcoin") -> list[dict[str, Any]]:
 
 def write_examples(rows: list[dict[str, Any]]) -> None:
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
-    (EXAMPLES_DIR / "sample_export.json").write_text(
-        json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    (EXAMPLES_DIR / "sample_export.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 async def main_async(args: argparse.Namespace) -> int:
@@ -114,18 +116,24 @@ async def main_async(args: argparse.Namespace) -> int:
             "ENABLE_MACRO_INDICES": os.getenv("ENABLE_MACRO_INDICES", "0"),
             "HTTP_THROTTLE_PER_MIN_DEFAULT": os.getenv("HTTP_THROTTLE_PER_MIN_DEFAULT", "0"),
         }
+
         # Check presence of optional API keys (masked)
         def mask(v: str | None) -> str:
             if not v:
                 return ""
             return (v[:3] + "…" + v[-2:]) if len(v) > 6 else "***"
+
         keys = {
             "CMC_API_KEY": mask(os.getenv("CMC_API_KEY")),
             "COINMARKETCAP_API_KEY": mask(os.getenv("COINMARKETCAP_API_KEY")),
             "ETHERSCAN_API_KEY": mask(os.getenv("ETHERSCAN_API_KEY")),
             "BGEOMETRICS_API_KEY": mask(os.getenv("BGEOMETRICS_API_KEY")),
         }
-        print(json.dumps({"env": info, "keys": keys, "collectors": ["macro", "fear_greed", "bybit_oi", "bybit_lsr"]}, indent=2))
+        print(
+            json.dumps(
+                {"env": info, "keys": keys, "collectors": ["macro", "fear_greed", "bybit_oi", "bybit_lsr"]}, indent=2
+            )
+        )
         return 0
     return 1
 

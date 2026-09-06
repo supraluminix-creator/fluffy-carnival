@@ -9,12 +9,7 @@ from pipeline.api import app
 
 
 def _now_run_id():
-    return (
-        datetime.now(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def test_post_report_requires_api_key(monkeypatch):

@@ -10,6 +10,7 @@ Variables d'environnement:
   ANALYSIS_ONLY_ON_SIGNALS=1   # ne persister analyse que s'il y a des signaux
   ANALYSIS_EMIT_SIGNALS=1      # exporter signals_latest.json + signals.jsonl
 """
+
 from __future__ import annotations
 
 import asyncio

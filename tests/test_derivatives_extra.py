@@ -42,10 +42,12 @@ class DummyAsyncClient:
 async def test_derivatives_fallback_double_failure(monkeypatch):
     # Bybit path raises, then Binance path raises -> return None
     def factory(*a, **k):
-        return DummyAsyncClient([
-            Exception("bybit fail"),
-            Exception("binance fail"),
-        ])
+        return DummyAsyncClient(
+            [
+                Exception("bybit fail"),
+                Exception("binance fail"),
+            ]
+        )
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
     res = await deriv_mod.fetch_bybit_oi("XFAILUSDT", cache_ttl=1)
@@ -56,6 +58,7 @@ async def test_derivatives_fallback_double_failure(monkeypatch):
 async def test_derivatives_lsr_cache_hit(monkeypatch):
     # Reset breaker state to avoid contamination from previous tests
     from pipeline import circuit_breaker
+
     circuit_breaker.reset()
     # First call returns data, second call should hit cache and not invoke client again
     lsr_payload = {"result": {"list": [{"timestamp": 1700, "buyRatio": "0.6", "sellRatio": "0.4"}]}}

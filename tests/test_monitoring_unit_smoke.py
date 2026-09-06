@@ -19,7 +19,8 @@ def test_start_metrics_server_unused_port():
     # Trouve un port libre
     s = socket.socket()
     try:
-        s.bind(("", 0))
+        # Binder sur l'interface loopback pour éviter 0.0.0.0
+        s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     finally:
         s.close()

@@ -35,7 +35,7 @@ import json
 import os
 import signal
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import Any, Protocol
 
 import structlog
@@ -43,21 +43,22 @@ import websockets
 from prometheus_client import Counter, Summary, start_http_server
 
 from pipeline.collectors.bybit_liquidations import BybitLiquidationsWriter
-
-# ---------------------------------------------------------
-# LOGGING (centralisé)
-# ---------------------------------------------------------
 from pipeline.logging_config import setup_logging  # import tardif pour éviter cycles
+from pipeline.storage.sqlite_adapter import ensure_db_parent, get_default_db_path
 
 setup_logging(simple=True)
 logger = structlog.get_logger("bybit_ws")
 
 # Prometheus metrics
-BYBIT_WS_CONNECTIONS = Counter('bybit_ws_connections_total', 'Total WS connections')
-BYBIT_WS_ERRORS = Counter('bybit_ws_errors_total', 'Total WS errors')
-BYBIT_WS_EVENTS = Counter('bybit_ws_events_total', 'Total liquidation events received', ['symbol'])
-BYBIT_WS_LATENCY = Summary('bybit_ws_latency_seconds', 'WS message handling latency')
-BYBIT_WS_PARSE_ERRORS = Counter('bybit_ws_parse_errors_total', 'Total parse / JSON errors in WS stream')
+BYBIT_WS_CONNECTIONS = Counter("bybit_ws_connections_total", "Total WS connections")
+BYBIT_WS_ERRORS = Counter("bybit_ws_errors_total", "Total WS errors")
+BYBIT_WS_EVENTS = Counter("bybit_ws_events_total", "Total liquidation events received", ["symbol"])
+BYBIT_WS_LATENCY = Summary("bybit_ws_latency_seconds", "WS message handling latency")
+BYBIT_WS_PARSE_ERRORS = Counter("bybit_ws_parse_errors_total", "Total parse / JSON errors in WS stream")
+BYBIT_WS_WRITE_ERRORS = Counter(
+    "bybit_ws_writer_errors_total",
+    "Total writer errors while persisting WS liquidation events",
+)
 
 
 # ---------------------------------------------------------
@@ -65,6 +66,7 @@ BYBIT_WS_PARSE_ERRORS = Counter('bybit_ws_parse_errors_total', 'Total parse / JS
 # ---------------------------------------------------------
 class _WriterProtocol(Protocol):
     async def write_record(self, record: dict[str, Any]) -> None: ...  # pragma: no cover
+    async def flush(self) -> int: ...  # pragma: no cover
     def close(self) -> None: ...  # pragma: no cover
 
 
@@ -77,19 +79,37 @@ class BybitWSService:
         writer: Object with async write_record(dict) method (e.g., BybitLiquidationsWriter)
         ws_url (str): Optional custom WS endpoint
     """
-    def __init__(self, symbols: list[str], ws_url: str | None = None, db_path: str = "data/crypto.db",
-                 parquet_dir: str = "data/bybit_liquidations", flush_size: int = 100,
-                 flush_interval: int = 5, subscribe_tpl: str = "liquidation.{}",
-                 health_port: int | None = None):
+
+    def __init__(
+        self,
+        symbols: list[str],
+        ws_url: str | None = None,
+        db_path: str | None = None,
+        parquet_dir: str = "data/bybit_liquidations",
+        flush_size: int = 100,
+        flush_interval: int = 5,
+        subscribe_tpl: str = "liquidation.{}",
+        health_port: int | None = None,
+        max_reconnect_delay: int = 60,
+        ping_interval: float = 20.0,
+        ping_timeout: float = 10.0,
+        stale_after: int | None = 600,
+    ):
         self.symbols: list[str] = symbols
+        resolved_db_path = db_path or get_default_db_path()
         self.ws_url: str = ws_url or self._auto_detect_url(symbols)
         self.subscribe_tpl: str = subscribe_tpl
+        self.flush_interval: int = max(0, int(flush_interval))
+        self._max_reconnect_delay: int = max(1, int(max_reconnect_delay))
+        self._ping_interval: float | None = float(ping_interval) if ping_interval > 0 else None
+        self._ping_timeout: float | None = float(ping_timeout) if ping_timeout > 0 else None
+        self._stale_after: float | None = float(stale_after) if stale_after and stale_after > 0 else None
 
         os.makedirs(parquet_dir, exist_ok=True)
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        ensure_db_parent(resolved_db_path)
 
         self.writer: _WriterProtocol = BybitLiquidationsWriter(
-            db=db_path,
+            db=resolved_db_path,
             parquet_dir=parquet_dir,
             flush_size=flush_size,
             flush_interval=flush_interval,
@@ -97,6 +117,7 @@ class BybitWSService:
         # Enregistre le writer dans un registre global pour permettre un job de flush périodique.
         try:  # pragma: no cover - simple instrumentation
             from pipeline.liquidations_registry import set_writer
+
             set_writer(self.writer)
         except Exception:  # pragma: no cover - défense
             logger.warning("Impossible d'enregistrer le writer dans le registre global", exc_info=True)
@@ -106,7 +127,88 @@ class BybitWSService:
         self.stop_event: asyncio.Event = asyncio.Event()
         self._reconnect_delay: int = 1
         self.health_port: int | None = health_port
-        logger.info("BybitWSService created", symbols=symbols, ws_url=self.ws_url, health_port=self.health_port)
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._last_event_at: float | None = None
+        logger.info(
+            "BybitWSService created",
+            symbols=symbols,
+            ws_url=self.ws_url,
+            health_port=self.health_port,
+            db_path=resolved_db_path,
+        )
+
+    def _register_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(lambda t: self._background_tasks.discard(t))
+        return task
+
+    async def _cancel_background_tasks(self) -> None:
+        tasks = list(self._background_tasks)
+        self._background_tasks.clear()
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    async def _flush_writer(self) -> None:
+        try:
+            await self.writer.flush()
+        except Exception:
+            BYBIT_WS_WRITE_ERRORS.inc()
+            logger.warning("WS writer flush failed", exc_info=True)
+
+    async def _flush_loop(self) -> None:
+        if self.flush_interval <= 0:
+            return
+        try:
+            while not self.stop_event.is_set():
+                await asyncio.sleep(self.flush_interval)
+                await self._flush_writer()
+        except asyncio.CancelledError:
+            raise
+
+    async def _stale_monitor_loop(self) -> None:
+        if self._stale_after is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        sleep_for = max(5.0, min(self._stale_after / 2, 60.0))
+        try:
+            while not self.stop_event.is_set():
+                await asyncio.sleep(sleep_for)
+                last = self._last_event_at
+                if last is None:
+                    continue
+                idle = loop.time() - last
+                if idle >= self._stale_after:
+                    logger.warning(
+                        "WS stream idle beyond threshold",
+                        idle_seconds=round(idle, 1),
+                        threshold=self._stale_after,
+                    )
+                    if self.ws is not None:
+                        with contextlib.suppress(Exception):
+                            await self.ws.close(code=4000, reason="stale stream")
+                    self._last_event_at = loop.time()
+        except asyncio.CancelledError:
+            raise
+
+    async def _write_event(self, payload: dict[str, Any], symbol: str) -> None:
+        try:
+            await self.writer.write_record(payload)
+        except Exception:
+            BYBIT_WS_WRITE_ERRORS.inc()
+            logger.warning(
+                "WS writer write failed",
+                symbol=symbol,
+                side=payload.get("side"),
+                size=payload.get("size") or payload.get("qty"),
+                exc_info=True,
+            )
 
     def _auto_detect_url(self, symbols: list[str]) -> str:
         """
@@ -118,18 +220,28 @@ class BybitWSService:
         return "wss://stream.bybit.com/v5/public/linear"
 
     async def connect(self) -> None:
-        """
-        Connect to Bybit WS, subscribe to liquidation topics, handle messages.
-        Auto-reconnects on error with exponential backoff. Metrics and logs instrumented.
-        """
+        """Establish the WebSocket connection and stream liquidation messages."""
+        if self.stop_event.is_set():
+            return
+
         logger.info("Connecting to Bybit WS", ws_url=self.ws_url)
+        connect_kwargs: dict[str, Any] = {}
+        if self._ping_interval is not None:
+            connect_kwargs["ping_interval"] = self._ping_interval
+        if self._ping_timeout is not None:
+            connect_kwargs["ping_timeout"] = self._ping_timeout
+
         try:
-            async with websockets.connect(self.ws_url) as ws:
+            async with websockets.connect(self.ws_url, **connect_kwargs) as ws:
                 self.ws = ws
                 BYBIT_WS_CONNECTIONS.inc()
-                logger.info("WS connected", ws_url=self.ws_url)
+                logger.info("WS connected", ws_url=self.ws_url, ping_interval=self._ping_interval)
+                try:
+                    loop = asyncio.get_running_loop()
+                    self._last_event_at = loop.time()
+                except RuntimeError:
+                    self._last_event_at = None
 
-                # subscribe
                 subs = [self.subscribe_tpl.format(sym) for sym in self.symbols]
                 await ws.send(json.dumps({"op": "subscribe", "args": subs}))
                 logger.info("WS subscribed", subs=subs)
@@ -137,20 +249,27 @@ class BybitWSService:
                 self._reconnect_delay = 1
 
                 async for msg in ws:
+                    if self.stop_event.is_set():
+                        logger.info("Stop requested, leaving WS receive loop")
+                        break
                     with BYBIT_WS_LATENCY.time():
                         await self._handle_message(msg)
 
         except asyncio.CancelledError:
             logger.info("WS connection cancelled")
             raise
-        except Exception as e:
+        except Exception as exc:  # pragma: no cover - defensive
             BYBIT_WS_ERRORS.inc()
-            logger.warning("WS error", error=str(e), exc_info=True)
-            logger.info("Reconnecting", delay=self._reconnect_delay)
-            await asyncio.sleep(self._reconnect_delay)
-            self._reconnect_delay = min(self._reconnect_delay * 2, 60)
-            if not self.stop_event.is_set():
-                await self.connect()
+            logger.warning("WS error", error=str(exc), exc_info=True)
+        finally:
+            self.ws = None
+
+        if self.stop_event.is_set():
+            return
+
+        logger.info("Reconnecting", delay=self._reconnect_delay)
+        await asyncio.sleep(self._reconnect_delay)
+        self._reconnect_delay = min(self._reconnect_delay * 2, self._max_reconnect_delay)
 
     async def _handle_message(self, raw_msg: object) -> None:
         if isinstance(raw_msg, bytes):  # decode best-effort
@@ -160,11 +279,7 @@ class BybitWSService:
                 return
         if not isinstance(raw_msg, str):
             return
-        print(f"[COLLECTOR] Received raw message: {raw_msg}")
-        """
-        Parse and process a single WS message. Handles both single and batch events.
-        Increments Prometheus metrics and calls writer.write_record for each event.
-        """
+        """Parse and process a single WebSocket message."""
         try:
             msg = json.loads(raw_msg)
         except json.JSONDecodeError:
@@ -172,19 +287,52 @@ class BybitWSService:
             logger.warning("Invalid JSON", raw=raw_msg)
             return
 
-        if "topic" in msg and "data" in msg:
-            topic = msg["topic"]
-            data = msg["data"]
+        if isinstance(msg, dict):
+            op = msg.get("op")
+            if op == "subscribe" and msg.get("success") is True:
+                logger.info("WS subscription confirmed", args=msg.get("args"), request_id=msg.get("req_id"))
+                return
+            if op in {"ping", "pong"}:
+                logger.debug("WS control message", op=op)
+                return
 
-            if topic.startswith("liquidation."):
-                symbol = topic.split(".")[-1]
-                if isinstance(data, dict):
-                    BYBIT_WS_EVENTS.labels(symbol=symbol).inc()
-                    await self.writer.write_record(data)
-                elif isinstance(data, list):
-                    BYBIT_WS_EVENTS.labels(symbol=symbol).inc(len(data))
-                    for d in data:
-                        await self.writer.write_record(d)
+        if not isinstance(msg, dict) or "topic" not in msg or "data" not in msg:
+            logger.debug("WS message skipped", payload=msg)
+            return
+
+        topic = msg["topic"]
+        data = msg["data"]
+        if not isinstance(topic, str):
+            logger.debug("WS message topic invalid", topic=topic)
+            return
+
+        if not topic.startswith("liquidation."):
+            logger.debug("WS message ignored", topic=topic)
+            return
+
+        symbol = topic.split(".")[-1]
+        processed = 0
+
+        if isinstance(data, dict):
+            await self._write_event(data, symbol)
+            processed = 1
+        elif isinstance(data, list):
+            for entry in data:
+                if isinstance(entry, dict):
+                    await self._write_event(entry, symbol)
+                    processed += 1
+        else:
+            logger.debug("WS message data has unexpected shape", symbol=symbol, data_type=type(data).__name__)
+            return
+
+        if processed > 0:
+            BYBIT_WS_EVENTS.labels(symbol=symbol).inc(processed)
+            logger.debug("WS liquidation batch processed", symbol=symbol, events=processed)
+            try:
+                loop = asyncio.get_running_loop()
+                self._last_event_at = loop.time()
+            except RuntimeError:
+                self._last_event_at = None
 
     async def run(self) -> None:
         """
@@ -205,6 +353,14 @@ class BybitWSService:
         else:
             print("[DEBUG] Skipping signal handler registration (platform limitation)")
 
+        # Start background helpers
+        flush_task = None
+        stale_task = None
+        if self.flush_interval > 0:
+            flush_task = self._register_task(self._flush_loop())
+        if self._stale_after is not None:
+            stale_task = self._register_task(self._stale_monitor_loop())
+
         # Start health endpoint if requested
         health_task: asyncio.Task | None = None
         if self.health_port:
@@ -223,6 +379,8 @@ class BybitWSService:
         if health_task:
             with contextlib.suppress(Exception):
                 health_task.cancel()
+        if flush_task or stale_task:
+            await self._cancel_background_tasks()
         logger.info("BybitWSService stopped")
 
     async def stop(self) -> None:
@@ -233,6 +391,7 @@ class BybitWSService:
         self.stop_event.set()
         if self.ws:
             import contextlib
+
             with contextlib.suppress(Exception):
                 await self.ws.close()
         if hasattr(self.writer, "close"):
@@ -245,6 +404,7 @@ class BybitWSService:
         """
         try:
             import importlib
+
             web = importlib.import_module("aiohttp.web")
         except Exception:
             # Fallback: no health server if aiohttp not installed
@@ -260,10 +420,10 @@ class BybitWSService:
             return web.json_response(payload)
 
         app = web.Application()
-        app.add_routes([web.get('/health', handle_health)])
+        app.add_routes([web.get("/health", handle_health)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', port)
+        site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         try:
             while not self.stop_event.is_set():
@@ -321,6 +481,7 @@ class BybitWSCollector:
                 while self._running:
                     msg = await ws.recv()
                     import contextlib
+
                     with contextlib.suppress(Exception):
                         self.on_message(msg)
         except asyncio.CancelledError:
@@ -350,10 +511,16 @@ def main() -> int:
     """
     print("[DEBUG] Entered main()")
     parser = argparse.ArgumentParser(description="Bybit WebSocket Liquidations Collector")
-    parser.add_argument("-s", "--symbols", required=True,
-                        help="Liste des symboles séparés par des virgules (ex: BTCUSDT,ETHUSDT)")
+    parser.add_argument(
+        "-s", "--symbols", required=True, help="Liste des symboles séparés par des virgules (ex: BTCUSDT,ETHUSDT)"
+    )
     parser.add_argument("--ws-url", help="Endpoint WS Bybit (défaut auto spot/linear)")
-    parser.add_argument("--db", dest="db_path", default="data/crypto.db", help="Fichier SQLite")
+    parser.add_argument(
+        "--db",
+        dest="db_path",
+        default=get_default_db_path(),
+        help="Fichier SQLite",
+    )
     parser.add_argument("--parquet-dir", default="data/bybit_liquidations", help="Dossier Parquet")
     parser.add_argument("--flush-size", type=int, default=100, help="Flush après N enregistrements")
     parser.add_argument("--flush-interval", type=int, default=5, help="Flush après N secondes")
@@ -388,6 +555,7 @@ def main() -> int:
     except KeyboardInterrupt:
         logger.info("Interrupted; stopping service")
         import contextlib
+
         with contextlib.suppress(Exception):
             asyncio.run(svc.stop())
         return 0

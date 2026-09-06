@@ -18,6 +18,7 @@ remaining resilient to extra keys (non-total).
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import suppress
 from typing import TypedDict, cast
 
@@ -34,11 +35,14 @@ from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 # Compteur legacy (idempotent) partagé
 try:  # pragma: no cover - idempotent
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:  # déjà défini
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:  # déjà défini
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 with suppress(Exception):  # pragma: no cover - pré-initialise sample
-    LEGACY_HTTP_USAGE.labels(collector='onchain_hashrate')  # type: ignore[call-arg]
+    LEGACY_HTTP_USAGE.labels(collector="onchain_hashrate")  # type: ignore[call-arg]
 _LEGACY_LOGGED = False
 
 
@@ -88,20 +92,23 @@ class HashrateCollector:
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
         with suppress(Exception):  # pragma: no cover
-            set_facade_mode('onchain_hashrate', force_facade, dry_run)
+            set_facade_mode("onchain_hashrate", force_facade, dry_run)
         params = {"timespan": "1days", "format": "json"}
         try:
-            if force_facade:
-                # utilisation façade (retry centralisé)
-                raw = await async_fetch_json(self.BASE_URL, params=params, timeout=10)
+            retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+            if retry_enabled or force_facade:
+                # utilisation façade (retry centralisé) avec client fourni (pooling/compat tests)
+                async with httpx.AsyncClient(timeout=10) as client:
+                    raw = await async_fetch_json(self.BASE_URL, params=params, timeout=10, client=client)
             else:
                 async with httpx.AsyncClient(timeout=10) as client:
                     try:
-                        mark_legacy_http('onchain_hashrate')
+                        mark_legacy_http("onchain_hashrate")
                         global _LEGACY_LOGGED
                         if not _LEGACY_LOGGED:
                             import structlog
-                            structlog.get_logger().info('legacy_http_usage_detected', collector='onchain_hashrate')
+
+                            structlog.get_logger().info("legacy_http_usage_detected", collector="onchain_hashrate")
                             _LEGACY_LOGGED = True
                     except Exception:  # pragma: no cover
                         pass
@@ -112,7 +119,7 @@ class HashrateCollector:
             if force_facade:
                 # Pas de repli legacy en mode forced pour cohérence métriques
                 with suppress(Exception):  # leak gauge set si on détecte tentative legacy (ici on ne tente pas)
-                    FACADE_FORCED_LEAK.labels(collector='onchain_hashrate').set(0)  # type: ignore[attr-defined]
+                    FACADE_FORCED_LEAK.labels(collector="onchain_hashrate").set(0)  # type: ignore[attr-defined]
                 return None
             return None
 
@@ -133,7 +140,7 @@ class HashrateCollector:
         force_facade = is_forced_facade()
         dry_run = is_dry_run_facade() and not force_facade
         with suppress(Exception):  # pragma: no cover
-            set_facade_mode('onchain_hashrate', force_facade, dry_run)
+            set_facade_mode("onchain_hashrate", force_facade, dry_run)
         try:
             return asyncio.run(self.fetch_hashrate_async(symbol))
         except Exception:

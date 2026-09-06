@@ -44,6 +44,11 @@ jobs:
     every: 1h
     func: pipeline.collectors.sentiment:fetch_fear_greed
     enabled: true
+  - id: rumour_sentiment
+    every: 15m
+    func: pipeline.collectors.rumour_collector:fetch_rumour_trending
+    enabled: true
+    # Keywords/limit configurables via RUMOUR_KEYWORDS et RUMOUR_COLLECTOR_LIMIT
   - id: export_batch
     every: 5m
     func: pipeline.export_job:perform_export_batch
@@ -55,4 +60,16 @@ jobs:
     func: pipeline.flush_jobs:flush_bybit_liquidations
     enabled: true
     # Flush opportuniste du buffer WS (si même process). Sans effet sinon.
+
+  - id: insider_whale_eth
+    every: 10m
+    func: pipeline.collectors.whales:fetch_eth_whale_balances
+    enabled: false
+    # Activer via ENABLE_WHALE_BALANCES=1 et config ETHERSCAN_ADDRESSES
+
+  - id: insider_whale_hl
+    every: 10m
+    func: pipeline.collectors.whale_insider:fetch_whale_insider_snapshot
+    enabled: false
+    # Combine Hyperliquid + Etherscan watchlists (configurer HYPERLIQUID_WATCHLIST)
 

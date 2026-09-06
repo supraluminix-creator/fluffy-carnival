@@ -9,8 +9,10 @@ from pipeline.collectors import market as market_mod
 async def test_defillama_cache_metrics(monkeypatch):
     async def fake_chain(chain: str):
         return {"name": chain, "tvl": 100}
+
     async def fake_hist(chain: str):
         return [[1, 50]]
+
     monkeypatch.setattr(defillama_mod, "get_chain_data", fake_chain)
     monkeypatch.setattr(defillama_mod, "get_historical_chain_data", fake_hist)
     key = "defillama_eth"
@@ -33,10 +35,12 @@ def test_market_cache_metrics(monkeypatch):
         }
     }
     calls: list[str] = []
+
     def fake_get(url: str, timeout: int = 10):  # noqa: D401
         calls.append(url)
         return type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: payload})()
-    monkeypatch.setattr(httpx, 'get', fake_get)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
     key = "market_cacheasset"
     if key in market_mod.cache:
         del market_mod.cache[key]

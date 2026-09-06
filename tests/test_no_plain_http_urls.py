@@ -57,6 +57,6 @@ def test_no_literal_http_urls_in_pipeline():
                 offenders.append((str(py), s))
 
     assert not offenders, (
-        "Literal 'http://' URLs detected in pipeline code (use https or build URL dynamically).\n" +
-        "\n".join(f"{p}: {val!r}" for p, val in offenders)
+        "Literal 'http://' URLs detected in pipeline code (use https or build URL dynamically).\n"
+        + "\n".join(f"{p}: {val!r}" for p, val in offenders)
     )

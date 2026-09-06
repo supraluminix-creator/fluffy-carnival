@@ -4,6 +4,7 @@ Ce module est conservé uniquement pour compatibilité d'anciens imports
 (`from pipeline import db_metrics`). Utiliser désormais `pipeline.db_stats`.
 Il ré-exporte les fonctions publiques et émet un avertissement de dépréciation.
 """
+
 from __future__ import annotations
 
 import warnings

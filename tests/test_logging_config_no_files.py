@@ -11,4 +11,4 @@ def test_logging_config_no_file_handlers(monkeypatch):
     logger.info("evt")
     assert len(logging.getLogger().handlers) == 1
     # vérifier qu'aucun handler fichier
-    assert not any(hasattr(h, 'baseFilename') for h in logging.getLogger().handlers)
+    assert not any(hasattr(h, "baseFilename") for h in logging.getLogger().handlers)

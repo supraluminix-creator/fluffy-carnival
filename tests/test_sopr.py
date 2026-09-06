@@ -9,10 +9,13 @@ from pipeline.collectors.sopr import SOPRSource, fetch_sopr
 class DummyResp:
     def __init__(self, payload: dict[str, Any]):
         self._payload = payload
+
     def raise_for_status(self) -> None:  # pragma: no cover
         return
+
     def json(self) -> dict[str, Any]:
         return self._payload
+
 
 @pytest.mark.parametrize(
     "source,payload,expect_none",
@@ -31,6 +34,7 @@ def test_fetch_sopr(monkeypatch, source: SOPRSource, payload: dict[str, Any], ex
         timeout: int = 10,
     ):  # noqa: D401
         return DummyResp(payload)
+
     monkeypatch.setattr(requests, "get", fake_get)
     rec = fetch_sopr(symbol="BTC", source=source, api_key=None)
     if expect_none:

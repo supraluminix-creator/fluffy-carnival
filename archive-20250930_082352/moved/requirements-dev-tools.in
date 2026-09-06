@@ -1,4 +1,0 @@
-# Dépendances optionnelles pour les outils de développement (non requises en production)
-# Installez-les uniquement si vous utilisez l'UI Streamlit ou des utilitaires locaux.
-
-streamlit==1.38.0

@@ -16,9 +16,9 @@ class _DummyCollector(BaseCollector):
 
 def _get_metric_value(collector_name: str):
     for metric in REGISTRY.collect():  # brute force acceptable test scope
-        if metric.name == 'collector_last_success_timestamp':
+        if metric.name == "collector_last_success_timestamp":
             for sample in metric.samples:
-                if sample.labels.get('collector') == collector_name:
+                if sample.labels.get("collector") == collector_name:
                     return sample.value
     return None
 

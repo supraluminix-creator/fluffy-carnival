@@ -11,6 +11,7 @@ Notes:
    retournent None proprement (prod-safe).
  - TTL courte configurable. Rate limiting via helper local.
 """
+
 from __future__ import annotations
 
 import os
@@ -22,12 +23,13 @@ import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
 
+from pipeline.http import async_fetch_json
 from pipeline.instrumentation import instrument_collector
 from pipeline.metrics import FALLBACK_INVOCATIONS_TOTAL
 from pipeline.rate_limit import build_rate_limiter_from_env
 
 log = structlog.get_logger()
-cache: Cache = Cache('.cache')
+cache: Cache = Cache(".cache")
 
 
 class MacroIndexRecord(TypedDict):
@@ -39,9 +41,9 @@ class MacroIndexRecord(TypedDict):
     confidence_score: float
 
 
-MACROIDX_LATENCY = Summary('macroidx_latency_seconds', 'Latency macro indices')
-MACROIDX_SUCCESS = Counter('macroidx_success_total', 'Macro indices successes')
-MACROIDX_ERRORS = Counter('macroidx_errors_total', 'Macro indices errors')
+MACROIDX_LATENCY = Summary("macroidx_latency_seconds", "Latency macro indices")
+MACROIDX_SUCCESS = Counter("macroidx_success_total", "Macro indices successes")
+MACROIDX_ERRORS = Counter("macroidx_errors_total", "Macro indices errors")
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,7 @@ async def _fetch_twelvedata(symbol: str) -> tuple[int | None, float] | None:
     if not allowed:
         # attendre poliment un court instant pour respecter le quota
         import asyncio
+
         sleep_for = min(max(1, wait), 8)
         log.warning("macroidx_rate_limited_wait", provider="twelvedata", retry_after=wait, sleep_for=sleep_for)
         await asyncio.sleep(sleep_for)
@@ -92,19 +95,21 @@ async def _fetch_twelvedata(symbol: str) -> tuple[int | None, float] | None:
         "apikey": api_key,
     }
     async with httpx.AsyncClient() as client:
-        resp = await client.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        # Prefer unified facade even when retry flag is off, for consistent error mapping
+        data = await async_fetch_json(url, params=params, timeout=10, client=client)
         # Twelve Data shape: {"values": [{"datetime": "2025-09-27 20:29:00", "close": "..."}], "status":"ok"}
         values = data.get("values") if isinstance(data, dict) else None
         if isinstance(values, list) and values:
             last = values[0]
             last.get("datetime")
             close_raw = last.get("close")
-            try:
-                close = float(close_raw)
-            except Exception:
+            if close_raw is None:
                 close = 0.0
+            else:
+                try:
+                    close = float(str(close_raw))
+                except Exception:
+                    close = 0.0
             # laissez timestamp None pour simplifier (ISO parsing optionnel)
             return None, close
     return None
@@ -117,25 +122,27 @@ async def _fetch_alphavantage(symbol: str) -> tuple[int | None, float] | None:
     allowed, wait = _allowed("alphavantage", limit_per_minute=25)
     if not allowed:
         import asyncio
+
         sleep_for = min(max(1, wait), 8)
         log.warning("macroidx_rate_limited_wait", provider="alphavantage", retry_after=wait, sleep_for=sleep_for)
         await asyncio.sleep(sleep_for)
     url = "https://www.alphavantage.co/query"
     params = {"function": "TIME_SERIES_DAILY", "symbol": symbol, "apikey": api_key}
     async with httpx.AsyncClient() as client:
-        resp = await client.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = await async_fetch_json(url, params=params, timeout=10, client=client)
         series = data.get("Time Series (Daily)") if isinstance(data, dict) else None
         if isinstance(series, dict) and series:
             # take last item
             last_key = sorted(series.keys())[-1]
             last = series[last_key]
             close_raw = last.get("4. close") if isinstance(last, dict) else None
-            try:
-                close = float(close_raw)
-            except Exception:
+            if close_raw is None:
                 close = 0.0
+            else:
+                try:
+                    close = float(str(close_raw))
+                except Exception:
+                    close = 0.0
             return None, close
     return None
 

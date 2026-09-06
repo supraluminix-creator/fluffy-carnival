@@ -15,7 +15,7 @@ graph TD
     A --> E[storage]
     E --> E1[sqlite_adapter.py]
     E --> E2[migrations.py]
-    A --> F[data/crypto.db]
+    A --> F[SQLite (def. data/crypto.db)]
     A --> G[exports/latest_export.csv]
     A --> G2[exports/pipeline_export_<timestamp>.csv]
     A --> H[tests]
@@ -31,4 +31,4 @@ graph TD
 - **storage/** : Adaptateur SQLite, migrations
 - **tests/** : Couverture unitaire et intégration
 - **exports/** : Fichiers CSV produits
-- **data/** : Base SQLite
+- **data/** : Base SQLite (défaut, overridable via `CRYPTO_DB_PATH`)

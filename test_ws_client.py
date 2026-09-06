@@ -22,5 +22,6 @@ async def test_client() -> None:
         except websockets.exceptions.ConnectionClosed:
             print("[TEST CLIENT] Connection closed.")
 
+
 if __name__ == "__main__":
     asyncio.run(test_client())

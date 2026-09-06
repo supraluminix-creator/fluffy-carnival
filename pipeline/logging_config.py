@@ -18,6 +18,7 @@ Variables d'environnement reconnues:
     ENABLE_FILE_LOGS (1/0, default: 1) – active fichiers
     RUN_ID (optionnel) – sinon généré
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,7 @@ from typing import Any
 
 import structlog
 import structlog.contextvars as structlog_ctx
+from structlog.typing import EventDict
 
 _CONFIGURED = False
 
@@ -45,14 +47,21 @@ def _mask_value(val: Any) -> Any:
     return "***"
 
 
-def mask_secrets_processor(logger: Any, method_name: str, event_dict: dict) -> dict:
+def mask_secrets_processor(
+    logger: Any,
+    method_name: str,
+    event_dict: EventDict,
+) -> EventDict:
     """Processor structlog qui masque valeurs sensibles.
 
     Règles:
       - Clé exacte ou contenant un nom sensible (case-insensitive)
       - Valeur str > 4 chars -> garde 2 premiers + 2 derniers
     """
-    lowered = {k.lower(): k for k in event_dict}
+    lowered: dict[str, str] = {}
+    for key in list(event_dict.keys()):
+        if isinstance(key, str):
+            lowered[key.lower()] = key
     for lk, original_key in lowered.items():
         for sk in SENSITIVE_KEYS:
             if sk in lk:
@@ -64,7 +73,11 @@ def mask_secrets_processor(logger: Any, method_name: str, event_dict: dict) -> d
     return event_dict
 
 
-def _add_event_key(logger: Any, method_name: str, event_dict: dict) -> dict:
+def _add_event_key(
+    logger: Any,
+    method_name: str,
+    event_dict: EventDict,
+) -> EventDict:
     # structlog stdlib logger already passes the original event as "event" for JSONRenderer
     # mais si l'appel fournit déjà 'event', on ne modifie pas.
     if "event" not in event_dict and "msg" in event_dict:
@@ -97,6 +110,8 @@ def setup_logging(simple: bool = False):
     console_handler.setFormatter(logging.Formatter("%(message)s"))
     handlers.append(console_handler)
 
+    run_log_path: str | None = None
+
     if not simple and os.getenv("ENABLE_FILE_LOGS", "1") == "1":
         logs_dir = os.getenv("LOGS_DIR", "logs")
         os.makedirs(logs_dir, exist_ok=True)
@@ -114,8 +129,6 @@ def setup_logging(simple: bool = False):
         run_handler.setLevel(level)
         run_handler.setFormatter(logging.Formatter("%(message)s"))
         handlers.extend([rotating_handler, run_handler])
-    else:
-        run_log_path = None  # type: ignore[assignment]
 
     root = logging.getLogger()
     root.setLevel(level)
@@ -154,6 +167,7 @@ def _reset_logging_for_tests():  # pragma: no cover - utilisé uniquement par te
     root = logging.getLogger()
     for h in list(root.handlers):
         from contextlib import suppress
+
         with suppress(Exception):
             root.removeHandler(h)
     # Ne pas supprimer RUN_ID ici: laissé au test s'il veut simuler absence

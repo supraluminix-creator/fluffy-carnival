@@ -35,6 +35,7 @@ def _collect_counter_value_any(names: list[str], labels: dict[str, str] | None =
 def test_llm_requests_and_failures_and_fallbacks():
     if not (LLM_REQUESTS_TOTAL and LLM_FAILURES_TOTAL and LLM_FALLBACKS_TOTAL):
         pytest.skip("LLM Prometheus counters not available in this environment")
+
     # Define two models: first fails, second succeeds
     def fail_model(prompt: str, opts):
         raise RuntimeError("boom")

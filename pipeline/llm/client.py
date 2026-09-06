@@ -9,15 +9,9 @@ try:
     # métriques optionnelles (ne doit pas casser si non disponibles au test)
     from prometheus_client import Counter
 
-    LLM_REQUESTS_TOTAL = Counter(
-        "llm_requests_total", "Total requêtes LLM", ["model"]
-    )
-    LLM_FAILURES_TOTAL = Counter(
-        "llm_failures_total", "Echecs LLM", ["model", "reason"]
-    )
-    LLM_FALLBACKS_TOTAL = Counter(
-        "llm_fallbacks_total", "Fallbacks LLM", ["from_model", "to_model"]
-    )
+    LLM_REQUESTS_TOTAL = Counter("llm_requests_total", "Total requêtes LLM", ["model"])
+    LLM_FAILURES_TOTAL = Counter("llm_failures_total", "Echecs LLM", ["model", "reason"])
+    LLM_FALLBACKS_TOTAL = Counter("llm_fallbacks_total", "Fallbacks LLM", ["from_model", "to_model"])
 except Exception:  # pragma: no cover
     LLM_REQUESTS_TOTAL = None  # type: ignore
     LLM_FAILURES_TOTAL = None  # type: ignore

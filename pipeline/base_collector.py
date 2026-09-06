@@ -6,6 +6,7 @@ se trouve maintenant dans `pipeline.collectors.base_collector`.
 Ne plus importer directement ce module; utiliser:
     from pipeline.collectors.base_collector import BaseCollector
 """
+
 from __future__ import annotations
 
 import warnings

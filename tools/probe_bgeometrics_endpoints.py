@@ -2,11 +2,12 @@
 """Probe BGeometrics endpoints to find a working MVRV URL.
 
 Usage (PowerShell):
-  .\.venv\Scripts\python.exe tools\probe_bgeometrics_endpoints.py
+    .\\.venv\\Scripts\\python.exe tools\\probe_bgeometrics_endpoints.py
 
 Loads .env.local if present and uses BGEOMETRICS_API_KEY (Bearer) and
 BGEOMETRICS_VERIFY_SSL (0/1). Follows redirects, prints status and brief body.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +21,7 @@ from dotenv import load_dotenv
 def _shorten(body: str, n: int = 200) -> str:
     body = body.replace("\n", " ").replace("\r", " ")
     return body[:n]
+
 
 async def main() -> None:
     load_dotenv(".env.local", override=True)
@@ -56,14 +58,20 @@ async def main() -> None:
                     body = r.json()
                 except Exception:
                     body = _shorten(r.text)
-                print(json.dumps({
-                    "url": u,
-                    "status": r.status_code,
-                    "ct": r.headers.get("content-type", ""),
-                    "body": body,
-                }, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {
+                            "url": u,
+                            "status": r.status_code,
+                            "ct": r.headers.get("content-type", ""),
+                            "body": body,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             except Exception as e:
                 print(json.dumps({"url": u, "error": str(e)}, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

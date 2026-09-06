@@ -15,6 +15,19 @@
 		"version": "2.0.0",
 		"tasks": [
 			{
+				"label": "Test (venv, AI POST)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": ["-m", "pytest", "-q"],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}",
+					"env": {
+						"AI_USE_HTTP_FACADE_POST": "1"
+					}
+				}
+			},
+			{
 				"label": "Test (pytest -q)",
 				"type": "shell",
 				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
@@ -22,6 +35,20 @@
 				"group": "build",
 				"options": {
 					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Test (facade ON)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": ["-m", "pytest", "-q"],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}",
+					"env": {
+						"FORCE_HTTP_FACADE": "1",
+						"RETRY_HTTP_ENABLED": "1"
+					}
 				}
 			},
 			{
@@ -68,10 +95,84 @@
 				}
 			},
 			{
-				"label": "Types (mypy: api scheduler)",
+				"label": "Social: Refresh (PS1)",
+				"type": "shell",
+				"command": "powershell",
+				"args": ["-ExecutionPolicy", "Bypass", "-File", "scripts/run_social_refresh.ps1"],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Social: Retweeters (PS1)",
+				"type": "shell",
+				"command": "powershell",
+				"args": ["-ExecutionPolicy", "Bypass", "-File", "scripts/run_x_retweeters.ps1"],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Social: Health-check (PS1)",
+				"type": "shell",
+				"command": "powershell",
+				"args": ["-ExecutionPolicy", "Bypass", "-File", "scripts/run_social_health_check.ps1"],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Social: Schedule (15m + startup + health 30m)",
+				"type": "shell",
+				"command": "powershell",
+				"args": [
+					"-ExecutionPolicy", "Bypass", "-File", "scripts/schedule_social_refresh.ps1",
+					"-EnableHealthCheck", "-HealthEveryMinutes", "30"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Social: Unschedule (Remove all)",
+				"type": "shell",
+				"command": "powershell",
+				"args": [
+					"-ExecutionPolicy", "Bypass", "-File", "scripts/schedule_social_refresh.ps1",
+					"-Remove"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Archive: Scan only",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": ["tools/archive_repo.py", "--scan-only"],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Archive: Run",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": ["tools/archive_repo.py", "--run"],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Indicators: Audit (HTML, no-fail)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--no-fail-exit"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			},
+			{
+				"label": "Types (mypy: api pipeline scheduler integrations)",
 				"type": "shell",
 				"command": "${workspaceFolder}/.venv/Scripts/mypy.exe",
-				"args": ["--hide-error-context", "--no-error-summary", "api", "scheduler"],
+				"args": ["--hide-error-context", "--no-error-summary", "api", "pipeline", "scheduler", "integrations"],
 				"group": "build",
 				"options": {
 					"cwd": "${workspaceFolder}"
@@ -86,6 +187,402 @@
 				"options": {
 					"cwd": "${workspaceFolder}"
 				}
+			},
+			{
+				"label": "Indicators: Generate",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/generate_indicators_csv.py",
+					"--source", "synthetic",
+					"--symbol", "BTCUSDT",
+					"--interval", "1h",
+					"--limit", "300",
+					"--indicators", "rsi,ema,macd,bbands,atr,stoch,adx,cci,roc,obv,adl,kc"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Indicators: Audit",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Indicators: Generate + Audit",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Generate + Audit done"],
+				"dependsOn": [
+					"Indicators: Generate",
+					"Indicators: Audit"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Indicators: Generate (binance+fallback) + Audit (parquet)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Binance+fallback Parquet + Audit done"],
+				"dependsOn": [
+					"Indicators: Generate (binance+fallback, parquet)",
+					"Indicators: Audit"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			},
+			{
+				"label": "Indicators: Generate (binance+fallback, parquet)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/generate_indicators_csv.py",
+					"--source", "binance",
+					"--symbol", "BTCUSDT",
+					"--interval", "1h",
+					"--limit", "300",
+					"--out-format", "parquet",
+					"--indicators", "rsi,ema,macd,bbands,atr,stoch,adx,cci,roc,obv,adl,kc"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			}
+			,
+			{
+				"label": "Indicators: Generate (synthetic, parquet)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/generate_indicators_csv.py",
+					"--source", "synthetic",
+					"--symbol", "BTCUSDT",
+					"--interval", "1h",
+					"--limit", "300",
+					"--out-format", "parquet",
+					"--indicators", "rsi,ema,macd,bbands,atr,stoch,adx,cci,roc,obv,adl,kc"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			}
+			,
+			{
+				"label": "Indicators: Generate (synthetic, parquet) + Audit",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Synthetic Parquet + Audit done"],
+				"dependsOn": [
+					"Indicators: Generate (synthetic, parquet)",
+					"Indicators: Audit"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML report)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				}
+			}
+			,
+			{
+				"label": "Indicators: Generate (synthetic) + Audit (HTML)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Generate (synthetic) + Audit (HTML) done"],
+				"dependsOn": [
+					"Indicators: Generate",
+					"Indicators: Audit (HTML report)"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML + tips + lenient symbols + json default)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--print-tips",
+					"--no-fail-exit",
+					"--lenient-symbols"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}",
+					"env": {"INDICATORS_AUDIT_JSON_DEFAULT": "1"}
+				}
+			}
+			,
+			{
+				"label": "CMC: Dump indicators (JSON)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/dump_cmc_cycle_indicators.py",
+					"--format", "json",
+					"--out", "exports/cmc_cycle_indicators.json"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "CMC: Dump indicators (CSV)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/dump_cmc_cycle_indicators.py",
+					"--format", "csv",
+					"--out", "exports/cmc_cycle_indicators.csv"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit lenient + Open report",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Audit lenient + Open report done"],
+				"dependsOn": [
+					"Indicators: Audit (HTML + tips + lenient symbols + json default)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Open latest HTML report",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/open_latest_indicators_report.py"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML) + Open report",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Audit (HTML) + Open report done"],
+				"dependsOn": [
+					"Indicators: Audit (HTML report)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML, no-fail) + Open report",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Audit (HTML, no-fail) + Open report done"],
+				"dependsOn": [
+					"Indicators: Audit (HTML, no-fail)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML, no-fail, json)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--no-fail-exit",
+					"--json-out",
+					"exports/indicators/audit.json"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Full chain (generate + audit html no-fail + json + open)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Full chain done"],
+				"dependsOn": [
+					"Indicators: Generate",
+					"Indicators: Audit (HTML, no-fail, json)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML, no-fail, json) + Open report",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Audit (HTML, no-fail, json) + Open report done"],
+				"dependsOn": [
+					"Indicators: Audit (HTML, no-fail, json)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Full chain (binance parquet + audit html no-fail + json + open)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Binance full chain done"],
+				"dependsOn": [
+					"Indicators: Generate (binance+fallback, parquet)",
+					"Indicators: Audit (HTML, no-fail, json)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Full chain (binance parquet + audit html tips no-fail + json default + open)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Binance full chain with tips done"],
+				"dependsOn": [
+					"Indicators: Generate (binance+fallback, parquet)",
+					"Indicators: Audit (HTML + tips + json default)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Open latest JSON report (dry-run)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/open_latest_indicators_report.py",
+					"--json",
+					"--dry-run"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Open latest JSON report",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/open_latest_indicators_report.py",
+					"--json"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML + tips + no-fail)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--print-tips",
+					"--no-fail-exit"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML + tips + json default)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--print-tips",
+					"--no-fail-exit"
+				],
+				"group": "build",
+				"options": {
+					"cwd": "${workspaceFolder}",
+					"env": {"INDICATORS_AUDIT_JSON_DEFAULT": "1"}
+				}
+			}
+			,
+			{
+				"label": "Indicators: Audit (HTML + tips + json-out)",
+				"type": "shell",
+				"command": "${workspaceFolder}/.venv/Scripts/python.exe",
+				"args": [
+					"tools/data_quality_audit.py",
+					"--html",
+					"--print-tips",
+					"--no-fail-exit",
+					"--json-out",
+					"exports/indicators/audit.json"
+				],
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
+			}
+			,
+			{
+				"label": "Indicators: Full chain (generate + audit html tips no-fail + json default + open)",
+				"type": "shell",
+				"command": "echo",
+				"args": ["Indicators: Full chain with tips done"],
+				"dependsOn": [
+					"Indicators: Generate",
+					"Indicators: Audit (HTML + tips + json default)",
+					"Indicators: Open latest HTML report"
+				],
+				"dependsOrder": "sequence",
+				"group": "build",
+				"options": {"cwd": "${workspaceFolder}"}
 			}
 		]
 	}

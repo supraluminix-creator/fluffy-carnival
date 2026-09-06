@@ -23,6 +23,7 @@ run_ws_session = module.run_ws_session  # type: ignore[attr-defined]
 FIXTURE_FILE = "analysis/run_2025-09-20/fixtures/ws_inject.jsonl"
 ARTIFACT_DIR = "analysis/run_2025-09-20/artifacts"
 
+
 @pytest.mark.asyncio
 async def test_ws_injection_autostop():
     summary = await run_ws_session(

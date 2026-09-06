@@ -1,0 +1,24 @@
+# Normalize line endings and mark binary files
+* text=auto eol=lf
+
+# Windows-specific scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell (modern PowerShell handles LF)
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+
+# Common binaries
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.7z binary
+*.parquet binary
+*.db binary
+*.sqlite binary
+*.exe binary

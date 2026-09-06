@@ -20,12 +20,7 @@ def test_llm_stream_ok(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("OLLAMA_HOST", raising=False)
 
-    with client.stream(
-        "POST", 
-        "/api/llm/stream", 
-        json={"prompt": "STREAM BTC"}, 
-        headers={"X-API-KEY": "k"}
-    ) as resp:
+    with client.stream("POST", "/api/llm/stream", json={"prompt": "STREAM BTC"}, headers={"X-API-KEY": "k"}) as resp:
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("text/event-stream")
         chunks = list(resp.iter_lines())

@@ -7,4 +7,5 @@ def test_metrics_labels():
     REQUEST_SUCCESS.labels(collector="test").inc()
     # No assertion needed, just ensure no exception
 
+
 # feat: Phase 2 - monitoring Prometheus + logs JSON structlog sur tous les collectors

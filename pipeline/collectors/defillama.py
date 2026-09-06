@@ -2,6 +2,7 @@
 Collector DefiLlama (TVL, yield, etc.)
 Prod-safe, async, retry/backoff, cache TTL, historique TVL
 """
+
 import asyncio
 import os
 import time
@@ -31,20 +32,24 @@ log = structlog.get_logger()
 cache: Cache = Cache(".cache")
 _LEGACY_LOGGED: set[str] = set()
 
-DEFI_LLAMA_LATENCY = Summary('defillama_latency_seconds', 'Latency of DefiLlama API calls')
-DEFI_LLAMA_ERRORS = Counter('defillama_errors_total', 'Total DefiLlama API errors')
-DEFI_LLAMA_SUCCESS = Counter('defillama_success_total', 'Total DefiLlama API successes')
-DEFI_LLAMA_CACHE_HIT = Counter('defillama_cache_hit_total', 'DefiLlama cache hits')
-DEFI_LLAMA_CACHE_MISS = Counter('defillama_cache_miss_total', 'DefiLlama cache misses')
-DEFI_LLAMA_BREAKER_SKIPS = Counter('defillama_breaker_skips_total', 'Calls skipped (circuit breaker open)')
+DEFI_LLAMA_LATENCY = Summary("defillama_latency_seconds", "Latency of DefiLlama API calls")
+DEFI_LLAMA_ERRORS = Counter("defillama_errors_total", "Total DefiLlama API errors")
+DEFI_LLAMA_SUCCESS = Counter("defillama_success_total", "Total DefiLlama API successes")
+DEFI_LLAMA_CACHE_HIT = Counter("defillama_cache_hit_total", "DefiLlama cache hits")
+DEFI_LLAMA_CACHE_MISS = Counter("defillama_cache_miss_total", "DefiLlama cache misses")
+DEFI_LLAMA_BREAKER_SKIPS = Counter("defillama_breaker_skips_total", "Calls skipped (circuit breaker open)")
 
 # Compteur usage HTTP legacy (appels directs client.get quand la façade n'est pas utilisée)
 try:  # idempotent
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:  # déjà enregistré
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:  # déjà enregistré
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 with suppress(Exception):  # pragma: no cover
-    LEGACY_HTTP_USAGE.labels(collector='defillama')  # type: ignore[call-arg]
+    LEGACY_HTTP_USAGE.labels(collector="defillama")  # type: ignore[call-arg]
+
 
 class ChainData(TypedDict, total=False):
     name: str
@@ -72,15 +77,14 @@ async def get_chain_data(chain: str) -> ChainData | None:
                     chains_raw = await async_fetch_json(url, timeout=15, client=client)
                 else:  # legacy direct uniquement si pas de force
                     try:
-                        mark_legacy_http('defillama')
-                        if 'defillama' not in _LEGACY_LOGGED:
-                            log.info('legacy_http_usage_detected', collector='defillama')
-                            _LEGACY_LOGGED.add('defillama')
+                        mark_legacy_http("defillama")
+                        if "defillama" not in _LEGACY_LOGGED:
+                            log.info("legacy_http_usage_detected", collector="defillama")
+                            _LEGACY_LOGGED.add("defillama")
                     except Exception:  # pragma: no cover
                         pass
-                    resp = await client.get(url, timeout=15)
-                    resp.raise_for_status()
-                    chains_raw = resp.json()
+                    # Use facade to standardize mapping even on legacy path
+                    chains_raw = await async_fetch_json(url, timeout=15, client=client)
         if not isinstance(chains_raw, list):  # pragma: no cover - réponse anormale très rare
             log.error("defillama_invalid_root", type=type(chains_raw).__name__)
             return None
@@ -100,6 +104,7 @@ async def get_chain_data(chain: str) -> ChainData | None:
     except Exception as e:  # pragma: no cover - garde-fou générique
         log.error("defillama_data_error", chain=chain, error_type=type(e).__name__, error_msg=str(e))
         raise
+
 
 HistoricalPoint = list[Any] | dict[str, Any]
 
@@ -127,25 +132,26 @@ async def get_historical_chain_data(chain: str) -> list[HistoricalPoint] | None:
             historical_data = await asyncio.to_thread(get_json_with_retry, historical_url)
         else:
             async with httpx.AsyncClient() as client:  # compat mocks
+                # For uniformity, prefer facade when retry flag is on or facade is forced
                 if retry_enabled or force_facade:
                     historical_data = await async_fetch_json(historical_url, timeout=15, client=client)
-                else:  # legacy direct uniquement si pas de force
+                else:
+                    # Keep legacy path instrumented for progressive migration visibility
                     try:
-                        LEGACY_HTTP_USAGE.labels(collector='defillama').inc()  # type: ignore[attr-defined]
-                        if 'defillama' not in _LEGACY_LOGGED:
-                            log.info('legacy_http_usage_detected', collector='defillama')
-                            _LEGACY_LOGGED.add('defillama')
+                        LEGACY_HTTP_USAGE.labels(collector="defillama").inc()  # type: ignore[attr-defined]
+                        if "defillama" not in _LEGACY_LOGGED:
+                            log.info("legacy_http_usage_detected", collector="defillama")
+                            _LEGACY_LOGGED.add("defillama")
                     except Exception:  # pragma: no cover
                         pass
-                    resp = await client.get(historical_url, timeout=15)
-                    resp.raise_for_status()
-                    historical_data = resp.json()
+                    # Even on legacy path, leverage facade to avoid code duplication while preserving metrics
+                    historical_data = await async_fetch_json(historical_url, timeout=15, client=client)
         if not historical_data or not isinstance(historical_data, list):  # pragma: no cover - validation défensive
             log.error("defillama_invalid_historical_data", chain=chain, data_type=type(historical_data).__name__)
             return None
         return cast(list[HistoricalPoint], historical_data)
     except httpx.HTTPError as e:  # pragma: no cover - pattern similaire déjà testé
-        status_code = getattr(getattr(e, 'response', None), 'status_code', 'unknown')
+        status_code = getattr(getattr(e, "response", None), "status_code", "unknown")
         log.error(
             "defillama_historical_http_error",
             chain=chain,
@@ -155,6 +161,7 @@ async def get_historical_chain_data(chain: str) -> list[HistoricalPoint] | None:
     except Exception as e:  # pragma: no cover - garde-fou global
         log.error("defillama_historical_error", chain=chain, error_type=type(e).__name__, error_msg=str(e))
         return None
+
 
 ParsedPoint = tuple[int, float]
 
@@ -167,10 +174,11 @@ def parse_historical_point(point: HistoricalPoint) -> ParsedPoint | None:
     try:
         if isinstance(point, list) and len(point) >= 2:
             ts = int(point[0])
-            val = to_float(point[1], default=None)
-            if val is None:
+            try:
+                val_f = float(point[1])
+            except Exception:
                 return None
-            return ts, val
+            return ts, val_f
         if isinstance(point, dict) and "date" in point and "tvl" in point:
             try:
                 ts = int(point["date"])
@@ -179,13 +187,15 @@ def parse_historical_point(point: HistoricalPoint) -> ParsedPoint | None:
                     ts = int(datetime.fromisoformat(point["date"]).replace(tzinfo=UTC).timestamp())
                 except Exception:
                     return None
-            val = to_float(point["tvl"], default=None)
-            if val is None:
+            try:
+                val_f2 = float(point["tvl"])  # type: ignore[arg-type]
+            except Exception:
                 return None
-            return ts, val
+            return ts, val_f2
     except Exception as e:
         log.warning("defillama_parse_point_error", error=str(e), point=point)
     return None
+
 
 def calculate_historical_values(
     historical_data: list[HistoricalPoint] | None,
@@ -197,17 +207,9 @@ def calculate_historical_values(
     """
     if not historical_data:
         log.warning("defillama_no_historical_data")
-        return {
-            "tvlPrevDay": current_tvl,
-            "tvlPrevWeek": current_tvl,
-            "tvlPrevMonth": current_tvl
-        }
+        return {"tvlPrevDay": current_tvl, "tvlPrevWeek": current_tvl, "tvlPrevMonth": current_tvl}
     now = int(time.time())
-    targets = {
-        "tvlPrevDay": now - 86400,
-        "tvlPrevWeek": now - 604800,
-        "tvlPrevMonth": now - 2592000
-    }
+    targets = {"tvlPrevDay": now - 86400, "tvlPrevWeek": now - 604800, "tvlPrevMonth": now - 2592000}
     # Parse all points to (timestamp, tvl)
     parsed_points: list[ParsedPoint] = []
     if historical_data is not None:
@@ -215,31 +217,33 @@ def calculate_historical_values(
             parsed = parse_historical_point(point)
             if parsed:
                 parsed_points.append(parsed)
+
     # For each target, find closest
     def find_closest(target: int) -> float:
         base_val = to_float(current_tvl, default=0.0)
-        closest_value: float = base_val if isinstance(base_val, int | float) else 0.0
-        min_diff = float('inf')
+        closest_value: float = base_val
+        min_diff = float("inf")
         for ts, val in parsed_points:
             diff = abs(ts - target)
             if diff < min_diff:
                 min_diff = diff
-                # val déjà float (ParsedPoint)
-                new_val = to_float(val, default=None)
-                if new_val is not None:
+                # val est déjà float (ParsedPoint), mais sécurisons le cast
+                try:
+                    new_val = float(val)
                     closest_value = new_val
+                except Exception:
+                    pass
         return closest_value
+
     results: dict[str, float] = {k: find_closest(ts) for k, ts in targets.items()}
     log.info("defillama_historical_calculated", **results)
     return results
 
+
 @DEFI_LLAMA_LATENCY.time()
 @instrument_collector("defillama")
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-async def fetch_defillama_tvl(
-    chain: str,
-    cache_ttl: int = 900
-) -> dict[str, Any] | None:
+async def fetch_defillama_tvl(chain: str, cache_ttl: int = 900) -> dict[str, Any] | None:
     """
     Fetch DeFi TVL and stats from DefiLlama with historical data.
     """
@@ -266,8 +270,9 @@ async def fetch_defillama_tvl(
         if not isinstance(current_tvl_raw, int | float | str):
             log.error("defillama_invalid_tvl_type", chain=chain, tvl_type=type(current_tvl_raw).__name__)
             return None
-        current_tvl = to_float(current_tvl_raw, default=None)
-        if current_tvl is None:
+        try:
+            current_tvl = float(current_tvl_raw)  # type: ignore[arg-type]
+        except Exception:
             log.error("defillama_invalid_tvl_value", chain=chain, value=current_tvl_raw)
             return None
 
@@ -277,10 +282,7 @@ async def fetch_defillama_tvl(
         # Calculate historical values
         historical_values = calculate_historical_values(historical_data, current_tvl)
 
-        has_valid_historical = (
-            historical_data and
-            any(historical_values[k] != current_tvl for k in historical_values)
-        )
+        has_valid_historical = historical_data and any(historical_values[k] != current_tvl for k in historical_values)
 
         result: dict[str, Any] = {
             "timestamp": int(time.time()),
@@ -293,7 +295,7 @@ async def fetch_defillama_tvl(
                 "tvlPrevMonth": historical_values["tvlPrevMonth"],
             },
             "source": "defillama",
-            "confidence_score": 1.0 if has_valid_historical else 0.8
+            "confidence_score": 1.0 if has_valid_historical else 0.8,
         }
 
         # Log facultatif si mode forced façade actif (cohérence avec autres collectors)
@@ -327,11 +329,12 @@ class DefillamaCollector:
         self.cache_ttl: int = cache_ttl
 
     async def fetch_tvl_async(self, chain: str) -> dict[str, Any] | None:
-        return await fetch_defillama_tvl(chain, cache_ttl=self.cache_ttl)
+        result = await fetch_defillama_tvl(chain, cache_ttl=self.cache_ttl)
+        return cast(dict[str, Any] | None, result)
 
     def fetch_tvl(self, chain: str) -> dict[str, Any] | None:
         try:
-            return asyncio.run(self.fetch_tvl_async(chain))
+            return cast(dict[str, Any] | None, asyncio.run(self.fetch_tvl_async(chain)))
         except Exception as e:
             # Return None on any error to satisfy tests' robustness expectations
             log.error("defillama_fetch_sync_error", chain=chain, error=str(e))

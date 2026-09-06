@@ -18,9 +18,7 @@ def test_no_legacy_project_references_in_code():
             continue
         text = py.read_text(encoding="utf-8", errors="ignore")
         # Autoriser les mentions en commentaires/docstrings ? On interdit de manière stricte
-        offenders.extend(
-            [(str(py), marker) for marker in legacy_markers if marker in text]
-        )
+        offenders.extend([(str(py), marker) for marker in legacy_markers if marker in text])
 
     assert not offenders, (
         "Legacy project name(s) detected in pipeline code. Clean up references to focus on new_crypto_prodsafe.\n"

@@ -6,3 +6,6 @@ metric_name
 value
 source
 confidence_score
+topic
+sentiment
+confidence

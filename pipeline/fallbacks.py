@@ -3,6 +3,7 @@
 Permet de décrire une chaîne d'étapes (tiers) avec instrumentation unifiée.
 Chaque étape est une coroutine ou fonction sync retournant un résultat vérité.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,10 +26,12 @@ log = structlog.get_logger(__name__)
 
 StepFn = Callable[[], Any]  # peut retourner Awaitable
 
+
 async def _maybe_await(res: Any) -> Any:
     if asyncio.iscoroutine(res) or isinstance(res, Awaitable):
         return await res  # type: ignore
     return res
+
 
 async def execute_fallback_chain(
     collector: str,
@@ -56,6 +59,7 @@ async def execute_fallback_chain(
                 result = await _maybe_await(fn())
                 if result:
                     from contextlib import suppress
+
                     with suppress(Exception):  # pragma: no cover
                         FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
                             collector=collector,
@@ -78,6 +82,7 @@ async def execute_fallback_chain(
             except Exception as e:  # capture erreur
                 etype = classify(e)
                 from contextlib import suppress
+
                 with suppress(Exception):  # pragma: no cover
                     COLLECTOR_ERROR_TYPES_TOTAL.labels(
                         collector=collector,
@@ -107,5 +112,6 @@ async def execute_fallback_chain(
     record_failure(br_name)
     log.warning("collector_all_fallbacks_failed", collector=collector, depth=depth)
     return None
+
 
 __all__ = ["execute_fallback_chain"]

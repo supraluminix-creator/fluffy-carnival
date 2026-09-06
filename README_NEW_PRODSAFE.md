@@ -1,5 +1,5 @@
 
-# � new_crypto_prodsafe — Pipeline Crypto Production-Grade
+# new_crypto_prodsafe — Pipeline Crypto Production-Grade
 
 ## Sommaire
 - [Contexte](#contexte)
@@ -52,7 +52,7 @@ new_crypto_prodsafe/
 
 ## Tests & CI/CD
 - Pytest pour tous les modules (collectors, reporter, exporter)
-- CI/CD GitHub Actions : install, test, report
+- Workflow GitHub Actions minimal (`.github/workflows/ci.yml`) : Ruff + Pytest à chaque push/PR
 - Commande locale : `pytest -v`
 
 ## Utilisation rapide
@@ -66,6 +66,72 @@ python main.py
 # Lancer les tests
 pytest -v
 ```
+
+### Analyse de marché multi-actifs (LLM)
+
+Un utilitaire CLI compose un prompt à partir des exports locaux (`exports/export_manifest.jsonl`, CSV d’indicateurs) et de la base SQLite (liquidations Bybit si présente), puis appelle un LLM configurable via variables d’environnement pour produire un rapport Markdown.
+
+Prérequis (au choix selon provider) dans `.env.local`:
+
+```
+# Anthropic (Claude)
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=claude-3-haiku-20240307
+
+# OpenRouter
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=openrouter/auto
+
+# OpenAI
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4o-mini
+
+# Gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-1.5-flash
+
+# Deepseek
+DEEPSEEK_API_KEY=...
+DEEPSEEK_MODEL=deepseek-chat
+
+# Optionnel (ETH txcount fallback)
+ETHERSCAN_API_KEY=...
+```
+
+Exécution:
+
+```
+python tools/market_analysis_prompt.py --assets "BTC,ETH,SOL,LINK,TAO,RNDR,ATOM,DOT,NEAR,AVAX,SUI" --hours 24 --enrich-api
+```
+
+Options:
+- `--provider`: forcer le provider (`anthropic|openrouter|openai|gemini|deepseek|ollama|mock`).
+- `--dry-run`: n’appelle pas le LLM, génère uniquement le prompt et le rapport.
+
+Sortie: `exports/analysis/market_analysis_YYYYMMDD_HHMMSS_UTC.md`.
+
+### API LLM — tâches VS Code (Windows)
+
+Pour démarrer/arrêter l’API localement de façon fiable pendant les smokes:
+
+- Démarrer en détaché (choix du port): tâche "API: Run (detached on port)" → saisir le port (ex: 8000). La tâche affiche le PID.
+- Vérifier rapidement: tâche "Smoke: HTTP (AutoDetect)" → détecte l’API (8000..8105) et vérifie `/api/llm/status`.
+- Arrêter l’API:
+  - Par PID: tâche "API: Stop (PID)" → collez le PID affiché au démarrage.
+  - Ou par port: tâche "API: Stop (port)" → saisissez le port (ex: 8000).
+
+Notes:
+- Ces tâches utilisent PowerShell (Windows) et les scripts du dossier `scripts/`.
+- Pendant le sprint, privilégier les smokes (in‑process/HTTP) et réserver Pytest pour la fin.
+
+### Endpoints de base (API LLM)
+
+- GET `/` et GET `/api` — pages d’accueil (ping rapide).
+- GET `/api/health` et alias GET `/health` — santé JSON légère.
+- GET `/api/version` et alias GET `/version` — métadonnées de build/version.
+
+Astuce:
+- Tâche VS Code: "Smoke: Basic API" — vérifie `/`, `/api`, `/api/health`, `/api/version`, `/health`, `/version` avec autodétection de port.
 
 ## Observabilité & Ops
 
@@ -84,6 +150,11 @@ Le scheduler expose des logs structurés, des métriques Prometheus optionnelles
 - HEALTH_PORT=9310 — Port du serveur santé
 - APP_VERSION — Version applicative (exportée en métriques)
 - GIT_SHA — SHA git (exporté en métriques)
+- ENABLE_WHALE_BALANCES=1 — Active le collector Etherscan (legacy + scheduler)
+- ETHERSCAN_ENABLED=1 — Active la configuration Etherscan (clés et listes d'adresses)
+- ETHERSCAN_API_KEY=... — Clé Etherscan requise pour les appels `balancemulti`
+- ETHERSCAN_ADDRESSES=0xAAA,0xBBB — Liste d'adresses (séparateur virgule / retour-ligne)
+- ETHERSCAN_THRESHOLD_ETH=10 — Seuil pour les transactions "whale" (événements)
 
 ### Endpoints
 
@@ -102,6 +173,22 @@ Le scheduler expose des logs structurés, des métriques Prometheus optionnelles
   - Corps:
     ready 1
     ready_timestamp 1726640000
+
+### Données whales ETH
+
+- Collecteur activable via `ENABLE_WHALE_BALANCES=1` + configuration `ETHERSCAN_*`.
+- Export JSON: `exports/onchain/etherscan_whale_balances.json` (adressage + total ETH).
+- API REST: `GET /api/whales/balances` → liste des adresses, total agrégé, timestamp.
+- Script CLI: `python -m scripts.dump_whale_balances` (rafraîchit, puis affiche un tableau ou JSON).
+- Métriques Prometheus: `whale_balance_total_eth`, `whale_balance_address_eth`, `whale_balance_snapshot_timestamp`.
+
+### Données insider whales (Hyperliquid + ETH)
+
+- Activer via `ENABLE_WHALE_INSIDER=1` + configuration `HYPERLIQUID_*` (et `ETHERSCAN_*` pour compléter les soldes on-chain).
+- Export JSON: `exports/whales/whale_insider_snapshot.json` (positions Hyperliquid normalisées + métrique agrégée Etherscan).
+- API REST: `GET /api/whales/insider` → snapshot combiné (`records`, compteurs de surveillance, détails traders dérivés).
+- Script CLI: `python -m scripts.dump_whale_insider` (rafraîchit ou charge le snapshot et affiche un résumé des positions surveillées).
+- Métriques Prometheus: `whale_hyperliquid_position_notional_usd`, `whale_hyperliquid_position_leverage`, `whale_hyperliquid_last_updated_timestamp`.
 
 ### Lancer (PowerShell)
 

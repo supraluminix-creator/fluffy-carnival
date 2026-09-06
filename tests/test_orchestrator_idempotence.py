@@ -11,6 +11,7 @@ class DummyCollector:
     def __init__(self, name: str, value: int):
         self.name = name
         self._value = value
+
     async def collect(self):
         # Simule un travail asynchrone léger
         await asyncio.sleep(0.01)
@@ -34,20 +35,14 @@ def test_orchestrator_metrics_idempotence(monkeypatch):
 
     # Re-créer métriques locales attachées au registre isolé
     orch_exec = Counter(
-        'orchestrator_executions_total',
-        'Total orchestrator executions',
-        ['success'],
-        registry=registry
+        "orchestrator_executions_total", "Total orchestrator executions", ["success"], registry=registry
     )
-    orch_dur = Histogram(
-        'orchestrator_duration_seconds',
-        'Orchestrator execution duration',
-        registry=registry
-    )
+    orch_dur = Histogram("orchestrator_duration_seconds", "Orchestrator execution duration", registry=registry)
 
     import pipeline.orchestrator as orch_mod
-    monkeypatch.setattr(orch_mod, 'orchestrator_executions', orch_exec, raising=True)
-    monkeypatch.setattr(orch_mod, 'orchestrator_duration', orch_dur, raising=True)
+
+    monkeypatch.setattr(orch_mod, "orchestrator_executions", orch_exec, raising=True)
+    monkeypatch.setattr(orch_mod, "orchestrator_duration", orch_dur, raising=True)
 
     collectors = [DummyCollector("c1", 1), DummyCollector("c2", 2)]
     orchestrator = ParallelOrchestrator(collectors)
@@ -58,10 +53,10 @@ def test_orchestrator_metrics_idempotence(monkeypatch):
         return r1, r2
 
     r1, r2 = asyncio.run(run_twice())
-    assert r1['status'] == 'completed' and r2['status'] == 'completed'
+    assert r1["status"] == "completed" and r2["status"] == "completed"
     # Vérifier compteur success==2
-    val_success = registry.get_sample_value('orchestrator_executions_total', {'success': 'true'})
+    val_success = registry.get_sample_value("orchestrator_executions_total", {"success": "true"})
     assert val_success == 2.0, f"Executions attendues 2, obtenu {val_success}"
     # Histogram count == 2
-    count = registry.get_sample_value('orchestrator_duration_seconds_count')
+    count = registry.get_sample_value("orchestrator_duration_seconds_count")
     assert count == 2.0, f"Observations histogram attendues 2, obtenu {count}"

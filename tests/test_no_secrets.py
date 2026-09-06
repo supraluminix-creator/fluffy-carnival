@@ -16,14 +16,14 @@ SENSITIVE_KEYS = [
 
 
 def test_env_file_placeholders():
-    env_path = Path('.env')
+    env_path = Path(".env")
     assert env_path.exists(), ".env doit exister (placeholder)"
-    content = env_path.read_text(encoding='utf-8')
+    content = env_path.read_text(encoding="utf-8")
     for key in SENSITIVE_KEYS:
         pattern = re.compile(rf"^{key}=(.*)$", re.MULTILINE)
         m = pattern.search(content)
         assert m, f"Clé {key} absente"
-        assert m.group(1).strip() == 'REPLACE_ME', f"La clé {key} ne doit pas contenir une valeur réelle"
+        assert m.group(1).strip() == "REPLACE_ME", f"La clé {key} ne doit pas contenir une valeur réelle"
 
     # Heuristique: aucune longue chaîne hex > 48 char
     assert not re.search(r"[0-9a-fA-F]{48,}", content), "Hex longue potentielle trouvée dans .env"

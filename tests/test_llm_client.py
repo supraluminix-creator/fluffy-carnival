@@ -62,9 +62,7 @@ def test_all_models_exhausted_raises():
         return "OK"
 
     quota = QuotaState()
-    client = ClientLLM(
-        [ModelConfig("A", daily_calls_limit=0, priority=0, fn=ok)], quota
-    )
+    client = ClientLLM([ModelConfig("A", daily_calls_limit=0, priority=0, fn=ok)], quota)
 
     with pytest.raises(RuntimeError):
         client.generate("z")

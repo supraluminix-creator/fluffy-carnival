@@ -1,9 +1,0 @@
-timestamp,asset,symbol,chain,metric_name,value,source,confidence_score
-2025-09-16T19:25:51.634Z,bitcoin,,,macro,"{'price': 116576, 'volume_24h': 39595345733, 'marketcap': 2322169774755, 'dominance': 1}",coingecko,1.0
-1758050485,,,ethereum,defi_tvl,"{'tvl': 93427197461.24858, 'tvlPrevDay': 93426957507.0, 'tvlPrevWeek': 90855470784.0, 'tvlPrevMonth': 91797900979.0}",defillama,1.0
-,BTC,,,txcount,915000,blockchain.info,1.0
-,BTC,,,hashrate,953523605113.0,blockchain.info,1.0
-1757894400,BTC,,,sopr,1.0558012802359549,bitcoin-data.com,1.0
-1758036000000,,BTCUSDT,,open_interest,67504.344,bybit,1.0
-1758036000000,,BTCUSDT,,long_short_ratio,"{'buy_ratio': 0.6314, 'sell_ratio': 0.3686}",bybit,1.0
-1757980800,,,,fear_greed,"{'value': '52', 'classification': 'Neutral', 'time_until_update': '18540'}",alternative.me,1.0

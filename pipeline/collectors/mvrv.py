@@ -2,8 +2,10 @@
 
 Feature flag: ENABLE_MVRV_COLLECTOR=1
 """
+
 from __future__ import annotations
 
+import contextlib
 import os
 from datetime import UTC, datetime
 from typing import Any, TypedDict
@@ -13,10 +15,13 @@ import structlog
 from diskcache import Cache
 from prometheus_client import Counter, Summary
 
+from pipeline.flags import is_dry_run_facade, is_forced_facade
+from pipeline.http import async_fetch_json
 from pipeline.instrumentation import instrument_collector
+from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 log = structlog.get_logger()
-cache: Cache = Cache('.cache')
+cache: Cache = Cache(".cache")
 
 
 class MvrvRecord(TypedDict):
@@ -28,9 +33,9 @@ class MvrvRecord(TypedDict):
     confidence_score: float
 
 
-MVRV_LATENCY = Summary('mvrv_latency_seconds', 'Latency MVRV collector')
-MVRV_SUCCESS = Counter('mvrv_success_total', 'MVRV successes')
-MVRV_ERRORS = Counter('mvrv_errors_total', 'MVRV errors')
+MVRV_LATENCY = Summary("mvrv_latency_seconds", "Latency MVRV collector")
+MVRV_SUCCESS = Counter("mvrv_success_total", "MVRV successes")
+MVRV_ERRORS = Counter("mvrv_errors_total", "MVRV errors")
 
 
 @MVRV_LATENCY.time()  # type: ignore[arg-type]
@@ -50,6 +55,10 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
         # SSL verification control (dev convenience): default True, can disable via env
         verify_ssl = os.getenv("BGEOMETRICS_VERIFY_SSL", "1") == "1"
+        force_facade = is_forced_facade()
+        dry_run = is_dry_run_facade() and not force_facade
+        set_facade_mode("mvrv", force_facade, dry_run)
+        retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
         # Endpoints per latest doc: bitcoin-data.com first, then historical fallbacks
         base_urls = [
             # Latest documented host (HAL JSON)
@@ -80,14 +89,25 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                     if api_key:
                         params["token"] = api_key
                     log.info("mvrv_try_endpoint", url=url)
-                    resp = await client.get(url, headers=headers, params=params, timeout=15)
-                    status = resp.status_code
-                    log.info("mvrv_endpoint_status", url=url, status=status)
-                    if status == 404:
-                        # Try next variant immediately
-                        continue
-                    resp.raise_for_status()
-                    data = resp.json()
+                    if retry_enabled or force_facade:
+                        data = await async_fetch_json(url, headers=headers, params=params, timeout=15, client=client)
+                        # When using facade, synthesize a 200 status for logging purposes
+                        status = 200
+                        log.info("mvrv_endpoint_status", url=url, status=status)
+                    else:
+                        with contextlib.suppress(Exception):
+                            mark_legacy_http("mvrv")
+                        # Uniformize through the unified facade for mapping/metrics
+                        # while preserving legacy instrumentation
+                        data = await async_fetch_json(
+                            url,
+                            headers=headers,
+                            params=params,
+                            timeout=15,
+                            client=client,
+                        )
+                        status = 200
+                        log.info("mvrv_endpoint_status", url=url, status=status)
                     log.info("mvrv_endpoint_success", url=url)
                     break
                 except Exception as e:
@@ -106,10 +126,23 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                     try:
                         params = {"token": api_key} if api_key else {}
                         log.info("mvrv_try_endpoint", url=alt)
-                        resp = await client.get(alt, headers=headers, params=params, timeout=15)
-                        status = resp.status_code
-                        resp.raise_for_status()
-                        data = resp.json()
+                        if retry_enabled or force_facade:
+                            data = await async_fetch_json(
+                                alt, headers=headers, params=params, timeout=15, client=client
+                            )
+                            status = 200
+                        else:
+                            with contextlib.suppress(Exception):
+                                mark_legacy_http("mvrv")
+                            # Use facade to keep unified error mapping even in legacy mode
+                            data = await async_fetch_json(
+                                alt,
+                                headers=headers,
+                                params=params,
+                                timeout=15,
+                                client=client,
+                            )
+                            status = 200
                         log.info("mvrv_endpoint_success", url=alt)
                         break
                     except Exception as e2:
@@ -118,6 +151,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                         continue
                 if data is None and last_exc is not None:
                     raise last_exc
+
             # Parse HAL or flat JSON payloads robustly
             def _parse_any(payload: Any) -> tuple[float | None, int | None]:
                 def _coerce_num(x: Any) -> float | None:
@@ -125,6 +159,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                         return float(x)
                     except Exception:
                         return None
+
                 def _coerce_ts(x: Any) -> int | None:
                     try:
                         return int(x)
@@ -137,6 +172,7 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                         except Exception:
                             pass
                         return None
+
                 if isinstance(payload, dict):
                     # direct fields
                     candidates = [
@@ -156,8 +192,8 @@ async def fetch_mvrv(symbol: str = "BTC", cache_ttl: int = 3600) -> MvrvRecord |
                                 payload.get("ts"),
                                 payload.get("time"),
                                 payload.get("t"),
-                                payload.get("d"),      # 'YYYY-MM-DD' date field
-                                payload.get("date"),   # common alias
+                                payload.get("d"),  # 'YYYY-MM-DD' date field
+                                payload.get("date"),  # common alias
                             ]
                             ts_val = None
                             for tsk in ts_candidates:

@@ -5,6 +5,7 @@ Objectif MVP:
 - Fournir des helpers pour filtrer par metric, symbol, fenêtre
 - Retourner des DataFrames prêts pour features/LLM
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable

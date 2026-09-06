@@ -10,12 +10,15 @@ def test_secret_masking(tmp_path, monkeypatch):
     logger = structlog.get_logger("test")
     # Capture via structlog testing: utiliser un processor mémoire personnalisé
     events = []
+
     def capture(logger, method_name, event_dict):
         events.append(event_dict)
         return event_dict
+
     # Reconfigure avec capture + masking
     _reset_logging_for_tests()
     import structlog as sl
+
     sl.configure(
         processors=[mask_secrets_processor, capture, sl.processors.JSONRenderer()],
         logger_factory=sl.stdlib.LoggerFactory(),

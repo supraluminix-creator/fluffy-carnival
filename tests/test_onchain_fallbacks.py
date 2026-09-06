@@ -9,22 +9,28 @@ class DummyAsyncResponse:
         self.status_code = status_code
         self.text = text or ""
         self._json_data = json_data
+
     def raise_for_status(self):
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("boom", request=None, response=None)
+
     def json(self):
         if isinstance(self._json_data, Exception):
             raise self._json_data
         return self._json_data
 
+
 class DummyAsyncClient:
     def __init__(self, mapping):
         self.mapping = mapping
         self.calls = []
+
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, exc_type, exc, tb):
         return False
+
     async def get(self, url, timeout=10):
         self.calls.append(url)
         value = self.mapping.get(url)
@@ -37,6 +43,7 @@ class DummyAsyncClient:
         if isinstance(value, str):
             return DummyAsyncResponse(text=value)
         return DummyAsyncResponse(text="123")
+
 
 @pytest.mark.asyncio
 async def test_txcount_btc_primary_success(monkeypatch):
@@ -52,20 +59,20 @@ async def test_txcount_btc_primary_success(monkeypatch):
     assert rec2 is not None
     assert client.calls == []
 
+
 @pytest.mark.asyncio
 async def test_txcount_btc_primary_failure_fallback_success(monkeypatch):
     cache.clear()
     url_main = "https://api.blockchain.info/q/getblockcount"
     # used as fallback for BTC if provided
-    etherscan = (
-        "https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=KEY"
-    )
+    etherscan = "https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=KEY"
     # Primary raises, fallback returns hex block number
     client = DummyAsyncClient({url_main: RuntimeError("fail"), etherscan: {"result": hex(0xABCDEF)}})
     monkeypatch.setattr(httpx, "AsyncClient", lambda: client)
     rec = await fetch_txcount("BTC", etherscan_api_key="KEY")
     assert rec is not None and rec["source"] == "etherscan" and rec["value"] == 0xABCDEF
     assert url_main in client.calls and etherscan in client.calls
+
 
 @pytest.mark.asyncio
 async def test_txcount_btc_primary_failure_fallback_failure(monkeypatch):
@@ -77,6 +84,7 @@ async def test_txcount_btc_primary_failure_fallback_failure(monkeypatch):
     rec = await fetch_txcount("BTC", etherscan_api_key="KEY")
     assert rec is None
 
+
 @pytest.mark.asyncio
 async def test_txcount_eth_requires_key(monkeypatch):
     cache.clear()
@@ -87,6 +95,7 @@ async def test_txcount_eth_requires_key(monkeypatch):
     rec = await fetch_txcount("ETH")
     assert rec is None
 
+
 @pytest.mark.asyncio
 async def test_txcount_eth_success(monkeypatch):
     cache.clear()
@@ -96,6 +105,7 @@ async def test_txcount_eth_success(monkeypatch):
     rec = await fetch_txcount("ETH", etherscan_api_key="K1")
     assert rec is not None and rec["value"] == 0x10 and rec["source"] == "etherscan"
 
+
 @pytest.mark.asyncio
 async def test_txcount_eth_failure_no_fallback(monkeypatch):
     cache.clear()
@@ -104,6 +114,7 @@ async def test_txcount_eth_failure_no_fallback(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", lambda: client)
     rec = await fetch_txcount("ETH", etherscan_api_key="K2")
     assert rec is None
+
 
 @pytest.mark.asyncio
 async def test_txcount_btc_cache_prevents_fallback_second_call(monkeypatch):

@@ -77,10 +77,12 @@ async def test_fetch_macro_fallback_error(monkeypatch):
     symbol = "macrofail1"
 
     def factory(*a, **k):
-        return DummyAsyncClient([
-            Exception("cg fail"),
-            Exception("cmc fail"),
-        ])
+        return DummyAsyncClient(
+            [
+                Exception("cg fail"),
+                Exception("cmc fail"),
+            ]
+        )
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
     res = await market_mod.fetch_macro(symbol, cmc_api_key="X", cache_ttl=1)

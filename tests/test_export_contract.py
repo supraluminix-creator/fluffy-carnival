@@ -28,6 +28,9 @@ def test_export_csv_row_order_and_header(tmp_path):
             "value": 123.45,
             "source": "binance",
             "confidence_score": 0.9,
+            "topic": "-",
+            "sentiment": "-",
+            "confidence": 0.9,
         }
     ]
     out = tmp_path / "out.csv"

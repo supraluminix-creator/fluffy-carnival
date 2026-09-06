@@ -56,6 +56,7 @@ def test_maintenance_with_vacuum(monkeypatch, tmp_path):
     monkeypatch.setenv("MAINT_INTERVAL_SECONDS", "50")
 
     import pipeline.maintenance as maint
+
     # Patch direct module maintenance
     monkeypatch.setattr(maint, "vacuum_and_update_metrics", fake_vacuum, raising=True)
     monkeypatch.setattr(maint, "update_db_metrics", fake_update, raising=True)

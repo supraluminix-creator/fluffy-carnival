@@ -13,32 +13,41 @@ dashboards analytiques stables (faible cardinalité):
   - empty_data    : réponse vide considérée anormale (liste/dict vide)
   - unknown       : tout le reste
 """
+
 from __future__ import annotations
 
 
 class CollectorError(Exception):
     category = "unknown"
 
+
 class NetworkError(CollectorError):
     category = "network"
+
 
 class RateLimitError(CollectorError):
     category = "rate_limit"
 
+
 class NotFoundError(CollectorError):
     category = "not_found"
+
 
 class UpstreamError(CollectorError):
     category = "upstream"
 
+
 class SchemaError(CollectorError):
     category = "schema"
+
 
 class EmptyDataError(CollectorError):
     category = "empty_data"
 
+
 class TimeoutError_(CollectorError):  # underscore pour éviter collision builtin
     category = "timeout"
+
 
 def classify(exc: Exception) -> str:
     """Retourne la catégorie logique pour une exception.
@@ -55,8 +64,8 @@ def classify(exc: Exception) -> str:
 
     # Détection basée sur un status_code HTTP si présent (ex: httpx.HTTPStatusError)
     try:
-        resp = getattr(exc, 'response', None)
-        status_code = getattr(resp, 'status_code', None)
+        resp = getattr(exc, "response", None)
+        status_code = getattr(resp, "status_code", None)
         if isinstance(status_code, int):
             if status_code == 429:
                 return "rate_limit"
@@ -91,6 +100,7 @@ def classify(exc: Exception) -> str:
         return "schema"
     # Pas de heuristique simple pour empty_data / upstream sans wrap spécifique
     return "unknown"
+
 
 __all__ = [
     "CollectorError",

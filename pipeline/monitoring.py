@@ -9,6 +9,7 @@ Les anciennes métriques REQUEST_LATENCY / REQUEST_ERRORS / REQUEST_SUCCESS
 
 On expose des alias vers les nouveaux compteurs pour éviter rupture.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -35,6 +36,7 @@ warnings.warn(
 # supplémentaires. L'objectif du test `test_metrics_labels` est simplement
 # de vérifier l'absence d'exception lors de l'appel.
 # ---------------------------------------------------------------------------
+
 
 class _LegacyHistogramShim:
     def __init__(self, underlying):
@@ -83,9 +85,11 @@ REQUEST_SUCCESS = _LegacyCounterShim(COLLECTOR_RUNS_TOTAL, {"status": "success"}
 # Pour les erreurs on réutilise COLLECTOR_RUNS_TOTAL avec status=error
 REQUEST_ERRORS = _LegacyCounterShim(COLLECTOR_RUNS_TOTAL, {"status": "error"})
 
+
 def start_metrics_server(port: int = 8000):  # pragma: no cover - simple wrapper
     with suppress(OSError):
         start_http_server(port)
+
 
 __all__ = [
     "REQUEST_LATENCY",

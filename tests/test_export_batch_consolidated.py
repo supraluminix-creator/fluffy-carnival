@@ -122,6 +122,7 @@ def test_export_utils_direct_write(tmp_path, monkeypatch):
     lines = manifest.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
     import json
+
     rec = json.loads(lines[0])
     assert rec["row_count"] == 1
     assert rec["sha256"] and len(rec["sha256"]) >= 10

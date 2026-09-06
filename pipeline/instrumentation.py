@@ -5,6 +5,7 @@ Ajoute métriques:
  - collector_duration_seconds
  - collector_error_types_total
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ def instrument_collector(name: str):
         is_coro = asyncio.iscoroutinefunction(fn)
 
         if is_coro:
+
             async def inner(*args, **kwargs):  # type: ignore
                 start = time.perf_counter()
                 status = "success"
@@ -49,8 +51,10 @@ def instrument_collector(name: str):
                             time.perf_counter() - start
                         )
                     return result
+
             return functools.wraps(fn)(inner)
         else:
+
             def inner(*args, **kwargs):  # type: ignore
                 start = time.perf_counter()
                 status = "success"
@@ -73,7 +77,10 @@ def instrument_collector(name: str):
                             time.perf_counter() - start
                         )
                     return result
+
             return functools.wraps(fn)(inner)
+
     return decorator
+
 
 __all__ = ["instrument_collector"]

@@ -1,3 +1,0 @@
-# Minimal deps for Streamlit Cloud (UI only)
-streamlit==1.38.0
-pydantic>=2.5,<3

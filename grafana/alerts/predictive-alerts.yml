@@ -1,0 +1,121 @@
+# grafana/alerts/predictive-alerts.yml
+apiVersion: 1
+
+groups:
+  - name: crypto_signals_critical
+    rules:
+      - alert: ServiceDown
+        expr: up{job="crypto-prodsafe"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Crypto Signals service is down"
+          description: "Crypto Signals service has been down for more than 5 minutes"
+
+      - alert: HighErrorRate
+        expr: rate(signals_received_total{status="rejected"}[5m]) / rate(signals_received_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High signal rejection rate"
+          description: "Signal rejection rate is above 80% for 10 minutes"
+
+      - alert: DriftDetected
+        expr: increase(drift_alerts_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model drift detected"
+          description: "ML model drift has been detected, automatic retraining triggered"
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker open"
+          description: "Circuit breaker is open, service is in degraded mode"
+
+  - name: crypto_signals_performance
+    rules:
+      - alert: LowCacheHitRate
+        expr: batch_cache_hit_rate < 0.7
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Batch predictor cache hit rate is below 70%"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(signals_processing_duration_bucket[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High signal processing latency"
+          description: "95th percentile signal processing latency is above 100ms"
+
+      - alert: MemoryUsageHigh
+        expr: process_resident_memory_bytes{job="crypto-prodsafe"} / 1024 / 1024 > 1000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Service memory usage is above 1GB"
+
+      - alert: RedisConnectionIssues
+        expr: redis_connected_clients < 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection issues"
+          description: "No Redis clients connected"
+
+  - name: crypto_signals_predictive
+    rules:
+      - alert: PredictionAccuracyDeclining
+        expr: |
+          predict_linear(ml_confidence_histogram_sum / ml_confidence_histogram_count[1h], 3600) < 0.8
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Prediction accuracy trending down"
+          description: "ML model prediction accuracy is trending downward, may need attention"
+
+      - alert: IncreasingErrorRate
+        expr: |
+          predict_linear(rate(signals_received_total{status="rejected"}[5m])[30m:5m], 3600) > 0.1
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Error rate increasing"
+          description: "Signal rejection rate is increasing, potential issue brewing"
+
+      - alert: CachePressure
+        expr: |
+          predict_linear(batch_cache_hit_rate[30m], 1800) < 0.5
+        for: 20m
+        labels:
+          severity: info
+        annotations:
+          summary: "Cache pressure increasing"
+          description: "Cache hit rate is declining, may indicate memory pressure or cache invalidation issues"
+
+      - alert: ModelRetrainingFrequent
+        expr: |
+          increase(drift_alerts_total[1h]) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent model retraining"
+          description: "Model is being retrained more than 5 times per hour, may indicate unstable data distribution"

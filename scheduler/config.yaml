@@ -1,0 +1,48 @@
+# Scheduler Configuration
+# Global settings for collectors, timeouts, and rate limits
+
+# Collector timeouts (seconds)
+timeouts:
+  default: 8
+  binance: 5
+  bybit: 6
+  coingecko: 10
+  coinmarketcap: 12
+  etherscan: 15
+  defillama: 8
+  bgeometrics: 10
+
+# Rate limits (requests per minute)
+rate_limits:
+  binance: 1200
+  bybit: 600
+  coingecko: 50
+  coinmarketcap: 30
+  etherscan: 5
+  defillama: 100
+  bgeometrics: 300
+  default: 10
+
+# Collector intervals (seconds)
+intervals:
+  market: 300      # 5 minutes
+  defillama: 900   # 15 minutes
+  onchain: 1800    # 30 minutes
+  derivatives: 300 # 5 minutes
+  sentiment: 3600  # 1 hour
+
+# Jitter settings
+jitter:
+  enabled: true
+  percent: 10  # ±10% variation
+
+# Retry settings
+retry:
+  max_attempts: 3
+  backoff_base: 0.3
+  backoff_max: 5.0
+
+# Cache settings
+cache:
+  default_ttl: 300  # 5 minutes
+  max_size_mb: 100

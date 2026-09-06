@@ -2,6 +2,7 @@ from prometheus_client import REGISTRY
 
 # Tests ciblés sur métrique collector_error_types_total
 
+
 def _find_metric_samples(name: str):
     m = REGISTRY._names_to_collectors.get(name)
     if not m:
@@ -15,7 +16,8 @@ def _find_metric_samples(name: str):
 def test_error_type_counter_market(monkeypatch):
     # Force erreurs sur primary + fallback -> 2 types potentiels
     import pipeline.collectors.market as market
-    calls = {"cg":0, "cmc":0}
+
+    calls = {"cg": 0, "cmc": 0}
 
     def fake_get_fail(url, timeout=10, headers=None):
         # Simuler rate limit sur CG et network sur CMC
@@ -25,6 +27,7 @@ def test_error_type_counter_market(monkeypatch):
         if "coinmarketcap" in url:
             calls["cmc"] += 1
             raise ConnectionError("connect fail")
+
     monkeypatch.setattr(market.httpx, "get", fake_get_fail)
     res = market.fetch_market("bitcoin")
     assert res is None
@@ -42,9 +45,11 @@ def test_error_type_counter_deriv_oi(monkeypatch):
         raise TimeoutError("request timedout")
 
     class FakeResp:
-        status_code=500
+        status_code = 500
+
         def json(self):
             return {}
+
         def raise_for_status(self):
             raise ValueError("schema broken")
 
@@ -54,6 +59,7 @@ def test_error_type_counter_deriv_oi(monkeypatch):
     # Bybit primary timeouts
     monkeypatch.setattr(deriv.httpx.AsyncClient, "get", fake_client_get_fail)
     import asyncio
+
     res = asyncio.run(deriv.fetch_bybit_oi("BTCUSDT"))
     assert res is None
     # Ajuster pour fallback second échec schema

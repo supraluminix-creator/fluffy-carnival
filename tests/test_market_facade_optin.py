@@ -11,21 +11,26 @@ class DummyResp:
     def __init__(self, payload, status_code=200):
         self._payload = payload
         self.status_code = status_code
+
     def json(self):
         return self._payload
+
     def raise_for_status(self):
         if self.status_code and self.status_code >= 400:
             raise httpx.HTTPStatusError("err", request=None, response=None)
 
-@pytest.mark.parametrize("mode", ["primary", "fallback"]) 
+
+@pytest.mark.parametrize("mode", ["primary", "fallback"])
 def test_market_facade_optin(monkeypatch, mode):
     os.environ["MARKET_USE_FACADE"] = "1"
     # Compteur pour simuler réponses séquentielles
-    calls = {"n": 0, "urls": []}
+    urls: list[str] = []
 
-    def fake_retry(url, timeout=None, headers=None, params=None, retries=3, backoff_base=0.01, classify_endpoint=None):  # signature approx
-        calls["n"] += 1
-        calls["urls"].append(url)
+    def fake_retry(
+        url, timeout=None, headers=None, params=None, retries=3, backoff_base=0.01, classify_endpoint=None
+    ):  # signature approx
+        nonlocal urls
+        urls.append(url)
         if mode == "primary":
             # Première URL (coingecko) success immédiat
             if "coingecko" in url:
@@ -43,12 +48,18 @@ def test_market_facade_optin(monkeypatch, mode):
                 raise httpx.RequestError("cg boom")
             if "coinmarketcap" in url:
                 return {
-                    "data": {"BTCFACADE": {"quote": {"USD": {
-                        "price": 99.0,
-                        "volume_24h": 199.0,
-                        "market_cap": 299.0,
-                        "market_cap_dominance": 9.9,
-                    }}}}
+                    "data": {
+                        "BTCFACADE": {
+                            "quote": {
+                                "USD": {
+                                    "price": 99.0,
+                                    "volume_24h": 199.0,
+                                    "market_cap": 299.0,
+                                    "market_cap_dominance": 9.9,
+                                }
+                            }
+                        }
+                    }
                 }
         # Valeur par défaut si inattendu
         return {"market_data": {"current_price": {"usd": 0}}}
@@ -62,10 +73,14 @@ def test_market_facade_optin(monkeypatch, mode):
     rec = fetch_market(sym)
     if mode == "primary":
         assert rec and rec["price"] == 11.0 and rec["dominance"] == 4
-        assert any("coingecko" in u for u in calls["urls"]) and not any("coinmarketcap" in u for u in calls["urls"])  # pas de fallback
+        assert any("coingecko" in u for u in urls) and not any(
+            "coinmarketcap" in u for u in urls
+        )  # pas de fallback
     else:
         assert rec and rec["price"] == 99.0 and rec["dominance"] == 9.9
-        assert any("coingecko" in u for u in calls["urls"]) and any("coinmarketcap" in u for u in calls["urls"])  # fallback pris
+        assert any("coingecko" in u for u in urls) and any(
+            "coinmarketcap" in u for u in urls
+        )  # fallback pris
 
     # Nettoyage env
     os.environ.pop("MARKET_USE_FACADE", None)

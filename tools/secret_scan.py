@@ -12,6 +12,7 @@ Limitations:
 - Faux positifs possibles.
 - Ne remplace pas un outil spécialisé (trufflehog, detect-secrets).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,6 +51,7 @@ IGNORE_DIRS = {
 }
 IGNORE_EXT = {".pyc", ".parquet", ".db", ".sqlite"}
 MAX_FILE_SIZE = 200_000  # 200 KB heuristique
+
 
 @dataclass
 class Finding:
@@ -128,6 +130,7 @@ def main() -> int:
         print("   ... (troncation)")
 
     return 1 if args.fail_on_find else 0
+
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -51,11 +51,13 @@ async def fake_bybit_ws(websocket, path: str) -> None:  # type: ignore[no-untype
     except websockets.exceptions.ConnectionClosed:
         print(f"[FAKE SERVER] Client {websocket.remote_address} disconnected.")
 
+
 async def main() -> None:
     # websockets.serve expects a handler signature (websocket, path)
     server = await websockets.serve(fake_bybit_ws, "localhost", 8765)
     print("Fake Bybit WS server running on ws://localhost:8765")
     await server.wait_closed()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

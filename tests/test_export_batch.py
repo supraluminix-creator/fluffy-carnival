@@ -22,7 +22,7 @@ async def test_perform_export_batch_success(tmp_path, monkeypatch):
             "timestamp": "2025-09-21T00:00:00Z",
             "asset": "bitcoin",
             "symbol": "BTCUSD",  # ajouté pour validation
-            "chain": "-",        # valeur par défaut attendue
+            "chain": "-",  # valeur par défaut attendue
             "metric_name": metric,
             "value": 123.45,
             "source": source,

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from contextlib import suppress
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import httpx
 import structlog
@@ -33,7 +33,7 @@ from pipeline.utils import to_float
 from .binance import fetch_binance_funding
 
 log = structlog.get_logger()
-cache: Cache = Cache('.cache')
+cache: Cache = Cache(".cache")
 if "PYTEST_CURRENT_TEST" in os.environ:  # nettoyage pour éviter contamination cross-tests
     with suppress(Exception):
         cache.clear()
@@ -41,12 +41,15 @@ _LEGACY_LOGGED: set[str] = set()
 
 # Compteur usage legacy HTTP (direct client.get) pour fonctions non encore migrées vers façade
 try:  # idempotent
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 for _init_label in ("deriv_funding", "deriv_lsr"):
     with suppress(Exception):  # pragma: no cover
-        LEGACY_HTTP_USAGE.labels(collector=_init_label)  # type: ignore[call-arg]
+        LEGACY_HTTP_USAGE.labels(collector=_init_label)
 
 
 class OpenInterestRecord(TypedDict):
@@ -72,12 +75,12 @@ class LongShortRatioRecord(TypedDict):
     confidence_score: float
 
 
-DERIV_LATENCY = Summary('derivatives_latency_seconds', 'Latency of Derivatives API calls')
-DERIV_ERRORS = Counter('derivatives_errors_total', 'Total Derivatives API errors')
-DERIV_SUCCESS = Counter('derivatives_success_total', 'Total Derivatives API successes')
-DERIV_CACHE_HIT = Counter('derivatives_cache_hit_total', 'Derivatives cache hits')
-DERIV_CACHE_MISS = Counter('derivatives_cache_miss_total', 'Derivatives cache misses')
-DERIV_BREAKER_SKIPS = Counter('derivatives_breaker_skips_total', 'Calls skipped (circuit breaker open)')
+DERIV_LATENCY = Summary("derivatives_latency_seconds", "Latency of Derivatives API calls")
+DERIV_ERRORS = Counter("derivatives_errors_total", "Total Derivatives API errors")
+DERIV_SUCCESS = Counter("derivatives_success_total", "Total Derivatives API successes")
+DERIV_CACHE_HIT = Counter("derivatives_cache_hit_total", "Derivatives cache hits")
+DERIV_CACHE_MISS = Counter("derivatives_cache_miss_total", "Derivatives cache misses")
+DERIV_BREAKER_SKIPS = Counter("derivatives_breaker_skips_total", "Calls skipped (circuit breaker open)")
 
 
 def _cache_enabled() -> bool:
@@ -93,10 +96,7 @@ def fetch_binance_futures_oi(symbol: str) -> OpenInterestRecord | None:  # pragm
 @DERIV_LATENCY.time()
 @instrument_collector("deriv_oi")
 async def fetch_bybit_oi(
-    symbol: str,
-    category: str = "linear",
-    interval: str = "5min",
-    cache_ttl: int = 300
+    symbol: str, category: str = "linear", interval: str = "5min", cache_ttl: int = 300
 ) -> OpenInterestRecord | None:
     if should_skip("deriv_oi"):
         DERIV_BREAKER_SKIPS.inc()
@@ -128,29 +128,28 @@ async def fetch_bybit_oi(
         except (TypeError, ValueError):
             ts_int = None
         oi_val = to_float(last.get("openInterest", 0))
-        rec: OpenInterestRecord = {
-            "timestamp": ts_int,
-            "symbol": symbol.upper(),
-            "metric_name": "open_interest",
-            "value": oi_val,
-            "source": "bybit",
-            "confidence_score": 1.0,
-        }
+        rec = cast(
+            OpenInterestRecord,
+            {
+                "timestamp": ts_int,
+                "symbol": symbol.upper(),
+                "metric_name": "open_interest",
+                "value": oi_val,
+                "source": "bybit",
+                "confidence_score": 1.0,
+            },
+        )
         if _cache_enabled():
             cache.set(key, rec, expire=cache_ttl)
         DERIV_SUCCESS.inc()
         with suppress(Exception):  # pragma: no cover
-            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                collector="deriv_oi", tier="1", status="success"
-            ).inc()
+            FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="1", status="success").inc()
         log.info("deriv_success", symbol=symbol, source="bybit")
         return rec
     except Exception as e:  # bybit failure -> fallback
         et = classify(e)
         with suppress(Exception):  # pragma: no cover
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                collector="deriv_oi", error_type=et
-            ).inc()
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et).inc()
         log.error("deriv_primary_error", symbol=symbol, error=str(e), error_type=et)
 
     # 2. Binance futures OI (fallback via hist endpoint)
@@ -181,21 +180,22 @@ async def fetch_bybit_oi(
                 ts_hist = int(ts_raw) if ts_raw is not None else None
             except (TypeError, ValueError):
                 ts_hist = None
-            rec2: OpenInterestRecord = {
-                "timestamp": ts_hist,
-                "symbol": symbol.upper(),
-                "metric_name": "open_interest",
-                "value": val,
-                "source": "binance",
-                "confidence_score": 0.75,
-            }
+            rec2 = cast(
+                OpenInterestRecord,
+                {
+                    "timestamp": ts_hist,
+                    "symbol": symbol.upper(),
+                    "metric_name": "open_interest",
+                    "value": val,
+                    "source": "binance",
+                    "confidence_score": 0.75,
+                },
+            )
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="success").inc()
             with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
             with suppress(Exception):  # pragma: no cover
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                    collector="deriv_oi", tier="2", status="success"
-                ).inc()
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
             log.info(
                 "deriv_fallback_success",
                 symbol=symbol,
@@ -203,18 +203,14 @@ async def fetch_bybit_oi(
                 fallback=1,
                 primary_error="BybitError",
             )
-            return rec2  # type: ignore[return-value]
+            return rec2
         else:
             DERIV_ERRORS.inc()
             with suppress(Exception):  # pragma: no cover
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                    collector="deriv_oi", error_type="schema"
-                ).inc()
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type="schema").inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
             with suppress(Exception):  # pragma: no cover
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                    collector="deriv_oi", tier="2", status="error"
-                ).inc()
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
             record_failure("deriv_oi")
             log.error(
                 "deriv_fallback_error",
@@ -227,9 +223,7 @@ async def fetch_bybit_oi(
         DERIV_ERRORS.inc()
         et2 = classify(e2)
         with suppress(Exception):  # pragma: no cover
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                collector="deriv_oi", error_type=et2
-            ).inc()
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et2).inc()
         FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
         record_failure("deriv_oi")
         log.error(
@@ -254,9 +248,7 @@ async def fetch_bybit_oi(
                 with suppress(Exception):  # pragma: no cover
                     FALLBACK_CHAIN_DEPTH.labels(collector="deriv_oi").set(2)
                 with suppress(Exception):  # pragma: no cover
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                        collector="deriv_oi", tier="2", status="success"
-                    ).inc()
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="success").inc()
                 log.info(
                     "deriv_fallback_success",
                     symbol=symbol,
@@ -269,14 +261,10 @@ async def fetch_bybit_oi(
             DERIV_ERRORS.inc()
             et3 = classify(e3)
             with suppress(Exception):
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                    collector="deriv_oi", error_type=et3
-                ).inc()
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_oi", error_type=et3).inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_oi", status="error").inc()
             with suppress(Exception):  # pragma: no cover
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                    collector="deriv_oi", tier="2", status="error"
-                ).inc()
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_oi", tier="2", status="error").inc()
             log.error(
                 "deriv_fallback_error",
                 symbol=symbol,
@@ -332,7 +320,8 @@ async def fetch_bybit_funding(
                 dry_run = is_dry_run_facade() and not force_flag
                 with suppress(Exception):  # pragma: no cover
                     set_facade_mode("deriv_funding", force_flag, dry_run)
-                if force_flag:
+                retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+                if force_flag or retry_enabled:
                     data = await async_fetch_json(url, params=params, timeout=10, client=client)
                 else:
                     try:  # instrumentation legacy direct http
@@ -342,9 +331,8 @@ async def fetch_bybit_funding(
                             _LEGACY_LOGGED.add("deriv_funding")
                     except Exception:  # pragma: no cover
                         pass
-                    resp = await client.get(url, params=params, timeout=10)
-                    resp.raise_for_status()
-                    data = resp.json()
+                    # Standardize even legacy path through facade for mapping/metrics
+                    data = await async_fetch_json(url, params=params, timeout=10, client=client)
             lst = data.get("result", {}).get("list", [])
             if not lst:
                 raise RuntimeError("No funding data")
@@ -356,14 +344,17 @@ async def fetch_bybit_funding(
                 ts_int = int(ts_raw) if ts_raw is not None else None
             except (TypeError, ValueError):
                 ts_int = None
-            rec: OpenInterestRecord = {
-                "timestamp": ts_int,
-                "symbol": symbol.upper(),
-                "metric_name": "funding_rate",
-                "value": fr_float,
-                "source": "bybit",
-                "confidence_score": 1.0,
-            }
+            rec = cast(
+                OpenInterestRecord,
+                {
+                    "timestamp": ts_int,
+                    "symbol": symbol.upper(),
+                    "metric_name": "funding_rate",
+                    "value": fr_float,
+                    "source": "bybit",
+                    "confidence_score": 1.0,
+                },
+            )
             if _cache_enabled():
                 cache.set(key, rec, expire=cache_ttl)
             DERIV_SUCCESS.inc()
@@ -371,17 +362,13 @@ async def fetch_bybit_funding(
             with suppress(Exception):  # pragma: no cover
                 FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(1)
             with suppress(Exception):  # pragma: no cover
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                    collector="deriv_funding", tier="1", status="success"
-                ).inc()
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="1", status="success").inc()
             return rec
     except Exception as e:  # pragma: no cover
         primary_error_name = type(e).__name__
         et = classify(e)
         with suppress(Exception):  # pragma: no cover
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                collector="deriv_funding", error_type=et
-            ).inc()
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et).inc()
         log.error("deriv_funding_error", symbol=symbol, error=str(e), error_type=et)
     # Toujours tenter fallback funding Binance pour tests
     if True:
@@ -397,9 +384,7 @@ async def fetch_bybit_funding(
                 with suppress(Exception):  # pragma: no cover
                     FALLBACK_CHAIN_DEPTH.labels(collector="deriv_funding").set(2)
                 with suppress(Exception):  # pragma: no cover
-                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                        collector="deriv_funding", tier="2", status="success"
-                    ).inc()
+                    FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="success").inc()
                 log.info(
                     "deriv_fallback_success",
                     symbol=symbol,
@@ -412,14 +397,10 @@ async def fetch_bybit_funding(
             DERIV_ERRORS.inc()
             et2 = classify(e2)
             with suppress(Exception):  # pragma: no cover
-                COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                    collector="deriv_funding", error_type=et2
-                ).inc()
+                COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_funding", error_type=et2).inc()
             FALLBACK_INVOCATIONS_TOTAL.labels(collector="deriv_funding", status="error").inc()
             with suppress(Exception):  # pragma: no cover
-                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(
-                    collector="deriv_funding", tier="2", status="error"
-                ).inc()
+                FALLBACK_TIER_INVOCATIONS_TOTAL.labels(collector="deriv_funding", tier="2", status="error").inc()
             log.error(
                 "deriv_fallback_error",
                 symbol=symbol,
@@ -433,13 +414,11 @@ async def fetch_bybit_funding(
     record_failure("deriv_funding")
     return None
 
+
 @DERIV_LATENCY.time()
 @instrument_collector("deriv_lsr")
 async def fetch_bybit_long_short_ratio(
-    symbol: str,
-    category: str = "linear",
-    period: str = "5min",
-    cache_ttl: int = 300
+    symbol: str, category: str = "linear", period: str = "5min", cache_ttl: int = 300
 ) -> LongShortRatioRecord | None:
     """
     Fetch long/short ratio from Bybit (v5).
@@ -490,17 +469,14 @@ async def fetch_bybit_long_short_ratio(
     DERIV_CACHE_MISS.inc()
     try:
         url = "https://api.bybit.com/v5/market/account-ratio"
-        params = {
-            "category": category,
-            "symbol": symbol.upper(),
-            "period": period
-        }
+        params = {"category": category, "symbol": symbol.upper(), "period": period}
         async with httpx.AsyncClient() as client:
             force_flag = is_forced_facade()
             dry_run = is_dry_run_facade() and not force_flag
             with suppress(Exception):  # pragma: no cover
                 set_facade_mode("deriv_lsr", force_flag, dry_run)
-            if force_flag:
+            retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+            if force_flag or retry_enabled:
                 data = await async_fetch_json(url, params=params, timeout=10, client=client)
             else:
                 try:
@@ -510,9 +486,8 @@ async def fetch_bybit_long_short_ratio(
                         _LEGACY_LOGGED.add("deriv_lsr")
                 except Exception:  # pragma: no cover
                     pass
-                resp = await client.get(url, params=params, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
+                # Use the unified facade even on the legacy path to standardize error mapping
+                data = await async_fetch_json(url, params=params, timeout=10, client=client)
             lsr_list = data.get("result", {}).get("list", [])
             if not lsr_list:  # pragma: no cover - improbable pour chemin succès
                 raise ValueError("No long/short ratio data in Bybit response")
@@ -524,11 +499,13 @@ async def fetch_bybit_long_short_ratio(
                     timestamp = int(ts_raw)
             except (TypeError, ValueError):
                 timestamp = None
+
             def _flt(v: Any) -> float:
                 try:
                     return float(v)
                 except (TypeError, ValueError):
                     return 0.0
+
             result: LongShortRatioRecord = {
                 "timestamp": timestamp,
                 "symbol": symbol.upper(),
@@ -550,12 +527,10 @@ async def fetch_bybit_long_short_ratio(
         DERIV_ERRORS.inc()
         et = classify(e)
         with suppress(Exception):  # pragma: no cover
-            COLLECTOR_ERROR_TYPES_TOTAL.labels(
-                collector="deriv_lsr", error_type=et
-            ).inc()
+            COLLECTOR_ERROR_TYPES_TOTAL.labels(collector="deriv_lsr", error_type=et).inc()
         record_failure("deriv_lsr")
         log.error("deriv_lsr_error", symbol=symbol, error=str(e), error_type=et)
     # Aucun fallback réussi
     DERIV_ERRORS.inc()
-    record_failure("deriv_oi")
+    record_failure("deriv_lsr")
     return None

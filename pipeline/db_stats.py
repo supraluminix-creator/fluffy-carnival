@@ -7,8 +7,10 @@ Expose les fonctions de mise à jour des métriques SQLite:
 Le module legacy `db_metrics.py` a été supprimé; importer désormais:
     from pipeline.db_stats import update_db_metrics
 """
+
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -21,11 +23,15 @@ from .metrics import (
     DB_PAGE_COUNT,
     DB_VACUUM_DURATION_SECONDS,
 )
+from .storage.sqlite_adapter import get_default_db_path
 
-DEFAULT_DB_PATH = Path("data/crypto.db")
+DEFAULT_DB_PATH = Path(get_default_db_path())
 
 
 def get_db_path() -> Path:
+    override = os.getenv("CRYPTO_DB_PATH")
+    if override:
+        return Path(override)
     return DEFAULT_DB_PATH
 
 
@@ -87,5 +93,6 @@ def vacuum_and_update_metrics(db_path: str | Path | None = None) -> None:
         except Exception:
             pass
     update_db_metrics(p)
+
 
 __all__ = ["update_db_metrics", "vacuum_and_update_metrics", "get_db_path"]

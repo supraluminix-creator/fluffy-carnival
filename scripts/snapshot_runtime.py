@@ -5,6 +5,7 @@ Politique:
 - Chaque entrée: {"collector": str, "success": bool, "data": Any | None}
 - Erreurs capturées avec champ error.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,12 +20,14 @@ from pipeline.collectors.onchain import fetch_hashrate, fetch_sopr, fetch_txcoun
 
 OUTPUT = Path("exports/runtime_snapshot.json")
 
+
 class Entry(TypedDict, total=False):
     collector: str
     success: bool
     data: Any | None
     error: str
     duration_ms: int
+
 
 def _serialize(obj: Any) -> Any:
     if isinstance(obj, int | float | str | type(None)):
@@ -34,6 +37,7 @@ def _serialize(obj: Any) -> Any:
     if isinstance(obj, list | tuple):
         return [_serialize(x) for x in obj]
     return str(obj)
+
 
 async def _run_async_collectors() -> dict[str, Any]:
     results: dict[str, Any] = {}
@@ -83,6 +87,7 @@ async def _run_async_collectors() -> dict[str, Any]:
 
     return results
 
+
 def build_snapshot() -> list[Entry]:
     entries: list[Entry] = []
     # Market (sync)
@@ -112,12 +117,14 @@ def build_snapshot() -> list[Entry]:
     entries.extend(async_results.values())
     return entries
 
+
 def main() -> None:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     data = build_snapshot()
     serialized = _serialize(data)
     OUTPUT.write_text(json.dumps(serialized, indent=2, sort_keys=True), encoding="utf-8")
     print(f"Snapshot écrit dans {OUTPUT}")
+
 
 if __name__ == "__main__":  # pragma: no cover
     main()

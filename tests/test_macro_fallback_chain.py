@@ -8,7 +8,8 @@ async def test_macro_fallback_binance_then_none(monkeypatch):
     """CoinGecko échoue, Binance (flag activé) réussit."""
     calls = {"coingecko": 0, "binance": 0}
 
-    async def fake_async_get(session, url, timeout):  # CoinGecko simulation
+    async def fake_async_get(session, url, *args, timeout=10, headers=None, **kwargs):  # CoinGecko simulation
+        _ = (session, args, timeout, headers, kwargs)
         calls["coingecko"] += 1
         raise RuntimeError("cg_down")
 
@@ -41,7 +42,8 @@ async def test_macro_fallback_cmc_after_binance_fail(monkeypatch):
     """CoinGecko échoue, Binance échoue, CMC réussit (on simule)."""
     calls = {"coingecko": 0, "binance": 0, "cmc": 0}
 
-    async def fake_async_get(session, url, timeout):  # CoinGecko fail
+    async def fake_async_get(session, url, *args, timeout=10, headers=None, **kwargs):  # CoinGecko fail
+        _ = (session, args, timeout, headers, kwargs)
         calls["coingecko"] += 1
         raise RuntimeError("cg_down")
 
@@ -62,6 +64,7 @@ async def test_macro_fallback_cmc_after_binance_fail(monkeypatch):
             def json(self):
                 calls["cmc"] += 1
                 return {"data": {"BTC": {"quote": {"USD": {"price": 43000.0}}}}}
+
         return R()
 
     monkeypatch.setenv("ENABLE_BINANCE_SPOT_FALLBACK", "1")

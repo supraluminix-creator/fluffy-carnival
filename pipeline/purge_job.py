@@ -7,6 +7,7 @@ Suppression des lignes plus anciennes que LIQ_RETENTION_DAYS (variable env) dans
 Dry-run possible via LIQ_PURGE_DRY_RUN=1
 Expose métrique PURGE_OPERATIONS_TOTAL(labels: table, status)
 """
+
 from __future__ import annotations
 
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from .db_stats import update_db_metrics, vacuum_and_update_metrics
 from .metrics import PURGE_OPERATIONS_TOTAL
+from .storage.sqlite_adapter import get_default_db_path
 
 PURGE_ENV = "LIQ_RETENTION_DAYS"
 DRY_ENV = "LIQ_PURGE_DRY_RUN"
@@ -26,10 +28,12 @@ def _now_ts() -> int:
     return int(datetime.now(UTC).timestamp())
 
 
-def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
+def purge_liquidations(db_path: str | None = None) -> dict[str, int]:
     retention_days = int(os.getenv(PURGE_ENV, "30"))
     dry_run = os.getenv(DRY_ENV, "0") == "1"
     cutoff = _now_ts() - retention_days * 86400
+
+    db_path = db_path or get_default_db_path()
 
     if not Path(db_path).exists():  # pragma: no cover - protection
         return {}
@@ -82,12 +86,13 @@ def purge_liquidations(db_path: str = "data/crypto.db") -> dict[str, int]:
         conn.close()
     return deleted
 
+
 __all__ = ["purge_liquidations", "register_purge_job"]
 
 
 def register_purge_job(
     scheduler,
-    db_path: str = "data/crypto.db",
+    db_path: str | None = None,
     cron: str = "0 3 * * *",
     vacuum: bool = True,
 ):  # pragma: no cover - intégration
@@ -99,13 +104,15 @@ def register_purge_job(
         cron: expression cron (exécution quotidienne 03:00 UTC par défaut)
         vacuum: exécuter vacuum après purge (si non dry-run)
     """
+
     def _job():
         dry = os.getenv("LIQ_PURGE_DRY_RUN", "0") == "1"
-        stats = purge_liquidations(db_path)
+        resolved_db_path = db_path or get_default_db_path()
+        stats = purge_liquidations(resolved_db_path)
         if vacuum and not dry:
-            vacuum_and_update_metrics(db_path)
+            vacuum_and_update_metrics(resolved_db_path)
         else:
-            update_db_metrics(db_path)
+            update_db_metrics(resolved_db_path)
         return stats
 
     # Tentative d'ajout selon interface simple

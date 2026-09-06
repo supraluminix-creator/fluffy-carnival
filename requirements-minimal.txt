@@ -1,0 +1,4 @@
+httpx>=0.27
+pandas>=2.2.2; extra == "parquet"
+pyarrow>=17.0.0; extra == "parquet"
+beautifulsoup4>=4.12

@@ -12,6 +12,7 @@ Options:
 - detail: low|normal|high
 - sections: list[str] to include
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -67,9 +68,7 @@ def generate_template(kind: str, role: str, options: dict | None = None) -> str:
     title = f"{KIND_ALIASES[k]} — {ROLE_ALIASES[r]}"
     parts: list[str] = [_header(title)]
     # Context block
-    parts.append(
-        """> Contexte: Remplir avec les données brutes (prix, volumes, news, métriques on-chain).\n\n"""
-    )
+    parts.append("""> Contexte: Remplir avec les données brutes (prix, volumes, news, métriques on-chain).\n\n""")
     # Role guidance
     guidance = {
         "analyst": "Focalise sur les signaux et le timing. Évite la spéculation non sourcée.",

@@ -11,6 +11,7 @@ Usage (PowerShell):
     .\\.venv\\Scripts\\python.exe tools\\archive_exec.py --dry-run  # preview only
     .\\.venv\\Scripts\\python.exe tools\\archive_exec.py             # execute moves
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,15 +88,17 @@ def main() -> None:
         # Still write a lightweight report for traceability
         report = arc_dir / "ARCHIVE_REPORT.md"
         report.write_text(
-            "\n".join([
-                "# Archive report (dry-run)",
-                "",
-                f"Date: {datetime.now().isoformat(timespec='seconds')}",
-                f"Git HEAD: {_git_head()}",
-                f"Archive directory: {arc_dir.name}",
-                "",
-                "Moved items: 0 (dry-run)",
-            ]),
+            "\n".join(
+                [
+                    "# Archive report (dry-run)",
+                    "",
+                    f"Date: {datetime.now().isoformat(timespec='seconds')}",
+                    f"Git HEAD: {_git_head()}",
+                    f"Archive directory: {arc_dir.name}",
+                    "",
+                    "Moved items: 0 (dry-run)",
+                ]
+            ),
             encoding="utf-8",
         )
         print(f"Report written: {report}")
@@ -105,18 +108,20 @@ def main() -> None:
     if not moved:
         report = arc_dir / "ARCHIVE_REPORT.md"
         report.write_text(
-            "\n".join([
-                "# Archive report",
-                "",
-                f"Date: {datetime.now().isoformat(timespec='seconds')}",
-                f"Git HEAD: {_git_head()}",
-                f"Archive directory: {arc_dir.name}",
-                "",
-                "Moved items: 0",
-                "",
-                "## Notes",
-                "- No items to move; zip skipped.",
-            ]),
+            "\n".join(
+                [
+                    "# Archive report",
+                    "",
+                    f"Date: {datetime.now().isoformat(timespec='seconds')}",
+                    f"Git HEAD: {_git_head()}",
+                    f"Archive directory: {arc_dir.name}",
+                    "",
+                    "Moved items: 0",
+                    "",
+                    "## Notes",
+                    "- No items to move; zip skipped.",
+                ]
+            ),
             encoding="utf-8",
         )
         print(f"Archive run completed: no items to move. Report: {report}")

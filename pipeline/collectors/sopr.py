@@ -3,11 +3,13 @@
 Provides a single typed entrypoint `fetch_sopr` with a `SOPRSource` enum.
 Return type is `SOPRRecord | None`.
 """
+
 from __future__ import annotations
 
+import os
 from contextlib import suppress
 from enum import Enum
-from typing import Any, Final, TypedDict
+from typing import Any, Final, TypedDict, cast
 
 import requests
 import structlog
@@ -16,28 +18,35 @@ from prometheus_client import Counter, Summary
 
 from pipeline.flags import is_dry_run_facade, is_forced_facade
 from pipeline.http import fetch_json
+from pipeline.http_utils import is_requests_monkeypatched
 from pipeline.instrumentation import instrument_collector
 from pipeline.metrics.collectors import mark_legacy_http, set_facade_mode
 
 try:  # idempotent legacy counter
-    LEGACY_HTTP_USAGE = Counter('legacy_http_usage_total', 'Legacy HTTP usage by collector', ['collector'])
-except ValueError:
-    LEGACY_HTTP_USAGE = PROM_REGISTRY._names_to_collectors.get('legacy_http_usage_total')  # type: ignore[attr-defined]
+    LEGACY_HTTP_USAGE = Counter("legacy_http_usage_total", "Legacy HTTP usage by collector", ["collector"])
+except ValueError as exc:
+    existing = PROM_REGISTRY._names_to_collectors.get("legacy_http_usage_total")  # type: ignore[attr-defined]
+    if existing is None:
+        raise RuntimeError("legacy_http_usage_total counter missing from registry") from exc
+    LEGACY_HTTP_USAGE = cast(Counter, existing)
 with suppress(Exception):  # pragma: no cover
-    LEGACY_HTTP_USAGE.labels(collector='onchain_sopr')  # type: ignore[call-arg]
+    LEGACY_HTTP_USAGE.labels(collector="onchain_sopr")  # type: ignore[call-arg]
 _LEGACY_LOGGED = False
 
 log = structlog.get_logger()
 
+
 class SOPRSource(str, Enum):
     BGEOMETRICS = "bgeometrics"
     BLOCKCHAIN = "blockchain"
+
 
 class SOPRRecord(TypedDict):
     symbol: str
     sopr: float
     source: SOPRSource
     timestamp: int | None  # Some APIs may not provide one; left optional
+
 
 _SOPR_LATENCY: Final = Summary("sopr_fetch_latency_seconds", "Latency of SOPR fetches")
 _SOPR_ERRORS: Final = Counter("sopr_fetch_errors_total", "Total SOPR fetch errors")
@@ -108,19 +117,18 @@ def fetch_sopr(
 
     force_facade = is_forced_facade()
     dry_run = is_dry_run_facade() and not force_facade
+    # Détecte un monkeypatch éventuel de requests.get (tests)
+    is_monkeypatched = is_requests_monkeypatched(getattr(requests, "get", None))
     # Si requests.get est monkeypatché depuis un module de tests, rétrograde forced
     # pour permettre l'injection de payload
-    if force_facade:
-        try:
-            if getattr(requests.get, '__module__', '').startswith('tests.'):
-                force_facade = False
-                dry_run = is_dry_run_facade() and not force_facade
-        except Exception:  # pragma: no cover
-            pass
+    if force_facade and is_monkeypatched:
+        force_facade = False
+        dry_run = is_dry_run_facade() and not force_facade
     with suppress(Exception):  # pragma: no cover
-        set_facade_mode('onchain_sopr', force_facade, dry_run)
+        set_facade_mode("onchain_sopr", force_facade, dry_run)
     try:
-        if force_facade:
+        retry_enabled = os.getenv("RETRY_HTTP_ENABLED", "1") == "1"
+        if force_facade or (retry_enabled and not is_monkeypatched):
             try:
                 payload = fetch_json(url, params=params, headers=headers, timeout=10)
             except Exception:  # tentative fallback silencieuse vers legacy pour compat tests
@@ -132,10 +140,10 @@ def fetch_sopr(
                     raise
         else:
             try:
-                mark_legacy_http('onchain_sopr')
+                mark_legacy_http("onchain_sopr")
                 global _LEGACY_LOGGED
                 if not _LEGACY_LOGGED:
-                    log.info('legacy_http_usage_detected', collector='onchain_sopr')
+                    log.info("legacy_http_usage_detected", collector="onchain_sopr")
                     _LEGACY_LOGGED = True
             except Exception:  # pragma: no cover
                 pass
@@ -161,5 +169,6 @@ def fetch_sopr(
         _SOPR_ERRORS.inc()
         log.error("sopr_fetch_error", source=source, symbol=symbol, error=str(e))
         return None
+
 
 __all__ = ["SOPRSource", "SOPRRecord", "fetch_sopr"]

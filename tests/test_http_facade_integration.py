@@ -3,6 +3,7 @@ import os
 
 # Test ciblé: vérifier que la façade (http_get_json_retry interne) est appelée via fetch_macro_orchestrated (tier_coingecko)
 
+
 def test_facade_used_in_macro_orchestrated(monkeypatch):
     os.environ["RETRY_HTTP_ENABLED"] = "1"
     calls = {"retry": 0}

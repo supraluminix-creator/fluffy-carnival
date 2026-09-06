@@ -8,11 +8,14 @@ from pipeline.http_wrappers import http_get_json_retry
 class DummyResp:
     def __init__(self, status=429):
         self.status_code = status
+
     def json(self):
         return {"ok": True}
+
     def raise_for_status(self):
         # ne lève pas; _map_status gère
         return None
+
 
 @pytest.fixture(autouse=True)
 def _set_env(monkeypatch):
@@ -22,12 +25,15 @@ def _set_env(monkeypatch):
     yield
     monkeypatch.delenv("RETRY_MAX_CUMULATIVE_SLEEP_SEC", raising=False)
 
+
 def test_retry_budget_exhaustion(monkeypatch):
-    calls = {"n":0}
+    calls = {"n": 0}
+
     def fake_get(url, headers=None, params=None, timeout=10):
         calls["n"] += 1
         return DummyResp(status=429)
-    monkeypatch.setattr(httpx, 'get', fake_get)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
     with pytest.raises(TimeoutError_):
         http_get_json_retry("https://api.coingecko.com/api/v3/coins/bitcoin", retries=20, backoff_base=0.05)
-    assert calls['n'] > 1
+    assert calls["n"] > 1

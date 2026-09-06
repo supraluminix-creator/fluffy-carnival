@@ -12,6 +12,7 @@ Prod-safe: toute exception est propagée afin que le scheduler marque
 le job en échec (CRYPTO_TASK_ERR) — indispensable pour ne pas compter
 un export vide comme success.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,10 +75,36 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
         from pipeline.collectors.macro_indices import (
             fetch_macro_index,  # lazy import to avoid metric registration when disabled
         )
-        tasks.extend((f"macroidx_{idx}", fetch_macro_index, (idx,), {}) for idx in ("sp500", "nasdaq", "dowjones", "gold", "dxy"))
+
+        tasks.extend(
+            (f"macroidx_{idx}", fetch_macro_index, (idx,), {}) for idx in ("sp500", "nasdaq", "dowjones", "gold", "dxy")
+        )
     if os.getenv("ENABLE_MVRV_COLLECTOR", "0") == "1":
         from pipeline.collectors.mvrv import fetch_mvrv  # lazy import
+
         tasks.append(("mvrv", fetch_mvrv, ("BTC",), {}))
+
+    if os.getenv("ENABLE_RUMOUR_COLLECTOR", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.rumour_collector import fetch_rumour_trending  # lazy import
+
+            kw_raw = os.getenv("RUMOUR_KEYWORDS", "")
+            keywords = [k.strip() for k in kw_raw.split(",") if k.strip()]
+            limit_env = os.getenv("RUMOUR_COLLECTOR_LIMIT", "10") or "10"
+            try:
+                limit = max(1, int(limit_env))
+            except Exception:
+                limit = 10
+            tasks.append(
+                (
+                    "rumour",
+                    fetch_rumour_trending,
+                    tuple(),
+                    {"keywords": keywords or None, "limit": limit},
+                )
+            )
+        except Exception as exc:  # pragma: no cover - import guard for optional dependency
+            log.warning("rumour_collector_unavailable", error=str(exc))
 
     results: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -87,6 +114,10 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
             res = await _maybe_await(fn(*args, **kwargs))
             if isinstance(res, dict) and res:  # collector record
                 results.append(res)  # type: ignore[arg-type]
+            elif isinstance(res, list):
+                records = [item for item in res if isinstance(item, dict) and item]
+                if records:
+                    results.extend(records)  # type: ignore[arg-type]
         except Exception as e:  # pragma: no cover - granular tests peuvent cibler chaque collector séparément
             errors.append(f"{name}:{type(e).__name__}")
             log.error("export_batch_collect_error", collector=name, error=str(e), error_type=type(e).__name__)
@@ -114,5 +145,6 @@ async def perform_export_batch(symbol: str = "bitcoin") -> dict[str, Any]:
         "latest": latest_path,
         "timestamped": ts_path,
     }
+
 
 __all__ = ["perform_export_batch"]

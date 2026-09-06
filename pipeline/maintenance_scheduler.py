@@ -8,13 +8,15 @@ Idée: fournir une fonction d'enregistrement simple qui:
 Utilisation exemple:
     from apscheduler.schedulers.background import BackgroundScheduler
     from pipeline.maintenance_scheduler import register_maintenance
+    from pipeline.storage.sqlite_adapter import get_default_db_path
 
     sched = BackgroundScheduler(timezone='UTC')
-    register_maintenance(sched, db_path='data/crypto.db', trigger='cron', cron="0 4 * * *")
+    register_maintenance(sched, db_path=get_default_db_path(), trigger='cron', cron="0 4 * * *")
     sched.start()
 
 Fallback: si APScheduler non dispo, la fonction renvoie False.
 """
+
 from __future__ import annotations
 
 import time
@@ -30,15 +32,17 @@ import structlog
 from .logging_config import setup_logging
 from .maintenance import run_maintenance
 from .metrics import MAINTENANCE_CYCLES_TOTAL
+from .storage.sqlite_adapter import get_default_db_path
 
 logger = structlog.get_logger(__name__)
 
 
-def _job_wrapper(db_path: str):  # pragma: no cover - exécuté en scheduler réel
+def _job_wrapper(db_path: str | None):  # pragma: no cover - exécuté en scheduler réel
     start = time.time()
     status = "success"
     try:
-        res = run_maintenance(db_path=db_path)
+        resolved = db_path or get_default_db_path()
+        res = run_maintenance(db_path=resolved)
         logger.info(
             "maintenance_cycle",
             vacuum=res.vacuum_performed,
@@ -63,7 +67,7 @@ def _job_wrapper(db_path: str):  # pragma: no cover - exécuté en scheduler ré
 def register_maintenance(
     scheduler: Any,
     *,
-    db_path: str = "data/crypto.db",
+    db_path: str | None = None,
     trigger: str = "cron",
     cron: str = "0 4 * * *",
     interval_seconds: int = 86400,
@@ -83,8 +87,14 @@ def register_maintenance(
     try:
         if trigger == "cron":
             from pipeline.purge_job import _cron_kwargs  # réutilisation parsing simple
+
             kwargs = _cron_kwargs(cron)
-            scheduler.add_job(lambda: _job_wrapper(db_path), trigger="cron", **kwargs, id="maintenance")
+            scheduler.add_job(
+                lambda: _job_wrapper(db_path),
+                trigger="cron",
+                **kwargs,
+                id="maintenance",
+            )
         else:
             scheduler.add_job(
                 lambda: _job_wrapper(db_path),
@@ -102,5 +112,6 @@ def register_maintenance(
     except Exception as exc:  # pragma: no cover
         logger.warning("maintenance_job_register_failed", error=str(exc.__class__.__name__), msg=str(exc))
         return False
+
 
 __all__ = ["register_maintenance"]

@@ -3,7 +3,7 @@ Monitor - Application principale (scheduler + legacy), sans API.
 
 Cette version intègre:
 - Scheduler centralisé avec jitter anti-rate-limit
-- Orchestrateur pour exécution parallèle des collectors  
+- Orchestrateur pour exécution parallèle des collectors
 - Collectors basés sur BaseCollector pattern
 """
 
@@ -13,7 +13,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable as _Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from typing import Any as _Any
 
 import structlog
@@ -51,15 +51,15 @@ from pipeline.orchestrator import ParallelOrchestrator
 from pipeline.scheduler import CryptoScheduler, get_collector_intervals_from_env
 
 CollectorRecord = (
-    MacroRecord |
-    DefiTVLRecord |
-    TxCountRecord |
-    HashrateRecord |
-    SoprRecord |
-    OpenInterestRecord |
-    LongShortRatioRecord |
-    SentimentRecord |
-    dict[str, Any]  # legacy/unknown
+    MacroRecord
+    | DefiTVLRecord
+    | TxCountRecord
+    | HashrateRecord
+    | SoprRecord
+    | OpenInterestRecord
+    | LongShortRatioRecord
+    | SentimentRecord
+    | dict[str, Any]  # legacy/unknown
 )
 
 try:
@@ -78,20 +78,25 @@ os.makedirs(EXPORT_DIR, exist_ok=True)
 # Configuration centralisée (progressive)
 try:  # Import non critique
     from pipeline.config import get_config
+
     _APP_CONFIG = get_config()
 except Exception:  # pragma: no cover
     _APP_CONFIG = None  # type: ignore
 
 EXPORT_FIELDS = [
     "timestamp",
-    "asset", 
+    "asset",
     "symbol",
     "chain",
     "metric_name",
     "value",
     "source",
-    "confidence_score"
+    "confidence_score",
+    "topic",
+    "sentiment",
+    "confidence",
 ]
+
 
 # -------------------- Helpers intégration optionnelle (WS, SOPR fallback) --------------------
 def _ensure_bybit_ws_running() -> None:
@@ -107,6 +112,7 @@ def _ensure_bybit_ws_running() -> None:
     # Vérifier si un collector WS tourne déjà (Prometheus exposé sur /)
     try:
         import httpx  # import local pour éviter coût à l'import tests
+
         # Priorité: health explicite si dispo, fallback vers racine Prometheus
         r = None
         try:
@@ -149,7 +155,9 @@ def _ensure_bybit_ws_running() -> None:
                 stderr=devnull,
                 creationflags=creationflags,
             )
-            logger.info("bybit_ws_started_subprocess", pid=proc.pid, port=port, health_port=health_port, symbols=symbols)
+            logger.info(
+                "bybit_ws_started_subprocess", pid=proc.pid, port=port, health_port=health_port, symbols=symbols
+            )
     except Exception as e:
         logger.warning("bybit_ws_autostart_failed", error=str(e))
 
@@ -160,6 +168,7 @@ async def _fetch_sopr_with_fallback(symbol: str = "BTC") -> SoprRecord | None:
     - Par défaut, comportement inchangé (fallback désactivé).
     - Activez via ENABLE_SOPR_FALLBACKS=1 et optionnellement BGEOMETRICS_API_KEY.
     """
+    rec: SoprRecord | None
     try:
         rec = await fetch_sopr(symbol)
     except Exception:
@@ -171,36 +180,51 @@ async def _fetch_sopr_with_fallback(symbol: str = "BTC") -> SoprRecord | None:
     try:
         from pipeline.collectors.sopr import SOPRSource as _SOPRSource  # import local
         from pipeline.collectors.sopr import fetch_sopr as _fetch_alt
+
         api_key = os.getenv("BGEOMETRICS_API_KEY")
         # Exécuter la variante sync dans un thread pour ne pas bloquer l'event loop
-        fb = await asyncio.to_thread(_fetch_alt, symbol=symbol, source=_SOPRSource.BGEOMETRICS, api_key=api_key)
-        if not fb:
+        fb_obj_raw = await asyncio.to_thread(
+            _fetch_alt,
+            symbol=symbol,
+            source=_SOPRSource.BGEOMETRICS,
+            api_key=api_key,
+        )
+        if not isinstance(fb_obj_raw, dict):
             return None
-        # Convertir vers schéma onchain.SoprRecord attendu par l'export
-        ts = fb.get("timestamp") if isinstance(fb, dict) else None
-        val = fb.get("sopr") if isinstance(fb, dict) else None
-        if val is None:
+        fb_obj: dict[str, Any] = fb_obj_raw
+        ts_raw = fb_obj.get("timestamp")
+        val_raw = fb_obj.get("sopr")
+        if val_raw is None:
             return None
         try:
-            fval = float(val)
-        except Exception:
+            fval = float(val_raw)
+        except (TypeError, ValueError):
             return None
+        ts_val: int | None
+        if isinstance(ts_raw, int):
+            ts_val = ts_raw
+        elif isinstance(ts_raw, float):
+            ts_val = int(ts_raw)
+        else:
+            ts_val = None
         source = "bgeometrics"
-        return {
-            "timestamp": ts if isinstance(ts, int | float) else None,
+        record: SoprRecord = {
+            "timestamp": ts_val,
             "asset": symbol,
             "metric_name": "sopr",
             "value": fval,
             "source": source,
             "confidence_score": 0.8,
         }
+        return cast(SoprRecord, record)
     except Exception:
         return None
+
 
 # Classes Collector compatibles avec nouveau système
 class LegacyCollectorWrapper:
     """Wrapper pour adapter les fonctions collectors existantes au pattern BaseCollector"""
-    
+
     def __init__(self, name: str, collect_func, *args, **kwargs):
         self.name: str = name
         self.collect_func = collect_func
@@ -208,7 +232,7 @@ class LegacyCollectorWrapper:
         self.kwargs = kwargs
         self.last_success_time: float | None = None
         self.last_error_time: float | None = None
-    
+
     async def collect(self):
         """Exécute la fonction collector et gère les erreurs"""
         try:
@@ -219,6 +243,7 @@ class LegacyCollectorWrapper:
             self.last_error_time = float(asyncio.get_event_loop().time())
             logger.error(f"Collector {self.name} failed", error=str(e))
             raise
+
 
 def safe_print_table(title, data, headers):
     """Affichage sécurisé des tableaux"""
@@ -233,21 +258,24 @@ def safe_print_table(title, data, headers):
     except Exception as e:
         print(f"Erreur affichage : {e}")
 
+
 def export_csv(data: list, filename: str):  # Compat historique (délégué utilitaire)
     from pipeline.export_utils import export_csv_rows
+
     if not data:
         logger.warning("No data to export", filename=filename)
         return
     export_csv_rows(data, filename)
 
+
 async def run_legacy_collection():
     """Collection legacy pour compatibilité (mode fallback)"""
     logger.info("Running legacy collection mode")
-    
+
     # API keys depuis environnement
     cmc_api_key = os.getenv("CMC_API_KEY") or os.getenv("COINMARKETCAP_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
-    
+
     results: list[CollectorRecord] = []
 
     # Macro
@@ -294,31 +322,114 @@ async def run_legacy_collection():
     if fg:
         results.append(fg)
 
+    # Whale balances (optionnel)
+    if os.getenv("ENABLE_WHALE_BALANCES", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.whales import fetch_eth_whale_balances
+
+            whale_record = await fetch_eth_whale_balances()
+        except Exception as exc:  # pragma: no cover - garde contre erreurs réseau ou imports
+            logger.warning("whale_balances_legacy_collect_failed", error=str(exc))
+            whale_record = None
+        if whale_record:
+            addresses = whale_record.get("addresses")
+            count = len(addresses) if isinstance(addresses, list) else 0
+            summary = {
+                "metric_name": whale_record.get("metric_name"),
+                "value": whale_record.get("value"),
+                "address_count": count,
+                "source": whale_record.get("source", "-"),
+            }
+            safe_print_table("Whales - ETH Balances", [summary], "keys")
+            results.append(whale_record)
+
+    if os.getenv("ENABLE_WHALE_INSIDER", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.whale_insider import fetch_whale_insider_snapshot
+
+            insider_snapshot = await fetch_whale_insider_snapshot()
+        except Exception as exc:  # pragma: no cover - defensive logging for legacy mode
+            logger.warning("whale_insider_legacy_collect_failed", error=str(exc))
+            insider_snapshot = None
+        if insider_snapshot:
+            insider_records = [rec for rec in insider_snapshot.get("records", []) if isinstance(rec, dict)]
+            if insider_records:
+                meta = insider_snapshot.get("meta") or {}
+                summary = {
+                    "records": len(insider_records),
+                    "hyperliquid_records": meta.get("hyperliquid_records", 0),
+                    "hyperliquid_watch_count": meta.get("hyperliquid_watch_count"),
+                    "etherscan_watch_count": meta.get("etherscan_watch_count"),
+                }
+                safe_print_table("Whales - Insider Snapshot", [summary], "keys")
+                results.extend(insider_records)
+
+    if os.getenv("ENABLE_RUMOUR_COLLECTOR", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.rumour_collector import fetch_rumour_trending
+
+            rumour_records = await fetch_rumour_trending()
+        except Exception as exc:  # pragma: no cover - network or parse issues
+            logger.warning("rumour_legacy_collect_failed", error=str(exc))
+            rumour_records = None
+        if rumour_records:
+            safe_print_table("Narratives - Rumour.app", rumour_records, "keys")
+            results.extend(rumour_records)
+
     # Export CSV (consolidé + horodaté)
     from pipeline.export_utils import export_latest_and_timestamped
+
     export_latest_and_timestamped(results, EXPORT_DIR, run_id=os.getenv("RUN_ID"))
-    
+
     return results
+
 
 def create_collectors() -> dict[str, LegacyCollectorWrapper]:
     """Crée les collectors avec wrapper compatibility"""
-    
+
     # API keys depuis environnement
     cmc_api_key = os.getenv("CMC_API_KEY", "")
     etherscan_api_key = os.getenv("ETHERSCAN_API_KEY", "")
-    
+
     collectors = {
-        'market': LegacyCollectorWrapper('market', fetch_macro, "bitcoin", cmc_api_key=cmc_api_key),
-        'defillama': LegacyCollectorWrapper('defillama', fetch_defillama_tvl, "ethereum"),
-        'txcount': LegacyCollectorWrapper('txcount', fetch_txcount, "BTC", etherscan_api_key=etherscan_api_key),
-        'hashrate': LegacyCollectorWrapper('hashrate', fetch_hashrate, "BTC"),
+        "market": LegacyCollectorWrapper("market", fetch_macro, "bitcoin", cmc_api_key=cmc_api_key),
+        "defillama": LegacyCollectorWrapper("defillama", fetch_defillama_tvl, "ethereum"),
+        "txcount": LegacyCollectorWrapper("txcount", fetch_txcount, "BTC", etherscan_api_key=etherscan_api_key),
+        "hashrate": LegacyCollectorWrapper("hashrate", fetch_hashrate, "BTC"),
         # SOPR: wrapper avec fallback optionnel (comportement par défaut inchangé)
-        'sopr': LegacyCollectorWrapper('sopr', _fetch_sopr_with_fallback, "BTC"),
-        'bybit_oi': LegacyCollectorWrapper('bybit_oi', fetch_bybit_oi, "BTCUSDT"),
-        'bybit_lsr': LegacyCollectorWrapper('bybit_lsr', fetch_bybit_long_short_ratio, "BTCUSDT"),
-        'sentiment': LegacyCollectorWrapper('sentiment', fetch_fear_greed)
+        "sopr": LegacyCollectorWrapper("sopr", _fetch_sopr_with_fallback, "BTC"),
+        "bybit_oi": LegacyCollectorWrapper("bybit_oi", fetch_bybit_oi, "BTCUSDT"),
+        "bybit_lsr": LegacyCollectorWrapper("bybit_lsr", fetch_bybit_long_short_ratio, "BTCUSDT"),
+        "sentiment": LegacyCollectorWrapper("sentiment", fetch_fear_greed),
     }
-    
+
+    if os.getenv("ENABLE_WHALE_BALANCES", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.whales import fetch_eth_whale_balances
+
+            collectors["whale_eth_balances"] = LegacyCollectorWrapper("whale_eth_balances", fetch_eth_whale_balances)
+            logger.info("Collector whale_eth_balances enabled")
+        except Exception as exc:  # pragma: no cover - import guard
+            logger.warning("Collector whale_eth_balances unavailable", error=str(exc))
+
+    if os.getenv("ENABLE_WHALE_INSIDER", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.whale_insider import fetch_whale_insider_snapshot
+
+            collectors["whale_insider"] = LegacyCollectorWrapper("whale_insider", fetch_whale_insider_snapshot)
+            logger.info("Collector whale_insider enabled")
+        except Exception as exc:  # pragma: no cover - import guard
+            logger.warning("Collector whale_insider unavailable", error=str(exc))
+
+    if os.getenv("ENABLE_RUMOUR_COLLECTOR", "0") in {"1", "true", "yes", "on"}:
+        try:
+            from pipeline.collectors.rumour_collector import fetch_rumour_trending
+
+            collectors["rumour"] = LegacyCollectorWrapper("rumour", fetch_rumour_trending)
+            logger.info("Collector rumour enabled")
+        except Exception as exc:  # pragma: no cover - import guard
+            logger.warning("Collector rumour unavailable", error=str(exc))
+
     logger.info("Collectors created", count=len(collectors), names=list(collectors.keys()))
     return collectors
 
@@ -326,39 +437,41 @@ def create_collectors() -> dict[str, LegacyCollectorWrapper]:
 async def run_scheduler_mode():
     """Mode principal avec scheduler centralisé"""
     logger.info("Starting crypto monitor in scheduler mode")
-    
+
     # Créer collectors
     collectors = create_collectors()
-    
+
     # Créer orchestrateur pour exécution parallèle
     orchestrator = ParallelOrchestrator(list(collectors.values()))
-    
+
     # Créer scheduler
-    jitter_percent = int(os.getenv('SCHEDULER_JITTER_PERCENT', 10))
+    jitter_percent = int(os.getenv("SCHEDULER_JITTER_PERCENT", 10))
     scheduler = CryptoScheduler(jitter_percent=jitter_percent)
-    
+
     # API supprimée: pas d'enregistrement health
-    
+
     # Configurer intervalles depuis environnement
     intervals = get_collector_intervals_from_env()
-    
+
     # Ajouter collectors groupés au scheduler
     def create_batch_collector_job():
         """Job qui exécute tous les collectors en parallèle"""
+
         async def batch_collect():
             logger.info("Starting batch collection (parallel)")
-            
+
             # Utiliser orchestrateur pour exécution parallèle
             results = await orchestrator.run_all_collectors(timeout=120)
-            
+
             # Traiter les résultats pour export CSV
-            if results.get('status') == 'completed':
-                successful_results = results.get('successful_results', [])
-                data_for_export = [r['result'] for r in successful_results if r.get('result')]
-                
+            if results.get("status") == "completed":
+                successful_results = results.get("successful_results", [])
+                data_for_export = [r["result"] for r in successful_results if r.get("result")]
+
                 # Export CSV
                 if data_for_export:
                     from pipeline.export_utils import export_latest_and_timestamped
+
                     export_latest_and_timestamped(data_for_export, EXPORT_DIR, run_id=os.getenv("RUN_ID"))
                     # Option: analyses AI auto après export (MVP)
                     if os.getenv("ANALYSIS_AUTO_RUN", "1") == "1":
@@ -372,41 +485,40 @@ async def run_scheduler_mode():
                             logger.info("auto_analysis_done", **out)
                         except Exception as e:
                             logger.warning("auto_analysis_failed", error=str(e))
-            
+
             logger.info("Batch collection completed", **results)
             return results
-        
+
         return batch_collect
-    
+
     # Utiliser l'intervalle le plus court comme base (5min = 300s)
     base_interval = min(intervals.values())
-    batch_collector = LegacyCollectorWrapper('batch_parallel', create_batch_collector_job())
-    
-    scheduler.add_collector(
-        batch_collector,
-        interval_seconds=base_interval,
-        jitter_percent=jitter_percent
-    )
-    
+    batch_collector = LegacyCollectorWrapper("batch_parallel", create_batch_collector_job())
+
+    scheduler.add_collector(batch_collector, interval_seconds=base_interval, jitter_percent=jitter_percent)
+
     # Démarrer scheduler
     await scheduler.start()
-    
+
     logger.info("Scheduler started successfully")
 
     # Lancer WS Bybit en parallèle si activé et non déjà lancé
     _ensure_bybit_ws_running()
-    
+
     # Heartbeat task (optional visibility)
     async def heartbeat(period_secs: int = 30) -> None:
         while True:
             payload: dict[str, bool | float | int] = {"alive": True}
             try:
                 import psutil  # pragma: no cover
+
                 p = psutil.Process()
-                payload.update({
-                    "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
-                    "cpu_percent": float(p.cpu_percent(interval=None)),
-                })
+                payload.update(
+                    {
+                        "rss_mb": float(round(p.memory_info().rss / 1024 / 1024, 1)),
+                        "cpu_percent": float(p.cpu_percent(interval=None)),
+                    }
+                )
             except Exception:
                 pass
             logger.info("heartbeat", **payload)
@@ -419,6 +531,7 @@ async def run_scheduler_mode():
     if (_APP_CONFIG and _APP_CONFIG.enable_metrics) or os.getenv("ENABLE_METRICS", "0") == "1":
         try:
             from prometheus_client import start_http_server
+
             port = int(os.getenv("METRICS_PORT", "9300"))
             start_http_server(port)
             logger.info("metrics_server_started", port=port)
@@ -441,13 +554,14 @@ async def run_scheduler_mode():
             pass
         await scheduler.shutdown()
 
+
 async def main():
     setup_logging()
     load_dotenv()
-    mode = _APP_CONFIG.mode if _APP_CONFIG else os.getenv('CRYPTO_MONITOR_MODE', 'scheduler')
-    enable_sched = (_APP_CONFIG.enable_scheduler if _APP_CONFIG else os.getenv('ENABLE_SCHEDULER', '1') == '1')
-    sched_cfg = _APP_CONFIG.scheduler_config if _APP_CONFIG else os.getenv('SCHEDULER_CONFIG', 'scheduler/jobs.yaml')
-    os.environ.setdefault('SCHEDULER_CONFIG', sched_cfg)
+    mode = _APP_CONFIG.mode if _APP_CONFIG else os.getenv("CRYPTO_MONITOR_MODE", "scheduler")
+    enable_sched = _APP_CONFIG.enable_scheduler if _APP_CONFIG else os.getenv("ENABLE_SCHEDULER", "1") == "1"
+    sched_cfg = _APP_CONFIG.scheduler_config if _APP_CONFIG else os.getenv("SCHEDULER_CONFIG", "scheduler/jobs.yaml")
+    os.environ.setdefault("SCHEDULER_CONFIG", sched_cfg)
     logger.info("Starting Crypto Monitor", mode=mode, enable_sched=enable_sched, sched_cfg=sched_cfg)
 
     # (Removed unused 'tasks' list previously here)
@@ -461,6 +575,7 @@ async def main():
         # Expose build info metric
         try:
             from scheduler.runner import set_build_info
+
             set_build_info(
                 run_id=os.getenv("RUN_ID"),
                 version=os.getenv("APP_VERSION", os.getenv("VERSION")),
@@ -471,12 +586,14 @@ async def main():
 
         # Heartbeat and optional metrics in this mode too
         from pipeline.health import heartbeat as _heartbeat
+
         hb_secs = _APP_CONFIG.heartbeat_secs if _APP_CONFIG else int(os.getenv("HEARTBEAT_SECS", "60"))
         hb_task = asyncio.create_task(_heartbeat(hb_secs))
 
         if (_APP_CONFIG and _APP_CONFIG.enable_metrics) or os.getenv("ENABLE_METRICS", "0") == "1":
             try:
                 from prometheus_client import start_http_server
+
                 port = int(os.getenv("METRICS_PORT", "9300"))
                 start_http_server(port)
                 logger.info("metrics_server_started", port=port)
@@ -488,6 +605,7 @@ async def main():
         health_port = int(os.getenv("HEALTH_PORT", "9310"))
         if os.getenv("ENABLE_HEALTH", "1") == "1":
             from pipeline.health import start_health_server
+
             health_server = start_health_server(health_port, scheduler_ref=scheduler)
 
         try:
@@ -514,6 +632,7 @@ async def main():
     logger.warning("Nothing to run; exiting")
     sys.exit(0)
 
+
 def setup_logging():
     """Configuration du logging structuré"""
     # Create logs directory
@@ -522,14 +641,17 @@ def setup_logging():
 
     # Central logging setup (idempotent)
     from pipeline.logging_config import setup_logging
+
     setup_logging()
     # Metrics server (Prometheus) si activé
     try:
         from pipeline.metrics import init_metrics_if_enabled
+
         if init_metrics_if_enabled():
             logger.info("metrics_server_started", port=os.getenv("METRICS_PORT", "9300"))
     except Exception as e:
         logger.warning("metrics_init_failed", error=str(e))
+
 
 if __name__ == "__main__":
     try:

@@ -2,6 +2,7 @@
 
 Permet d'extraire la logique pour test unitaire sans lancer l'application complète.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ except Exception:  # pragma: no cover
 logger = structlog.get_logger(__name__)
 _metrics_lock: Lock = Lock()
 
+
 def _ensure_health_labels() -> None:
     """Pré-initialise les combinaisons de labels attendues par les tests (idempotent)."""
     if HEALTH_REQUESTS_TOTAL is None:
@@ -34,11 +36,12 @@ def _ensure_health_labels() -> None:
             for st in ("200", "404", "500"):
                 HEALTH_REQUESTS_TOTAL.labels(endpoint=ep, status=st)  # type: ignore[union-attr]
 
+
 _ensure_health_labels()
 
 
 async def heartbeat(
-    period_secs: int,
+    period_secs: float,
     provider: Callable[[], dict[str, Any]] | None = None,
     stop_event: asyncio.Event | None = None,
 ) -> None:
@@ -66,6 +69,7 @@ async def heartbeat(
 
 class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests via start_health_server + client http
     scheduler_ref = None
+
     def log_message(self, format, *args):  # noqa: D401
         return
 
@@ -73,6 +77,7 @@ class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests via st
         try:
             path = self.path.split("?")[0]
             from scheduler.runner import get_status_snapshot  # import tardif
+
             snap = get_status_snapshot()
             if path == "/metrics/ready":
                 ready_val = 1 if snap.get("ready") else 0
@@ -103,6 +108,7 @@ class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests via st
             snap["ports"] = {"metrics": metrics_port, "health": getattr(self, "HEALTH_PORT", None)}
             snap["config_path"] = os.getenv("SCHEDULER_CONFIG", "scheduler/jobs.yaml")
             import json
+
             payload = json.dumps(snap).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -119,7 +125,7 @@ class _HealthHandler(BaseHTTPRequestHandler):  # pragma: no cover - tests via st
             finally:
                 if HEALTH_REQUESTS_TOTAL is not None:
                     with _metrics_lock, suppress(Exception):  # pragma: no cover
-                        path = getattr(self, 'path', 'unknown')
+                        path = getattr(self, "path", "unknown")
                         HEALTH_REQUESTS_TOTAL.labels(endpoint=path, status="500").inc()  # type: ignore[union-attr]
                 pass
 

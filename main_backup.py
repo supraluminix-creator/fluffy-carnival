@@ -26,15 +26,15 @@ from pipeline.collectors.onchain import (
 from pipeline.collectors.sentiment import SentimentRecord, fetch_fear_greed
 
 CollectorRecord = (
-    MacroRecord |
-    DefiTVLRecord |
-    TxCountRecord |
-    HashrateRecord |
-    SoprRecord |
-    OpenInterestRecord |
-    LongShortRatioRecord |
-    SentimentRecord |
-    dict[str, Any]
+    MacroRecord
+    | DefiTVLRecord
+    | TxCountRecord
+    | HashrateRecord
+    | SoprRecord
+    | OpenInterestRecord
+    | LongShortRatioRecord
+    | SentimentRecord
+    | dict[str, Any]
 )
 
 EXPORT_DIR = "exports"
@@ -48,8 +48,12 @@ EXPORT_FIELDS = [
     "metric_name",
     "value",
     "source",
-    "confidence_score"
+    "confidence_score",
+    "topic",
+    "sentiment",
+    "confidence",
 ]
+
 
 def safe_print_table(title, data, headers):
     print(f"\n[{title}]")
@@ -58,8 +62,10 @@ def safe_print_table(title, data, headers):
     except Exception:
         print("Aucune donnée ou erreur de format.")
 
+
 def export_csv(data: list, filename: str):
     import csv
+
     if not data:
         return
     # Harmonise chaque dict selon EXPORT_FIELDS
@@ -71,6 +77,7 @@ def export_csv(data: list, filename: str):
         writer = csv.DictWriter(f, fieldnames=EXPORT_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+
 
 async def collect_all():
     cmc_api_key = os.getenv("CMC_API_KEY", "")
@@ -126,19 +133,19 @@ async def collect_all():
     export_csv(results, os.path.join(EXPORT_DIR, "latest_export.csv"))
     export_csv(results, os.path.join(EXPORT_DIR, f"pipeline_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"))
 
+
 async def scheduler():
     while True:
         await collect_all()
         await asyncio.sleep(300)  # 5 min (adapter selon planning)
 
+
 def setup_logging():
     structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer()
-        ],
+        processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.JSONRenderer()],
         logger_factory=structlog.stdlib.LoggerFactory(),
     )
+
 
 if __name__ == "__main__":
     setup_logging()

@@ -33,19 +33,32 @@ os.makedirs(ARTIFACT_DIR, exist_ok=True)
 # Cache interne pour le mode injection (évite introspection fragile des métriques Prometheus)
 _INJECT_EVENT_CACHE: dict[str, int] = {}
 
+
 class Mode(enum.Enum):
     LIVE = "live"
     INJECT = "inject"
 
-def _extract_counter_val(counter_obj) -> int:
-    val = getattr(counter_obj, '_value', 0)
-    try:
-        return int(val.get())  # type: ignore[attr-defined]
-    except Exception:
+
+def _extract_counter_val(counter_obj: Any) -> int:
+    val = getattr(counter_obj, "_value", None)
+    if val is None:
+        return 0
+    if hasattr(val, "get"):
         try:
-            return int(val)
+            raw = val.get()  # type: ignore[attr-defined]
         except Exception:
-            return 0
+            raw = None
+        if isinstance(raw, int | float):
+            return int(raw)
+        try:
+            return int(raw) if raw is not None else 0
+        except Exception:
+            pass
+    try:
+        return int(val)
+    except Exception:
+        return 0
+
 
 def _collect_events_samples() -> dict[str, int]:
     events_samples: dict[str, int] = {}
@@ -58,6 +71,7 @@ def _collect_events_samples() -> dict[str, int]:
     except Exception:
         pass
     return events_samples
+
 
 async def _run_live(symbols: list[str], duration: int, force_close_after: int, prometheus_port: int) -> None:
     with contextlib.suppress(Exception):
@@ -81,6 +95,7 @@ async def _run_live(symbols: list[str], duration: int, force_close_after: int, p
         return_exceptions=True,
     )
 
+
 def _iter_injection_events(path: str) -> Iterable[dict[str, Any]]:
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -94,6 +109,7 @@ def _iter_injection_events(path: str) -> Iterable[dict[str, Any]]:
             if isinstance(obj, dict):
                 yield obj
 
+
 async def _run_inject(path: str, symbols: list[str]) -> None:
     for ev in _iter_injection_events(path):
         sym = ev.get("symbol") or ev.get("symbolName") or ev.get("s")
@@ -104,6 +120,7 @@ async def _run_inject(path: str, symbols: list[str]) -> None:
         _INJECT_EVENT_CACHE[sym] += 1
         if _extract_counter_val(BYBIT_WS_CONNECTIONS) == 0:
             BYBIT_WS_CONNECTIONS.inc()
+
 
 async def run_ws_session(
     mode: str = "live",
@@ -147,6 +164,7 @@ async def run_ws_session(
         json.dump(summary, f, indent=2)
     print("WS session summary saved:", summary)
     return summary
+
 
 if __name__ == "__main__":  # pragma: no cover - manual execution path
     asyncio.run(run_ws_session())

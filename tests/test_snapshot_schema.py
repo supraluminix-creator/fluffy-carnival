@@ -5,7 +5,7 @@ from jsonschema import validate
 
 from scripts.snapshot_runtime import _serialize, build_snapshot  # type: ignore
 
-SCHEMA_PATH = Path('schema/runtime_snapshot.schema.json')
+SCHEMA_PATH = Path("schema/runtime_snapshot.schema.json")
 
 
 def test_runtime_snapshot_schema_validation(monkeypatch):
@@ -13,7 +13,7 @@ def test_runtime_snapshot_schema_validation(monkeypatch):
     data = build_snapshot()
     serialized = _serialize(data)  # type: ignore
     assert isinstance(serialized, list)
-    schema = json.loads(SCHEMA_PATH.read_text(encoding='utf-8'))
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     # On valide seulement le premier élément si large; sinon tout
     try:
         validate(instance=serialized, schema=schema)

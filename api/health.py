@@ -46,16 +46,9 @@ async def health_check() -> dict[str, Any]:
     try:
         collectors_status = await get_collectors_health()
         scheduler_info = get_scheduler_health()
-        collector_health = all(
-            (c.get("status") == "healthy")
-            for c in collectors_status.values()
-        )
+        collector_health = all((c.get("status") == "healthy") for c in collectors_status.values())
         scheduler_health = scheduler_info.get("status") == "healthy"
-        overall_status = (
-            "healthy"
-            if (collector_health and scheduler_health)
-            else "degraded"
-        )
+        overall_status = "healthy" if (collector_health and scheduler_health) else "degraded"
         response = {
             "status": overall_status,
             "timestamp": time.time(),
@@ -67,6 +60,7 @@ async def health_check() -> dict[str, Any]:
         logger.info("Health check requested", status=overall_status)
         return response
     except Exception as e:
+        # Ne pas exposer le détail d'exception aux clients (évite fuites d'infos)
         logger.error("Health check failed", error=str(e))
         raise HTTPException(status_code=500, detail="Health check failed") from e
 
@@ -80,9 +74,7 @@ async def prometheus_metrics() -> Response:
         return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
     except Exception as e:
         logger.error("Metrics generation failed", error=str(e))
-        raise HTTPException(
-            status_code=500, detail="Metrics generation failed"
-        ) from e
+        raise HTTPException(status_code=500, detail="Metrics generation failed") from e
 
 
 @app.get("/status")
@@ -122,19 +114,11 @@ async def get_collectors_health() -> dict[str, dict[str, Any]]:
     health_status: dict[str, dict[str, Any]] = {}
     for name, collector in collectors_registry.items():
         try:
-            last_success = getattr(
-                collector, "last_success_time", None
-            )
-            last_error = getattr(
-                collector, "last_error_time", None
-            )
+            last_success = getattr(collector, "last_success_time", None)
+            last_error = getattr(collector, "last_error_time", None)
             current_time = time.time()
-            is_recent_success = (
-                last_success and (current_time - last_success) < 1800
-            )  # 30 min
-            is_recent_error = (
-                last_error and (current_time - last_error) < 300
-            )  # 5 min
+            is_recent_success = last_success and (current_time - last_success) < 1800  # 30 min
+            is_recent_error = last_error and (current_time - last_error) < 300  # 5 min
             if is_recent_success and not is_recent_error:
                 status = "healthy"
             elif is_recent_error:
@@ -167,7 +151,9 @@ def get_scheduler_health() -> dict[str, Any]:
             "job_count": job_count,
         }
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        # Pas de détail d'exception en retour API
+        logger.error("scheduler_health_error", error=str(e))
+        return {"status": "error"}
 
 
 def get_scheduler_detailed_info() -> dict[str, Any]:
@@ -177,7 +163,8 @@ def get_scheduler_detailed_info() -> dict[str, Any]:
     try:
         return {"configured": True, **scheduler_instance.get_scheduler_info()}
     except Exception as e:
-        return {"configured": True, "error": str(e)}
+        logger.error("scheduler_detailed_info_error", error=str(e))
+        return {"configured": True}
 
 
 async def get_collectors_detailed_status() -> dict[str, dict[str, Any]]:
@@ -198,7 +185,8 @@ async def get_collectors_detailed_status() -> dict[str, dict[str, Any]]:
                 },
             }
         except Exception as e:
-            detailed_status[name] = {"error": str(e)}
+            logger.error("collector_detailed_status_error", collector=name, error=str(e))
+            detailed_status[name] = {"error": True}
     return detailed_status
 
 

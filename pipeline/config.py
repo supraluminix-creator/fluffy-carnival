@@ -6,11 +6,16 @@ Utilisation:
     cfg = get_config()
     if cfg.enable_metrics: ...
 """
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 
 def get_env_str(name: str, default: str | None = None, *, required: bool = False) -> str | None:
@@ -67,6 +72,76 @@ class AppConfig:
     cb_cooldown_seconds: int
 
 
+class YamlConfig:
+    """YAML configuration loader with environment overrides."""
+
+    def __init__(self, config_file: str | Path):
+        self.config_file = Path(config_file)
+        self._config: dict[str, Any] = {}
+        self.load()
+
+    def load(self) -> None:
+        """Load configuration from YAML file."""
+        if self.config_file.exists():
+            with open(self.config_file, encoding="utf-8") as f:
+                self._config = yaml.safe_load(f) or {}
+        else:
+            self._config = {}
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value with environment override."""
+        # Check environment variable first (KEY_SUBKEY format)
+        env_key = key.upper().replace(".", "_").replace("/", "_")
+        env_value = os.getenv(env_key)
+        if env_value is not None:
+            # Try to convert to appropriate type
+            if env_value.isdigit():
+                return int(env_value)
+            elif env_value.replace(".", "").isdigit():
+                return float(env_value)
+            elif env_value.lower() in ("true", "false"):
+                return env_value.lower() == "true"
+            return env_value
+
+        # Navigate nested dict
+        keys = key.split(".")
+        value = self._config
+        try:
+            for k in keys:
+                value = value[k]
+            return value
+        except (KeyError, TypeError):
+            return default
+
+    def get_timeout(self, collector: str) -> float:
+        """Get timeout for specific collector."""
+        return float(self.get(f"timeouts.{collector}", self.get("timeouts.default", 8.0)))
+
+    def get_rate_limit(self, api: str) -> int:
+        """Get rate limit for specific API."""
+        return int(self.get(f"rate_limits.{api}", self.get("rate_limits.default", 10)))
+
+    def get_interval(self, collector: str) -> int:
+        """Get interval for specific collector."""
+        return int(self.get(f"intervals.{collector}", 300))
+
+
+# Global YAML config instance
+_yaml_config: YamlConfig | None = None
+
+
+def get_yaml_config() -> YamlConfig:
+    """Get global YAML config instance."""
+    global _yaml_config
+    if _yaml_config is None:
+        config_path = os.getenv("SCHEDULER_CONFIG", "scheduler/config.yaml")
+        # Use the directory of the config file
+        config_dir = Path(config_path).parent
+        yaml_path = config_dir / "config.yaml"
+        _yaml_config = YamlConfig(yaml_path)
+    return _yaml_config
+
+
 @lru_cache(maxsize=1)
 def get_config() -> AppConfig:
     return AppConfig(
@@ -93,9 +168,11 @@ def refresh_config_cache() -> None:
 __all__ = [
     "get_config",
     "refresh_config_cache",
+    "get_yaml_config",
     "get_env_str",
     "get_env_bool",
     "get_env_int",
     "get_env_list",
     "AppConfig",
+    "YamlConfig",
 ]

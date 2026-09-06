@@ -13,6 +13,7 @@ MODULES = [
     "pipeline.reporter",
 ]
 
+
 @pytest.mark.parametrize("mod", MODULES)
 def test_smoke_import(mod):
     m = importlib.import_module(mod)

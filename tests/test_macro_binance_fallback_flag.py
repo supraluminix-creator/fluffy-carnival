@@ -1,4 +1,3 @@
-
 import pytest
 
 from pipeline.collectors import market as market_module
@@ -12,7 +11,8 @@ async def test_macro_no_flag_keeps_original(monkeypatch):
         "coingecko": 0,
     }
 
-    async def fake_http_get(session, url, timeout):  # type: ignore
+    async def fake_http_get(_session, url, *, timeout=10, headers=None, **_kwargs):
+        _ = (timeout, headers, _kwargs)
         if "macro.source1" in url:
             raise RuntimeError("primary down")
         if "coingecko" in url:
@@ -40,7 +40,8 @@ async def test_macro_with_flag_triggers_binance(monkeypatch):
         "coingecko": 0,
     }
 
-    async def fake_http_get(session, url, timeout):  # type: ignore
+    async def fake_http_get(_session, url, *, timeout=10, headers=None, **_kwargs):
+        _ = (timeout, headers, _kwargs)
         if "macro.source1" in url:
             raise RuntimeError("primary down")
         if "coingecko" in url:

@@ -11,6 +11,7 @@ Env:
 - BREAKER_FAILURE_THRESHOLD (int, défaut 3)
 - BREAKER_OPEN_WINDOW_SECONDS (int, défaut 60)
 """
+
 from __future__ import annotations
 
 import os

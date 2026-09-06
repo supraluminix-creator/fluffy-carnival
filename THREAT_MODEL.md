@@ -7,7 +7,7 @@ Pipeline de collecte crypto + agrégations SQLite locale + exports CSV + exposit
 | Actif | Description | Impact compromission |
 |-------|-------------|----------------------|
 | Clés API exchange | Authentification données privées ou limites élevées | Vol, abus quotas, fraude. |
-| Base SQLite (`data/crypto.db`) | Données historiques + agrégats | Perte d'historique, altération analyses. |
+| Base SQLite (défaut `data/crypto.db`, override `CRYPTO_DB_PATH`) | Données historiques + agrégats | Perte d'historique, altération analyses. |
 | Exports CSV | Source downstream (reporting / risk) | Décisions basées sur données falsifiées. |
 | Code pipeline | Logique collecte & fallback | Injection comportement malveillant. |
 

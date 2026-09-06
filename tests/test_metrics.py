@@ -20,6 +20,7 @@ def parse_metric(text: bytes, metric: str) -> int:
     for line in lines:
         if line.startswith(metric):
             from contextlib import suppress
+
             with suppress(Exception):
                 total += int(float(line.split()[-1]))
     return total
@@ -94,6 +95,7 @@ async def test_heartbeat_and_health_metrics(monkeypatch):
     assert server is not None
 
     import http.client
+
     port = server.server_address[1]
     conn = http.client.HTTPConnection("localhost", port, timeout=5)
     conn.request("GET", "/health")

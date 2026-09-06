@@ -18,6 +18,7 @@ Limites:
  - Pas de parallélisme (peut être ajouté plus tard avec --concurrency, risque d'interférence réseau).
  - Pas de warmup distinct (first-call latence incluse).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,6 +41,7 @@ CollectorFn = Callable[[], Awaitable[Any]]
 
 async def _lazy_import_macro():  # séparé pour éviter coût import global si inutile
     from pipeline.collectors.market import fetch_macro
+
     return await fetch_macro()
 
 
@@ -48,6 +50,7 @@ async def _lazy_import_market():
     from functools import partial
 
     from pipeline.collectors.market import fetch_market  # sync wrapper décoré
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, partial(fetch_market, "bitcoin"))
 
@@ -132,9 +135,17 @@ async def main_async(args):
     if args.table:
         try:
             from tabulate import tabulate
+
             headers = [
-                "collector", "iterations", "success", "errors", "success_rate",
-                "mean_latency", "p95_latency", "min_latency", "max_latency"
+                "collector",
+                "iterations",
+                "success",
+                "errors",
+                "success_rate",
+                "mean_latency",
+                "p95_latency",
+                "min_latency",
+                "max_latency",
             ]
             rows = [[d[h] for h in headers] for d in data]
             print(tabulate(rows, headers=headers))

@@ -1,10 +1,12 @@
 # Minimal core dependencies for collectors/ETL CLI
 httpx==0.27.2
-requests==2.32.3
+requests==2.32.5
 structlog==24.1.0
 prometheus-client==0.20.0
 diskcache==5.6.3
 tenacity==8.2.3
 pydantic==2.11.9
 pandas==2.3.2
-pyarrow==17.0.0
+pyarrow==22.0.0
+beautifulsoup4==4.12.3
+python-telegram-bot==21.4

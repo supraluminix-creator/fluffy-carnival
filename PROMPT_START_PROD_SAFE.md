@@ -33,7 +33,7 @@ Ce document est la **source unique de vérité** pour la fréquence de collecte 
 - `observability/logging_config.py` ← structlog config
 - `observability/metrics.py` ← Prometheus metrics & helpers
 - `tests/` ← tests unitaires & mocks pour chaque collector
-- `.github/workflows/ci.yml` ← garantir lint/mypy/pytest/coverage steps
+- `.github/workflows/ci.yml` ← workflow minimal (Ruff + Pytest) pour garder la validation auto
 
 ---
 

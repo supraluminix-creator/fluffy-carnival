@@ -22,6 +22,7 @@ Notes:
  - Nothing is deleted. We move files/dirs to archive-YYYYMMDD_HHMMSS/ at repo root, then zip.
  - A detailed report is generated with git HEAD, counts, reasons, and errors.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,16 +50,21 @@ KEEP_TOP_DIRS = {
     "integrations",
     "typings",
     "schema",
+    "analysis",
     "data",
     "run",
     "exports",
     "tests",
     "tools",
     "docs",
+    "scripts",
+    "prompts",
+    "logs",
 }
 
 # Filenames that must never be archived (placeholders / examples kept in repo)
-DO_NOT_ARCHIVE_FILENAMES = {".env.example", "secrets.example.env"}
+DO_NOT_ARCHIVE_FILENAMES = {".env.example", "secrets.example.env", ".env.local.example"}
+ALWAYS_ARCHIVE_FILENAMES = {"streamlit_app.py"}
 
 
 @dataclass
@@ -117,12 +123,20 @@ def classify_path(p: Path, root: Path) -> tuple[str, str] | tuple[None, None]:
     rel = p.relative_to(root)
     parts = [part.lower() for part in rel.parts]
     name = p.name.lower()
+    # Always archive certain demo files
+    if p.is_file() and name in ALWAYS_ARCHIVE_FILENAMES:
+        return ("ARCHIVE", "Demo/example file not part of core/social/ws")
     # Explicit keep for placeholder/example secret files
     if name in DO_NOT_ARCHIVE_FILENAMES:
         return (None, None)
+
     # Helper: does any path segment match a keyword exactly?
     def has_segment_keyword() -> bool:
         return any(seg in ARCHIVE_SEGMENT_KEYWORDS for seg in parts)
+
+    # If top-level directory is not in KEEP_TOP_DIRS, archive it wholesale
+    if rel.parts and len(rel.parts) == 1 and rel.parts[0] not in KEEP_TOP_DIRS and p.is_dir():
+        return ("ARCHIVE", "Top-level non-core directory")
 
     # Ignore top-level keep dirs wholesale unless they match specific archive rules
     if rel.parts and rel.parts[0] in KEEP_TOP_DIRS:
@@ -132,8 +146,6 @@ def classify_path(p: Path, root: Path) -> tuple[str, str] | tuple[None, None]:
         # Within any keep dir, only archive explicit UI or file types
         if has_segment_keyword():
             return ("ARCHIVE", "UI/Dashboard segment within keep dir")
-        if p.is_file() and p.suffix.lower() in ARCHIVE_EXTS:
-            return ("ARCHIVE", f"File extension {p.suffix.lower()}")
         if any(sub in name for sub in ARCHIVE_FILENAME_SUBSTR):
             return ("ARCHIVE", "Streamlit file")
         return (None, None)

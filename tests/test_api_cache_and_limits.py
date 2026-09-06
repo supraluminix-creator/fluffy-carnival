@@ -86,12 +86,15 @@ def test_body_size_limit_413_on_generate():
 
 def test_sse_headers_present():
     client = TestClient(api.app)
-    with env(API_WRITE_KEY="k"), client.stream(
-        "POST",
-        "/api/llm/stream",
-        json={"prompt": "Hello SSE"},
-        headers={"X-API-KEY": "k"},
-    ) as resp:
+    with (
+        env(API_WRITE_KEY="k"),
+        client.stream(
+            "POST",
+            "/api/llm/stream",
+            json={"prompt": "Hello SSE"},
+            headers={"X-API-KEY": "k"},
+        ) as resp,
+    ):
         assert resp.status_code == 200
         # SSE anti-buffering headers
         assert resp.headers.get("Cache-Control") == "no-cache"

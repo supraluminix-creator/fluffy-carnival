@@ -12,6 +12,7 @@ Rules:
   - KEEP for core paths (pipeline/, scheduler/, integrations/, schema/, typings/)
   - REVIEW otherwise
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,20 +26,45 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 ARCHIVE_DIR_KEYWORDS = {
-    "ui", "dashboard", "dashboards", "frontend", "front", "streamlit",
-    "notebook", "notebooks", "demos", "demo",
+    "ui",
+    "dashboard",
+    "dashboards",
+    "frontend",
+    "front",
+    "streamlit",
+    "notebook",
+    "notebooks",
+    "demos",
+    "demo",
 }
 
 ARCHIVE_FILE_EXTENSIONS = {
-    ".ipynb", ".ps1", ".pbix", ".pptx", ".ppt", ".bat", ".cmd",
+    ".ipynb",
+    ".ps1",
+    ".pbix",
+    ".pptx",
+    ".ppt",
+    ".bat",
+    ".cmd",
 }
 
 ARCHIVE_FILE_KEYWORDS = {
-    "streamlit", "dashboard", "notebook", "demo", "example", "powershell",
+    "streamlit",
+    "dashboard",
+    "notebook",
+    "demo",
+    "example",
+    "powershell",
 }
 
 KEEP_TOP_LEVEL_DIRS = {
-    "pipeline", "scheduler", "integrations", "schema", "typings", "tests", "api",
+    "pipeline",
+    "scheduler",
+    "integrations",
+    "schema",
+    "typings",
+    "tests",
+    "api",
 }
 
 EXCLUDE_DIRS = {".git", ".venv", "__pycache__", "archive-"}
@@ -75,7 +101,7 @@ def iter_files(root: Path) -> Iterable[Path]:
 
 def decide(path: Path) -> ScanEntry:
     rel = path.relative_to(REPO_ROOT).as_posix()
-    parts = [p.lower() for p in rel.split('/')]
+    parts = [p.lower() for p in rel.split("/")]
     top = parts[0] if parts else ""
     base = Path(rel).name
 

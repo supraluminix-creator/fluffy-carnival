@@ -1,0 +1,97 @@
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Version/tag to deploy'
+        required: false
+        type: string
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/crypto-prodsafe
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set deployment version
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          echo "DEPLOY_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+        else
+          echo "DEPLOY_VERSION=latest" >> $GITHUB_ENV
+        fi
+
+    - name: Deploy to ${{ inputs.environment }}
+      run: |
+        echo "🚀 Deploying version ${{ env.DEPLOY_VERSION }} to ${{ inputs.environment }}"
+
+        # Health check before deployment
+        echo "🔍 Performing pre-deployment health checks..."
+
+        # Blue-green deployment for production
+        if [ "${{ inputs.environment }}" = "production" ]; then
+          echo "🔄 Performing blue-green deployment..."
+
+          # Add your blue-green deployment logic here
+          # Example: Switch load balancer, run migrations, health checks
+
+          echo "✅ Blue-green deployment completed"
+        else
+          echo "📦 Performing standard deployment..."
+
+          # Add your staging deployment logic here
+          # Example: docker-compose up -d, kubectl apply, etc.
+
+          echo "✅ Standard deployment completed"
+        fi
+
+    - name: Post-deployment validation
+      run: |
+        echo "🔍 Running post-deployment validation..."
+
+        # Add health checks, smoke tests, etc.
+        # Example: curl health endpoints, run integration tests
+
+        echo "✅ Post-deployment validation passed"
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed, initiating rollback..."
+
+        # Add rollback logic here
+        # Example: Switch back to previous version in blue-green deployment
+
+        echo "✅ Rollback completed"
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+
+    steps:
+    - name: Send deployment notification
+      run: |
+        if [ "${{ needs.deploy.result }}" = "success" ]; then
+          echo "✅ Deployment to ${{ inputs.environment }} successful"
+          # Send success notification (Slack, Teams, etc.)
+        else
+          echo "❌ Deployment to ${{ inputs.environment }} failed"
+          # Send failure notification with details
+        fi

@@ -1,12 +1,11 @@
 {
-  // Make the workspace root importable and recognized by Pylance
-  "python.analysis.extraPaths": [
-    "${workspaceFolder}"
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests",
+    "--disable-warnings",
+    "--maxfail=1",
+    "--no-cov"
   ],
-  // Ensure Python extension adds workspace to PYTHONPATH for terminals/debugger
-  "python.envFile": "${workspaceFolder}/.env",
-  // Optional: if using tests/imports from subfolders
-  "terminal.integrated.env.windows": {
-    "PYTHONPATH": "${workspaceFolder};${env:PYTHONPATH}"
-  }
+  "python.testing.cwd": "${workspaceFolder}"
 }
